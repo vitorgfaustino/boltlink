@@ -1,0 +1,70 @@
+name: Relato de bug
+description: Relate um problema reproduzível no projeto.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por relatar um problema.
+
+        Antes de enviar, remova qualquer dado sensível, token, URL privada, ID real de conta ou configuração confidencial.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Resumo do problema
+      description: Descreva o problema de forma curta e direta.
+      placeholder: O que está quebrando?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+      description: Liste os passos exatos para reproduzir o comportamento.
+      placeholder: |
+        1. Abra...
+        2. Clique em...
+        3. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento esperado
+      placeholder: O que deveria acontecer?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamento atual
+      placeholder: O que aconteceu de fato?
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Ambiente
+      description: Informe sistema operacional, navegador e se o problema ocorreu localmente ou em deploy.
+      placeholder: macOS + Chrome 136 + wrangler dev
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, prints ou contexto adicional
+      description: Cole apenas informações relevantes e sem segredos.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmações
+      options:
+        - label: Revisei o conteúdo e removi segredos ou dados reais.
+          required: true

@@ -1,0 +1,1241 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>BoltLink Admin</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0a0a;
+      --bg-mesh-1: rgba(68, 217, 255, 0.18);
+      --bg-mesh-2: rgba(14, 165, 233, 0.14);
+      --surface: rgba(255, 255, 255, 0.05);
+      --surface-hover: rgba(255, 255, 255, 0.06);
+      --surface-strong: rgba(0, 0, 0, 0.2);
+      --line: rgba(255, 255, 255, 0.1);
+      --line-hover: rgba(68, 217, 255, 0.4);
+      --text: #f1f5f9;
+      --text-secondary: #cbd5e1;
+      --muted: #94a3b8;
+      --accent: #44d9ff;
+      --accent-hover: #0ea5e9;
+      --accent-soft: rgba(68, 217, 255, 0.14);
+      --accent-glow: rgba(68, 217, 255, 0.3);
+      --danger: #ef4444;
+      --danger-soft: rgba(239, 68, 68, 0.12);
+      --shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+      --shadow-glow: 0 0 0 0px rgba(68, 217, 255, 0.18), 0 9px 22px rgba(14, 165, 233, 0.1), 0 0 12px rgba(68, 217, 255, 0.1);
+      --radius: 18px;
+      --radius-sm: 12px;
+      --radius-xs: 8px;
+      --motion-fast: 140ms ease;
+      --motion-medium: 220ms ease;
+      --font: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font);
+      color: var(--text);
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(circle at top, var(--bg-mesh-1), transparent 28%),
+        radial-gradient(circle at 85% 15%, var(--bg-mesh-2), transparent 24%),
+        linear-gradient(180deg, #040608, var(--bg) 48%, #06080d);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-feature-settings: "liga" 1, "calt" 1;
+    }
+
+    ::selection {
+      background: rgba(68, 217, 255, 0.24);
+      color: #f8fafc;
+    }
+
+    .bg-glow {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .bg-glow > div {
+      position: absolute;
+      border-radius: 9999px;
+      filter: blur(64px);
+    }
+
+    .bg-glow .glow-1 {
+      left: 50%;
+      top: 0;
+      height: 18rem;
+      width: 18rem;
+      transform: translateX(-50%);
+      background: var(--bg-mesh-1);
+      opacity: 0.4;
+    }
+
+    .bg-glow .glow-2 {
+      bottom: 2.5rem;
+      right: 0;
+      height: 16rem;
+      width: 16rem;
+      background: var(--bg-mesh-2);
+      opacity: 0.4;
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+      width: min(1200px, calc(100vw - 32px));
+      margin: 16px auto 32px;
+      display: grid;
+      gap: 32px;
+    }
+
+    h1, h2, p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(1.9rem, 4vw, 2.8rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+    }
+
+    h2 {
+      font-size: 1.06rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .text-glow {
+      text-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .text-neon {
+      color: var(--accent);
+    }
+
+    .hero {
+      display: grid;
+      gap: 28px;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .logo {
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+    }
+
+    .logo img {
+      display: block;
+      width: auto;
+      height: 42px;
+      max-width: 190px;
+      object-fit: contain;
+    }
+
+    .layout {
+      display: grid;
+      gap: 32px;
+      grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+      align-items: start;
+    }
+
+    @media (min-width: 901px) {
+      .layout > .panel:first-child {
+        position: sticky;
+        top: 32px;
+      }
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      transition: border-color var(--motion-medium), background-color var(--motion-medium), box-shadow var(--motion-medium);
+    }
+
+    .panel:focus-within {
+      border-color: rgba(68, 217, 255, 0.24);
+      background: rgba(255, 255, 255, 0.065);
+    }
+
+    .panel-header {
+      margin-bottom: 20px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .app-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: -12px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      opacity: 0.45;
+      user-select: none;
+    }
+
+    .app-footer span {
+      text-transform: uppercase;
+    }
+
+    .panel h2 {
+      color: var(--accent);
+      margin-bottom: 0.85rem;
+      position: relative;
+    }
+
+    .panel h2::after {
+      content: "";
+      display: block;
+      width: 3rem;
+      height: 4px;
+      border-radius: 999px;
+      background: var(--accent);
+      margin-top: 0.75rem;
+    }
+
+    .panel-heading-copy {
+      display: grid;
+      gap: 6px;
+    }
+
+    .panel-heading-copy p {
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    .counter-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(68, 217, 255, 0.22);
+      background: rgba(68, 217, 255, 0.08);
+      color: var(--text);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .counter-pill strong {
+      color: var(--accent);
+    }
+
+    form {
+      display: grid;
+      gap: 20px;
+    }
+
+    label {
+      display: grid;
+      gap: 8px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    label small {
+      font-size: 0.82rem;
+      font-weight: 400;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+
+    input, button {
+      font: inherit;
+      border-radius: var(--radius-sm);
+      transition: transform var(--motion-fast), border-color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast), color var(--motion-fast), opacity var(--motion-fast);
+    }
+
+    input {
+      width: 100%;
+      min-width: 0;
+      min-height: 50px;
+      padding: 12px 16px;
+      border: 1px solid var(--line);
+      background: var(--surface-strong);
+      color: var(--text);
+    }
+
+    input::placeholder {
+      color: rgba(148, 163, 184, 0.7);
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    input:hover:not(:focus):not([readonly]) {
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    input[readonly] {
+      background: rgba(0, 0, 0, 0.14);
+      color: var(--muted);
+      cursor: not-allowed;
+    }
+
+    .slug-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .slug-row input {
+      min-width: 0;
+    }
+
+    .slug-row strong,
+    .slug-input-wrapper strong {
+      font-size: 0.94rem;
+    }
+
+    .actions {
+      display: grid;
+      gap: 12px;
+      margin-top: 8px;
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 12px 18px;
+      border: 1px solid transparent;
+      background: var(--text);
+      color: var(--bg);
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.58;
+    }
+
+    button:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 4px var(--accent-soft);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    button svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: var(--bg);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    button.primary:hover {
+      background: var(--accent-hover);
+      box-shadow: 0 0 20px var(--accent-soft);
+    }
+
+    button.secondary {
+      background: transparent;
+      color: var(--text);
+      border-color: var(--line);
+    }
+
+    button.secondary:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    button.danger {
+      background: transparent;
+      color: #fecaca;
+      border-color: rgba(239, 68, 68, 0.2);
+    }
+
+    button.danger:hover {
+      background: rgba(239, 68, 68, 0.1);
+      color: white;
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    button.compact {
+      min-height: 44px;
+      padding: 10px 14px;
+      font-size: 0.88rem;
+    }
+
+    button.icon-btn {
+      width: 48px;
+      min-width: 48px;
+      padding: 0;
+    }
+
+    .status {
+      min-height: 24px;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .status.error {
+      color: #fda4af;
+    }
+
+    .status.success {
+      color: #86efac;
+    }
+
+    .search-form {
+      display: grid;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .search-main-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .search-input-shell {
+      position: relative;
+    }
+
+    .search-input-shell svg {
+      position: absolute;
+      top: 50%;
+      left: 16px;
+      width: 18px;
+      height: 18px;
+      transform: translateY(-50%);
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    .search-form input {
+      min-height: 48px;
+      padding-left: 46px;
+      background: var(--surface-strong);
+    }
+
+    .search-primary-btn {
+      width: 48px;
+      height: 48px;
+      min-width: 48px;
+      min-height: 48px;
+      padding: 0;
+      line-height: 0;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .links-panel {
+      display: grid;
+      grid-template-rows: auto auto auto;
+      min-height: 320px;
+    }
+
+    .cards {
+      display: grid;
+      gap: 16px;
+    }
+
+    .card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.03), 0 6px 12px rgba(2, 8, 23, 0.1);
+      animation: card-in 180ms ease both;
+      transition: border-color var(--motion-medium), transform var(--motion-medium), box-shadow var(--motion-medium), background-color var(--motion-medium), opacity var(--motion-medium);
+      overflow: hidden;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: var(--line-hover);
+      background: var(--surface-hover);
+      box-shadow: var(--shadow-glow);
+    }
+
+    .card.is-pending {
+      border-color: rgba(239, 68, 68, 0.34);
+      background: rgba(239, 68, 68, 0.08);
+      opacity: 0.76;
+    }
+
+    .card-top {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .slug-info {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .slug {
+      margin: 0;
+      font-size: 1.12rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .slug-url {
+      font-size: 0.92rem;
+      color: var(--muted);
+      word-break: break-all;
+    }
+
+    .card-actions {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      width: 100%;
+    }
+
+    .card-actions button {
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 12px;
+      justify-content: center;
+    }
+
+    .metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+    }
+
+    .metric {
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .metric strong {
+      color: var(--text);
+    }
+
+    .pending-note {
+      color: #fecaca;
+    }
+
+    .empty {
+      padding: 40px 20px;
+      border-radius: var(--radius-sm);
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.6;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .terminal-cursor {
+      display: inline-block;
+      color: var(--accent);
+      margin-left: 2px;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    @keyframes card-in {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    @media (min-width: 700px) {
+      .card-top {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: flex-start;
+      }
+
+      .card-actions {
+        width: auto;
+        grid-template-columns: repeat(3, auto);
+      }
+    }
+
+    @media (min-width: 901px) {
+      .actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .card-actions {
+        gap: 6px;
+      }
+
+      .card-actions button {
+        min-height: 42px;
+        padding: 8px 12px;
+        font-size: 0.84rem;
+      }
+
+      .card-actions button svg {
+        width: 16px;
+        height: 16px;
+      }
+    }
+
+    @media (max-width: 900px) {
+      main {
+        width: 100%;
+        margin: 0;
+        padding: 20px;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+        gap: 24px;
+      }
+
+      .panel {
+        padding: 20px;
+      }
+
+      .hero {
+        padding-bottom: 20px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      main {
+        padding: 16px;
+      }
+
+      .panel {
+        padding: 18px;
+        border-radius: 18px;
+      }
+
+      .search-main-row {
+        grid-template-columns: minmax(0, 1fr) 48px;
+      }
+
+      .search-primary-btn {
+        width: 48px;
+        min-width: 48px;
+        min-height: 48px;
+      }
+
+      .card-actions .button-text {
+        display: none;
+      }
+
+      .card-actions button {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true">
+    <div class="glow-1"></div>
+    <div class="glow-2"></div>
+  </div>
+
+  <main>
+    <section class="hero">
+      <div class="logo">
+        <!-- BoltLink name, logo and favicon are part of the original public project identity created by Vitor Faustino. Preserve this attribution when redistributing these bundled assets. -->
+        <img src="/logo.png" alt="BoltLink" />
+      </div>
+      <h1 class="text-glow">
+        Encurtador de URLs<span class="terminal-cursor">_</span>
+      </h1>
+      <p>
+        Um setup 100% serverless que oferece redirecionamento instantâneo na borda e um dashboard de analytics protegido por Cloudflare Zero Trust.
+      </p>
+    </section>
+
+    <section class="layout">
+      <article class="panel">
+        <div class="panel-header">
+          <div class="panel-heading-copy">
+            <h2 id="form-title">Criar link</h2>
+          </div>
+        </div>
+        <form id="link-form">
+          <label>
+            <strong>Slug</strong>
+          </label>
+          <div class="slug-row">
+            <input id="slug" name="slug" type="text" maxlength="64" placeholder="campanha-q2" />
+            <button type="button" class="secondary compact" id="generate-slug-button">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M17.65 6.35A8 8 0 1 0 19 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M19 4v8h-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              Gerar slug
+            </button>
+          </div>
+<small>Deixe o campo em branco para gerar o slug automaticamente ou defina manualmente se preferir.</small>
+
+          <label>
+            URL de destino
+            <input id="target-url" name="target-url" type="url" required placeholder="https://exemplo.com/landing" />
+          </label>
+
+          <div class="actions">
+            <button type="submit" id="submit-button" class="primary">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M17 21v-8H7v8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M7 3v5h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span>Salvar link</span>
+            </button>
+            <button type="button" class="secondary" id="cancel-button" hidden>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="m6 6 12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span>Cancelar</span>
+            </button>
+          </div>
+          <div class="status" id="form-status"></div>
+        </form>
+      </article>
+
+      <article class="panel links-panel">
+        <div class="panel-header">
+          <div class="panel-heading-copy">
+            <h2>Links ativos</h2>
+            <p>Pesquise por slug ou URL de destino e gerencie a lista sem perder o contexto.</p>
+          </div>
+          <div class="counter-pill" aria-live="polite">
+            Links criados: <strong id="links-count">0</strong>
+          </div>
+          <form id="search-form" class="search-form">
+            <div class="search-main-row">
+              <div class="search-input-shell">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M21 21 16.65 16.65M10.5 18A7.5 7.5 0 1 1 18 10.5 7.5 7.5 0 0 1 10.5 18Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <input id="search-term" name="search-term" type="search" placeholder="Buscar slug ou URL de destino" />
+              </div>
+              <button type="submit" class="primary search-primary-btn" aria-label="Buscar" title="Buscar">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M21 21 16.65 16.65M10.5 18A7.5 7.5 0 1 1 18 10.5 7.5 7.5 0 0 1 10.5 18Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+            </div>
+          </form>
+        </div>
+        <div class="status" id="list-status"></div>
+        <div class="cards" id="links-list"></div>
+      </article>
+    </section>
+
+    <footer class="app-footer" aria-label="Informação da versão">
+      <span id="app-version">v?</span>
+      <span style="margin-left: 6px;">&bull; Desenvolvido por Vitor Faustino &bull; Licença AGPL-3.0</span>
+    </footer>
+  </main>
+
+  <script>
+    const state = {
+      editingSlug: null,
+      links: [],
+      pendingDeletes: new Map(),
+    };
+
+    const ICONS = {
+      save: `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M17 21v-8H7v8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M7 3v5h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>`,
+      update: `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M23 4v6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M1 20v-6h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M3.51 9A9 9 0 0 1 18.36 5.64L23 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M20.49 15A9 9 0 0 1 5.64 18.36L1 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>`,
+      cancel: `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="m6 6 12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>`,
+      copy: `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke="currentColor" stroke-width="1.8"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>`,
+      edit: `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M18.5 2.5a2.12 2.12 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>`,
+      trash: `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M3 6h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>`,
+    };
+
+    const linkForm = document.getElementById("link-form");
+    const slugInput = document.getElementById("slug");
+    const targetUrlInput = document.getElementById("target-url");
+    const submitButton = document.getElementById("submit-button");
+    const cancelButton = document.getElementById("cancel-button");
+    const generateSlugButton = document.getElementById("generate-slug-button");
+    const searchForm = document.getElementById("search-form");
+    const searchTermInput = document.getElementById("search-term");
+    const formTitle = document.getElementById("form-title");
+    const formStatus = document.getElementById("form-status");
+    const listStatus = document.getElementById("list-status");
+    const linksList = document.getElementById("links-list");
+    const linksCount = document.getElementById("links-count");
+    const appVersion = document.getElementById("app-version");
+    const appOrigin = window.location.origin;
+
+    function buttonMarkup(icon, label) {
+      return `${ICONS[icon]}<span class="button-text">${label}</span>`;
+    }
+
+    function cardActionMarkup(action, variant, icon, label, slug) {
+      const safeSlug = escapeHtml(slug);
+      return `
+        <button
+          type="button"
+          class="${variant}"
+          data-action="${action}"
+          data-slug="${safeSlug}"
+          aria-label="${label}"
+          title="${label}"
+        >
+          ${buttonMarkup(icon, label)}
+        </button>
+      `;
+    }
+
+    async function request(path, options = {}) {
+      const response = await fetch(path, {
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        },
+        ...options,
+      });
+
+      let payload = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Falha inesperada");
+      }
+
+      return payload;
+    }
+
+    function setStatus(element, message, type = "") {
+      element.textContent = message || "";
+      element.className = type ? `status ${type}` : "status";
+    }
+
+    function setBusy(button, isBusy) {
+      button.disabled = isBusy;
+      button.setAttribute("aria-busy", String(isBusy));
+    }
+
+    function buildShortLink(slug) {
+      return new URL(`/${slug}`, appOrigin).toString();
+    }
+
+    function resetForm() {
+      state.editingSlug = null;
+      linkForm.reset();
+      slugInput.readOnly = false;
+      formTitle.textContent = "Criar link";
+      submitButton.innerHTML = buttonMarkup("save", "Salvar link");
+      cancelButton.innerHTML = buttonMarkup("cancel", "Cancelar");
+      cancelButton.hidden = true;
+      setStatus(formStatus, "");
+    }
+
+    function beginEdit(link) {
+      state.editingSlug = link.slug;
+      slugInput.value = link.slug;
+      targetUrlInput.value = link.target_url;
+      slugInput.readOnly = true;
+      formTitle.textContent = `Editar /${link.slug}`;
+      submitButton.innerHTML = buttonMarkup("update", "Atualizar");
+      cancelButton.innerHTML = buttonMarkup("cancel", "Cancelar");
+      cancelButton.hidden = false;
+      setStatus(formStatus, "Slug travado após criação; altere apenas o destino.");
+      targetUrlInput.focus();
+    }
+
+    function createClientSlug() {
+      const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const bytes = new Uint8Array(7);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+    }
+
+    function formatDate(value) {
+      if (!value) {
+        return "Nunca";
+      }
+
+      try {
+        return new Intl.DateTimeFormat("pt-BR", {
+          dateStyle: "short",
+          timeStyle: "short",
+        }).format(new Date(value));
+      } catch {
+        return value;
+      }
+    }
+
+    function renderLinks() {
+      linksCount.textContent = String(state.links.length);
+
+      if (!state.links.length) {
+        linksList.innerHTML = '<div class="empty">Nenhum link ativo ainda. Crie o primeiro slug no painel ao lado.</div>';
+        return;
+      }
+
+      linksList.innerHTML = state.links
+        .map((link) => {
+          const safeSlug = escapeHtml(link.slug);
+          const safeTargetUrl = escapeHtml(link.target_url);
+          const isPendingDelete = state.pendingDeletes.has(link.slug);
+          const cardClass = isPendingDelete ? "card is-pending" : "card";
+          const actionMarkup = isPendingDelete
+            ? cardActionMarkup("undo-delete", "secondary", "cancel", "Desfazer exclusão", link.slug)
+            : `${cardActionMarkup("copy", "secondary", "copy", "Copiar link", link.slug)}
+                  ${cardActionMarkup("edit", "secondary", "edit", "Editar link", link.slug)}
+                  ${cardActionMarkup("delete", "danger", "trash", "Excluir link", link.slug)}`;
+
+          return `
+            <article class="${cardClass}">
+              <div class="card-top">
+                <div class="slug-info">
+                  <p class="slug">/${safeSlug}</p>
+                  <div class="slug-url">${safeTargetUrl}</div>
+                </div>
+                <div class="card-actions">
+                  ${actionMarkup}
+                </div>
+              </div>
+              <div class="metrics">
+                <span class="metric">Cliques <strong>${link.clicks_total}</strong></span>
+                <span class="metric">Último: <strong>${formatDate(link.last_clicked_at)}</strong></span>
+                <span class="metric">Criado: <strong>${formatDate(link.created_at)}</strong></span>
+                ${isPendingDelete ? '<span class="metric pending-note">Exclusão pendente</span>' : ""}
+              </div>
+            </article>
+          `;
+        })
+        .join("");
+    }
+
+    async function loadLinks(searchTerm = "") {
+      const normalizedSearch = searchTerm.trim();
+      setStatus(listStatus, normalizedSearch ? `Pesquisando por "${normalizedSearch}"...` : "Carregando links...");
+
+      try {
+        const searchQuery = normalizedSearch ? `?search=${encodeURIComponent(normalizedSearch)}` : "";
+        const payload = await request(`/api/links${searchQuery}`, { method: "GET" });
+        state.links = payload.links || [];
+        renderLinks();
+        setStatus(
+          listStatus,
+          normalizedSearch
+            ? `${state.links.length} resultado(s) para "${normalizedSearch}".`
+            : `${state.links.length} link(s) carregado(s).`,
+        );
+      } catch (error) {
+        setStatus(listStatus, error.message, "error");
+      }
+    }
+
+    async function loadVersion() {
+      try {
+        const response = await fetch("/version", { credentials: "same-origin" });
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = await response.json();
+        if (payload?.version) {
+          appVersion.textContent = `v${payload.version}`;
+        }
+      } catch {
+        appVersion.textContent = "";
+      }
+    }
+
+    function scheduleDelete(link) {
+      if (state.pendingDeletes.has(link.slug)) {
+        return;
+      }
+
+      const timeoutId = window.setTimeout(() => {
+        commitDelete(link.slug);
+      }, 5000);
+
+      state.pendingDeletes.set(link.slug, timeoutId);
+      renderLinks();
+      setStatus(listStatus, `/${link.slug} será removido em 5 segundos. Use Desfazer para cancelar.`);
+    }
+
+    function undoDelete(slug) {
+      const timeoutId = state.pendingDeletes.get(slug);
+      if (!timeoutId) {
+        return;
+      }
+
+      window.clearTimeout(timeoutId);
+      state.pendingDeletes.delete(slug);
+      renderLinks();
+      setStatus(listStatus, `Exclusão de /${slug} cancelada.`, "success");
+    }
+
+    async function commitDelete(slug) {
+      state.pendingDeletes.delete(slug);
+      renderLinks();
+      setStatus(listStatus, `Excluindo /${slug}...`);
+
+      try {
+        await request(`/api/links/${encodeURIComponent(slug)}`, { method: "DELETE" });
+        if (state.editingSlug === slug) {
+          resetForm();
+        }
+        await loadLinks(searchTermInput.value);
+        setStatus(listStatus, `/${slug} removido.`, "success");
+      } catch (error) {
+        setStatus(listStatus, error.message, "error");
+        await loadLinks(searchTermInput.value);
+      }
+    }
+
+    linkForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setStatus(formStatus, state.editingSlug ? "Atualizando link..." : "Criando link...");
+      setBusy(submitButton, true);
+
+      const body = {
+        slug: slugInput.value.trim() || undefined,
+        targetUrl: targetUrlInput.value.trim(),
+      };
+
+      try {
+        let successMessage = "";
+        if (state.editingSlug) {
+          await request(`/api/links/${encodeURIComponent(state.editingSlug)}`, {
+            method: "PATCH",
+            body: JSON.stringify({ targetUrl: body.targetUrl }),
+          });
+          successMessage = `Destino de /${state.editingSlug} atualizado.`;
+        } else {
+          const payload = await request("/api/links", {
+            method: "POST",
+            body: JSON.stringify(body),
+          });
+          successMessage = `Link /${payload.link.slug} criado com sucesso.`;
+        }
+
+        resetForm();
+        await loadLinks();
+        setStatus(formStatus, successMessage, "success");
+      } catch (error) {
+        setStatus(formStatus, error.message, "error");
+      } finally {
+        setBusy(submitButton, false);
+      }
+    });
+
+    cancelButton.addEventListener("click", () => {
+      resetForm();
+    });
+
+    generateSlugButton.addEventListener("click", () => {
+      slugInput.value = createClientSlug();
+      slugInput.focus();
+      slugInput.setSelectionRange(slugInput.value.length, slugInput.value.length);
+    });
+
+    searchForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      loadLinks(searchTermInput.value);
+    });
+
+    searchTermInput.addEventListener("search", () => {
+      loadLinks(searchTermInput.value);
+    });
+
+    searchTermInput.addEventListener("input", () => {
+      if (!searchTermInput.value.trim()) {
+        loadLinks("");
+      }
+    });
+
+    linksList.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) {
+        return;
+      }
+
+      const slug = button.dataset.slug;
+      const action = button.dataset.action;
+      const link = state.links.find((entry) => entry.slug === slug);
+      if (!slug || !link) {
+        return;
+      }
+
+      if (action === "edit") {
+        beginEdit(link);
+        return;
+      }
+
+      if (action === "copy") {
+        const shortLink = buildShortLink(link.slug);
+        try {
+          await copyToClipboard(shortLink);
+          setStatus(listStatus, `Link copiado: ${shortLink}`);
+        } catch {
+          setStatus(listStatus, `Copie manualmente: ${shortLink}`);
+        }
+        return;
+      }
+
+      if (action === "delete") {
+        scheduleDelete(link);
+      }
+
+      if (action === "undo-delete") {
+        undoDelete(slug);
+      }
+    });
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    async function copyToClipboard(text) {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+
+      const fallbackInput = document.createElement("input");
+      fallbackInput.value = text;
+      fallbackInput.setAttribute("readonly", "true");
+      fallbackInput.style.position = "absolute";
+      fallbackInput.style.left = "-9999px";
+      document.body.appendChild(fallbackInput);
+      fallbackInput.select();
+      const copied = document.execCommand("copy");
+      fallbackInput.remove();
+
+      if (!copied) {
+        throw new Error("Falha ao copiar link");
+      }
+    }
+
+    resetForm();
+    loadLinks();
+    loadVersion();
+  </script>
+</body>
+</html>

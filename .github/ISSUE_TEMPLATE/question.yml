@@ -1,0 +1,50 @@
+name: Dúvida ou suporte
+description: Faça uma pergunta sobre configuração, uso ou comportamento do projeto.
+title: "[Question]: "
+labels:
+  - question
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use este formulário para dúvidas de uso, setup, deploy ou comportamento esperado.
+
+        Não inclua chaves, IDs reais, domínios privados ou outros dados sensíveis.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: O que você está tentando fazer?
+      placeholder: Quero publicar meu próprio encurtador usando workers.dev...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto atual
+      description: Explique o que você já configurou e em que etapa está.
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Pergunta objetiva
+      placeholder: Qual é a sua dúvida principal?
+    validations:
+      required: true
+
+  - type: textarea
+    id: attempts
+    attributes:
+      label: O que você já tentou?
+      description: Liste passos ou comandos já executados.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmações
+      options:
+        - label: Revisei o conteúdo e removi segredos ou dados reais.
+          required: true

@@ -1,0 +1,10 @@
+# Local development only
+# Do not commit real values
+# TEAM_DOMAIN and POLICY_AUD are only required after you configure Cloudflare Access.
+# API_KEY is optional and only applies to /api and /api/* automation.
+# IP_HASH_SECRET is optional but recommended for privacy-preserving IP hashes.
+
+TEAM_DOMAIN=https://your-team.cloudflareaccess.com
+POLICY_AUD=replace-with-your-access-aud
+API_KEY=replace-with-a-local-admin-api-key
+IP_HASH_SECRET=replace-with-a-random-local-ip-hash-secret

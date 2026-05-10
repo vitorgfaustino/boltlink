@@ -1,0 +1,47 @@
+{
+  "name": "boltlink",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "setup": "npm run wrangler:init && npm run cf-typegen",
+    "setup:local": "npm run setup",
+    "wrangler": "node scripts/wrangler.mjs",
+    "wrangler:init": "node scripts/init-wrangler-local.mjs",
+    "deploy": "node scripts/wrangler.mjs deploy",
+    "dev": "node scripts/wrangler.mjs dev",
+    "start": "node scripts/wrangler.mjs dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cf-typegen": "node scripts/wrangler.mjs types"
+  },
+  "cloudflare": {
+    "bindings": {
+      "TEAM_DOMAIN": {
+        "description": "Cloudflare Access team domain. Use the HTTPS team URL from Zero Trust, for example `https://your-team.cloudflareaccess.com`."
+      },
+      "POLICY_AUD": {
+        "description": "Cloudflare Access AUD tag for the self-hosted application that protects `/admin`, `/admin.html`, `/api`, and `/api/*`."
+      },
+      "API_KEY": {
+        "description": "Optional secret for internal API automation only. Store it as a secret, not as a public `vars` value."
+      },
+      "IP_HASH_SECRET": {
+        "description": "Optional secret used to generate HMAC-SHA-256 IP hashes for privacy-preserving analytics. Generate a random value and keep it outside versioned files."
+      },
+      "db_boltlink": {
+        "description": "D1 database used for links and click analytics. The deploy flow can provision it automatically from the Wrangler config."
+      }
+    }
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.16.3",
+    "@types/node": "^25.6.0",
+    "typescript": "^5.5.2",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.90.0"
+  },
+  "dependencies": {
+    "hono": "^4.12.18",
+    "jose": "^6.2.3"
+  }
+}
