@@ -2,7 +2,7 @@
 
 BoltLink é um encurtador de URLs serverless construído com Cloudflare Workers, Hono, D1 e uma interface administrativa estática servida pelo próprio Worker.
 
-**Versão 1.0.0 — migração para AGPL-3.0 e reset de versão.**
+**Versão 1.0.0 — AGPL-3.0**
 
 O projeto foi organizado para evoluir para um repositório público: com documentação orientada a operação, segurança, contribuição e automação com IA.
 
