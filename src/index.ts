@@ -669,7 +669,7 @@ function renderHomePage() {
 			<div class="actions">
 				<a class="button" href="/admin">Acessar painel</a>
 			</div>
-			<p class="footnote">v${APP_VERSION} &bull; Desenvolvido por Vitor Faustino &bull; Licença AGPL-3.0</p>
+			<p class="footnote">Versão atual: v${APP_VERSION} &bull; Desenvolvido por Vitor Faustino &bull; Licença AGPL-3.0</p>
 		</section>
 	</main>
 </body>
