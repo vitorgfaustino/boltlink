@@ -1,5 +1,57 @@
+import { readFileSync } from "node:fs";
+
 export function isWorkersBuildEnvironment(env = process.env) {
 	return env.WORKERS_CI === "1";
+}
+
+function parseJsoncConfig(filePath) {
+	const source = readFileSync(filePath, "utf8");
+	try {
+		return Function(`"use strict"; return (${source});`)();
+	} catch {
+		return null;
+	}
+}
+
+function validateLocalConfig(localConfigPath) {
+	const warnings = [];
+	let config;
+	try {
+		config = parseJsoncConfig(localConfigPath);
+	} catch {
+		return warnings;
+	}
+
+	if (!config) {
+		return warnings;
+	}
+
+	// Check for empty vars that would overwrite dashboard values
+	if (config.vars && typeof config.vars === "object") {
+		const emptyVars = Object.entries(config.vars)
+			.filter(([, value]) => value === "" || value === null || value === undefined)
+			.map(([key]) => key);
+
+		if (emptyVars.length > 0) {
+			warnings.push(
+				`WARNING: wrangler.local.jsonc has empty vars: ${emptyVars.join(", ")}. ` +
+				`These will overwrite dashboard values during local deploy. ` +
+				`Remove them from the local config if you use GitHub auto-deploy, ` +
+				`or fill them with real values if you deploy locally.`
+			);
+		}
+	}
+
+	// Check keep_vars
+	if (config.keep_vars === false) {
+		warnings.push(
+			`WARNING: keep_vars is false in wrangler.local.jsonc. ` +
+			`Local deploys will OVERWRITE dashboard variables. ` +
+			`Set keep_vars to true to preserve dashboard values.`
+		);
+	}
+
+	return warnings;
 }
 
 export function resolveWranglerExecution({
@@ -60,12 +112,14 @@ export function resolveWranglerExecution({
 
 	if (command === "deploy" || command === "versions") {
 		if (hasLocalConfig) {
+			const validationWarnings = validateLocalConfig(resolvedLocalConfigPath);
 			return {
 				args: [...args, "--config", resolvedLocalConfigPath],
 				command,
 				hasExplicitConfig,
 				configPath: resolvedLocalConfigPath,
 				shouldSyncLocalConfig: true,
+				warningMessage: validationWarnings.length > 0 ? validationWarnings.join("\n") : undefined,
 			};
 		}
 

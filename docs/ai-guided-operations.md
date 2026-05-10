@@ -46,6 +46,43 @@ Guiar o usuário da primeira execução até o deploy final com o mínimo de atr
 9. Valide o resultado.
 10. Encerre com um resumo curto do que foi feito e do que ainda depende do usuário.
 
+## Decidir método de deploy
+
+Antes de qualquer deploy, atualização ou configuração de variáveis, a IA deve sempre perguntar ao usuário:
+
+> **"Como você publica o projeto?"**
+
+### Opções de método
+
+1. **GitHub auto-deploy** — o Worker na Cloudflare está conectado ao repositório GitHub e faz deploy automático a cada push.
+2. **Deploy local com Wrangler** — você publica manualmente da sua máquina com `npm run deploy`.
+3. **Ambos** — usa GitHub para deploys normais, mas às vezes publica localmente para testes.
+4. **Ainda não sei / primeira vez** — ainda não publicou o projeto.
+
+### Como detectar se o usuário não souber
+
+- **GitHub auto-deploy**: o repositório tem `.git` com um remoto configurado; o Worker na Cloudflare mostra conexão com GitHub.
+- **Deploy local**: existe `wrangler.local.jsonc` com `database_id` real ou outros valores de produção.
+- **Ambos**: ambos os sinais estão presentes.
+
+### Regras por método
+
+| Método | TEAM_DOMAIN e POLICY_AUD | keep_vars | vars no local config |
+|--------|--------------------------|-----------|----------------------|
+| GitHub auto-deploy | **Apenas no painel do Worker** na Cloudflare | `true` no template público | **Remover** do `wrangler.local.jsonc` |
+| Deploy local | Podem estar no painel OU no `wrangler.local.jsonc` | `true` no local | Somente com valores reais; nunca vazio |
+
+### Regra de ouro
+
+> **Nunca deixe `vars` com valores vazios em nenhuma configuração.** Strings vazias (`""`) sobrescrevem os valores do painel do Worker durante o deploy.
+
+### Checklist antes de deploy
+
+1. Verificar se `wrangler.jsonc` tem `keep_vars: true`.
+2. Verificar se `wrangler.local.jsonc` (se existir) NÃO tem `vars.TEAM_DOMAIN` ou `vars.POLICY_AUD` vazios.
+3. Se o método for GitHub auto-deploy, remover `vars` completamente do `wrangler.local.jsonc`.
+4. Se o método for deploy local, `vars` só pode existir se tiver valores reais preenchidos.
+
 ## Intenções suportadas
 
 As intenções abaixo são a camada operacional principal. O catálogo completo de frases aceitas, perguntas obrigatórias e exemplos de entrada vive em [docs/ai-accepted-requests.md](ai-accepted-requests.md).

@@ -2,6 +2,23 @@
 
 Todas as mudanças relevantes deste projeto serão registradas neste arquivo.
 
+## [Unreleased]
+
+### Corrigido
+- **`keep_vars` agora é `true` por padrão** em `wrangler.local.jsonc` ao ser gerado pelo `npm run wrangler:init`, evitando que deploys locais apaguem variáveis configuradas no painel do Worker.
+- **Bloco `vars` vazio removido** do `wrangler.jsonc` público. Strings vazias (`"TEAM_DOMAIN": ""`) sobrescrevam valores do painel durante deploys automáticos via GitHub.
+- **`src/index.ts` endurecido** para aceitar `TEAM_DOMAIN` e `POLICY_AUD` como `undefined`, garantindo que o Worker não quebre quando essas variáveis não existem no config.
+
+### Adicionado
+- **Validação automática no deploy local**: `scripts/wrangler-routing.mjs` agora emite `WARNING` se detectar `vars` vazios ou `keep_vars: false` no `wrangler.local.jsonc` antes de rodar `npm run deploy`.
+- **Mensagens explicativas** no `npm run wrangler:init` sobre onde colocar `TEAM_DOMAIN`/`POLICY_AUD` (painel vs. config local) e sobre o risco de strings vazias.
+
+### Documentação
+- **README.md**: adicionada tabela comparativa de métodos de deploy (GitHub auto-deploy vs. deploy local) e regras de `keep_vars` e `vars`.
+- **AI-START.md**: adicionada seção "Detecção obrigatória do método de deploy" com árvore de decisão e regras críticas.
+- **docs/ai-guided-operations.md**: adicionado fluxo completo "Decidir método de deploy" com checklist pré-deploy.
+- **docs/ai-accepted-requests.md**: atualizado `atualizar_projeto` para perguntar o método de deploy antes de qualquer ação.
+
 ## [1.0.0] - 2026-05-10
 
 Primeira versão pública licenciada sob a GNU Affero General Public License v3.0 (AGPL-3.0), consolidando todo o histórico de desenvolvimento em uma base única.

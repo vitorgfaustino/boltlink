@@ -139,14 +139,14 @@ describe("wrangler wrapper routing", () => {
 });
 
 describe("wrangler local config sync", () => {
-	it("disables keep_vars by default in the local config", () => {
+	it("enables keep_vars by default in the local config to preserve dashboard values", () => {
 		const localConfig = buildLocalConfig({
 			name: "boltlink",
 			keep_vars: true,
 			vars: { TEAM_DOMAIN: "", POLICY_AUD: "" },
 		});
 
-		expect(localConfig.keep_vars).toBe(false);
+		expect(localConfig.keep_vars).toBe(true);
 	});
 
 	it("preserves an explicit local keep_vars override", () => {

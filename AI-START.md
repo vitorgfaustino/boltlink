@@ -140,6 +140,32 @@ Exemplos de pedidos que a IA deve reconhecer:
 - Não automatize a criação final do Cloudflare Access; faça o handoff e valide depois.
 - Trate `public/admin.html`, `public/logo.png`, `public/favicon.ico` e qualquer ajuste visual já existente como branding do usuário por padrão; nunca substitua esses arquivos sem confirmação explícita.
 
+## Detecção obrigatória do método de deploy
+
+Antes de qualquer ação de deploy ou atualização, a IA deve descobrir como o projeto está publicado:
+
+1. Pergunte ao usuário: **"Como você publica o projeto?"**
+   - **GitHub auto-deploy** (Worker conectado ao repositório GitHub)
+   - **Deploy local com `npm run deploy`** (publica da máquina via Wrangler)
+   - **Ambos** (usa os dois conforme a necessidade)
+   - **Ainda não sei / primeira vez**
+
+2. Se o usuário não souber, a IA deve verificar sinais no ambiente:
+   - Existe `wrangler.local.jsonc` com `database_id` real? → indica uso local
+   - O repositório tem `.git` conectado a um remoto? → indica GitHub deploy
+   - O usuário já tem um Worker ativo na Cloudflare? → pode ser qualquer método
+
+3. Com base na resposta, siga a regra correta:
+
+| Método | Onde ficam TEAM_DOMAIN e POLICY_AUD | keep_vars | vars no local config |
+|--------|-------------------------------------|-----------|----------------------|
+| GitHub auto-deploy | **Apenas no painel do Worker** | `true` em `wrangler.jsonc` | **NUNCA** no `wrangler.local.jsonc` |
+| Deploy local (`npm run deploy`) | Pode estar no painel OU no `wrangler.local.jsonc` | `true` no local | Somente com valores reais; nunca vazio |
+
+4. **Regra crítica**: se o usuário usar GitHub auto-deploy, o `wrangler.local.jsonc` NUNCA deve conter `vars` com `TEAM_DOMAIN` ou `POLICY_AUD`, mesmo vazios. Strings vazias sobrescrevem os valores do painel.
+
+5. **Regra crítica**: `keep_vars` deve ser `true` em qualquer configuração que envie `vars`, a menos que o usuário queja explicitamente sobrescrever valores do painel.
+
 ## Arquivos locais que não vão para o Git
 
 Os arquivos locais privados não são restaurados por `git pull`.

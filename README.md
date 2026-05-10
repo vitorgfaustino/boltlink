@@ -213,6 +213,15 @@ Depois siga o fluxo de instalação ou o fluxo guiado por IA.
 
 ### Atualizar uma instalação já em uso
 
+Antes de atualizar, decida como você publica o projeto. Isso afeta onde as variáveis do Worker devem ficar:
+
+| Método de publicação | Onde fica TEAM_DOMAIN e POLICY_AUD | keep_vars | vars no wrangler.local.jsonc |
+|---|---|---|---|
+| **GitHub auto-deploy** (Worker conectado ao repo) | Apenas no painel do Worker na Cloudflare | `true` no template público | **Remover** do local config |
+| **Deploy local** (`npm run deploy`) | No painel OU no local config | `true` no local | Somente com valores reais |
+
+**Regra importante**: se você usa GitHub auto-deploy, NUNCA deixe `vars` com `TEAM_DOMAIN` ou `POLICY_AUD` vazios no `wrangler.local.jsonc`. Strings vazias sobrescrevem os valores do painel durante o deploy. O mesmo vale para `keep_vars: false` — isso apaga variáveis do painel.
+
 Se o seu Worker está ligado ao GitHub na Cloudflare, o código publicado passa a vir do Git. Nesse cenário, `TEAM_DOMAIN` e `POLICY_AUD` continuam sendo configurados no painel do Worker, e os deploys automáticos preservam esses valores.
 
 Use `npm run deploy` apenas quando você opera o projeto localmente com `wrangler.local.jsonc` e quer publicar manualmente pela sua máquina.
@@ -233,6 +242,8 @@ Depois valide o que mudou com o checklist pós-atualização:
 - confira se `wrangler.local.jsonc` continua preservado como configuração local privada e se `wrangler.jsonc` manteve os valores individualizados do projeto
 - confirme que `src/index.ts` continua com as regras de auth, rotas e segurança do projeto em uso
 - confirme que `public/admin.html`, `public/logo.png` e `public/favicon.ico` não foram sobrescritos sem confirmação explícita
+- **verifique se `wrangler.local.jsonc` não tem `vars` vazios** (especialmente `TEAM_DOMAIN` e `POLICY_AUD`)
+- **verifique se `keep_vars` está `true`** no config que você usa para deploy
 - rode `npm run cf-typegen` se houver mudança de binding
 - rode `npm test` para validar a atualização
 - confirme que a árvore do projeto não ganhou clone aninhado nem `.git` herdado

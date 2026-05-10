@@ -56,7 +56,7 @@ export function buildLocalConfig(publicConfig, localConfig = {}) {
 		: { ...publicConfig };
 
 	if (localConfig.keep_vars === undefined) {
-		mergedConfig.keep_vars = false;
+		mergedConfig.keep_vars = true;
 	}
 
 	return mergedConfig;
