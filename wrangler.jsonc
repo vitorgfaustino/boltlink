@@ -28,10 +28,6 @@
 	// 		"custom_domain": true
 	// 	}
 	// ],
-	"vars": {
-		"TEAM_DOMAIN": "",
-		"POLICY_AUD": ""
-	},
 	"rules": [
 		{
 			"type": "Text",

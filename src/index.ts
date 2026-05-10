@@ -686,7 +686,7 @@ function isApiPath(path: string) {
 }
 
 function isAccessConfigured(env: Bindings) {
-	return Boolean(env.TEAM_DOMAIN.trim() && env.POLICY_AUD.trim());
+	return Boolean(env.TEAM_DOMAIN?.trim() && env.POLICY_AUD?.trim());
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -732,7 +732,7 @@ async function hasValidAccessSession(request: Request, env: Bindings) {
 	}
 
 	const teamDomain = normalizeTeamDomain(env.TEAM_DOMAIN);
-	if (!teamDomain || !env.POLICY_AUD.trim()) {
+	if (!teamDomain || !env.POLICY_AUD?.trim()) {
 		console.error("Cloudflare Access configuration is invalid for admin protection");
 		return false;
 	}
@@ -775,8 +775,8 @@ function getAccessJwks(teamDomain: string) {
 	return jwks;
 }
 
-function normalizeTeamDomain(teamDomain: string) {
-	const trimmed = teamDomain.trim();
+function normalizeTeamDomain(teamDomain: string | undefined) {
+	const trimmed = teamDomain?.trim() ?? "";
 	if (!trimmed) {
 		return null;
 	}
