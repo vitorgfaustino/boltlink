@@ -27,6 +27,8 @@ Depois do botão, ainda restam etapas manuais:
 5. Opcionalmente publicar o secret `IP_HASH_SECRET` para analytics com hash HMAC de IP.
 6. Opcionalmente configurar domínio próprio.
 
+Se `TEAM_DOMAIN` ou `POLICY_AUD` aparecerem no painel como "este valor é um segredo criptografado" e não der para editar o conteúdo diretamente, o valor foi criado no tipo errado. Recrie o campo como `Texto`, informe o valor real e faça um novo deploy. No fluxo one-click, essas variáveis devem ficar como texto no Worker, não como secret.
+
 O botão não cria a aplicação final do Access nem define as políticas `Allow`. Esse handoff continua manual.
 
 Nos Workers Builds, o projeto deve usar o `wrangler.jsonc` público durante o `deploy`, porque o ambiente de build injeta `WORKERS_CI=1` e não carrega `wrangler.local.jsonc`.

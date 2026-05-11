@@ -34,6 +34,8 @@ Depois do deploy, ainda existem etapas manuais importantes:
 5. Opcionalmente configurar o secret `IP_HASH_SECRET` para analytics com hash HMAC de IP.
 6. Opcionalmente trocar `workers.dev` por domínio próprio.
 
+Se o painel da Cloudflare mostrar `TEAM_DOMAIN` ou `POLICY_AUD` como "Este valor é um segredo criptografado" e o campo não permitir edição direta, trate isso como um valor criado no tipo errado. Nesse caso, recrie a variável como `Texto` no painel do Worker, preencha o valor real e publique novamente. No fluxo one-click, esses campos devem ficar como variáveis de texto do Worker, não como secrets.
+
 Nos Workers Builds, o comando `npm run deploy` usa automaticamente o `wrangler.jsonc` público quando `WORKERS_CI=1` e `wrangler.local.jsonc` não existe no ambiente de build.
 
 ## Telas
