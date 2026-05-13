@@ -200,17 +200,47 @@
 
     .app-footer {
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
       margin-top: -12px;
-      color: var(--muted);
+      color: var(--text-secondary);
       font-size: 0.72rem;
       letter-spacing: 0.04em;
-      opacity: 0.45;
+      opacity: 0.72;
       user-select: none;
     }
 
-    .app-footer span {
+    .app-footer .footer-copy,
+    .app-footer .footer-timezone {
+      display: block;
       text-transform: uppercase;
+    }
+
+    .app-footer .footer-copy {
+      margin-left: auto;
+      text-align: right;
+    }
+
+    .app-footer .footer-timezone {
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 720px) {
+      .app-footer {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .app-footer .footer-copy {
+        margin-left: 0;
+        text-align: left;
+      }
+
+      .app-footer .footer-timezone {
+        order: -1;
+      }
     }
 
     .panel h2 {
@@ -1193,10 +1223,10 @@
     </section>
 
     <footer class="app-footer" aria-label="Informação da versão">
-      <span>&copy; <span id="footer-year"></span> &bull; <span id="app-version">v?</span> &bull;
+      <span class="footer-copy">&copy; <span id="footer-year"></span> &bull; <span id="app-version">v?</span> &bull;
         <a href="https://github.com/vitorgfaustino/boltlink" target="_blank" rel="noopener">Código-fonte AGPL-3.0</a>
       </span>
-      <span id="footer-timezone">Fuso: America/Sao_Paulo</span>
+      <span class="footer-timezone" id="footer-timezone">Fuso: America/Sao_Paulo</span>
     </footer>
   </main>
 

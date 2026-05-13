@@ -1739,19 +1739,75 @@ function renderPasswordGate(slug: string, errorMessage = "") {
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<title>Link protegido</title>
 	<style>
-		body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0a0a0a; color: #f1f5f9; font-family: ui-monospace, Menlo, monospace; }
-		.card { width: min(420px, calc(100vw - 24px)); padding: 24px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: rgba(255,255,255,.04); }
-		input, button { width: 100%; min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.15); padding: 10px 12px; font: inherit; }
-		input { background: rgba(0,0,0,.2); color: #f1f5f9; margin: 10px 0 12px; }
-		button { background: #44d9ff; color: #0a0a0a; font-weight: 700; cursor: pointer; }
+		:root { color-scheme: dark; }
+		* { box-sizing: border-box; }
+		body {
+			margin: 0;
+			min-height: 100vh;
+			display: grid;
+			place-items: center;
+			padding: 24px;
+			background: radial-gradient(circle at top, rgba(68, 217, 255, 0.16), transparent 30%), linear-gradient(180deg, #040608, #0a0a0a 48%, #06080d);
+			color: #f1f5f9;
+			font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+		}
+		.card {
+			width: min(420px, 100%);
+			display: grid;
+			gap: 14px;
+			padding: 24px;
+			border: 1px solid rgba(255,255,255,.12);
+			border-radius: 16px;
+			background: rgba(255,255,255,.05);
+			box-shadow: 0 18px 40px rgba(0,0,0,.28);
+			text-align: center;
+		}
+		.card h1,
+		.card p {
+			margin: 0;
+		}
+		.card p {
+			color: #94a3b8;
+			line-height: 1.55;
+		}
+		.card input,
+		.card button {
+			width: 100%;
+			min-height: 46px;
+			border-radius: 12px;
+			border: 1px solid rgba(255,255,255,.15);
+			padding: 10px 12px;
+			font: inherit;
+		}
+		.card input {
+			background: rgba(0,0,0,.24);
+			color: #f1f5f9;
+			text-align: center;
+		}
+		.card input::placeholder {
+			color: #64748b;
+		}
+		.card button {
+			background: #44d9ff;
+			color: #0a0a0a;
+			font-weight: 700;
+			cursor: pointer;
+			transition: transform 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+		}
+		.card button:hover,
+		.card button:focus-visible {
+			background: #67e8f9;
+			box-shadow: 0 0 0 3px rgba(68, 217, 255, 0.18);
+			transform: translateY(-1px);
+		}
 	</style>
 </head>
 <body>
 	<form class="card" method="post" action="/${encodeURIComponent(slug)}">
-		<h1 style="margin:0 0 10px; font-size:1.2rem;">Link protegido por senha</h1>
-		<p style="margin:0; color:#94a3b8;">Digite a senha para continuar.</p>
+		<h1 style="margin:0; font-size:1.2rem; line-height:1.2;">Link protegido por senha</h1>
+		<p>Digite a senha para continuar.</p>
 		${message}
-		<input type="password" name="password" autocomplete="current-password" required />
+		<input type="password" name="password" autocomplete="current-password" placeholder="Senha de acesso" required />
 		<button type="submit">Acessar</button>
 	</form>
 </body>
