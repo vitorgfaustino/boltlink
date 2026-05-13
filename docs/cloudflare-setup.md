@@ -131,6 +131,8 @@ npm run dev
 
 O Wrangler iniciará um ambiente local. O painel administrativo ficará disponível em `/admin`.
 
+Se você quiser um banco local com dados de exemplo para navegar manualmente antes de validar os testes, execute `npm run dev-init` antes de subir o Worker. Esse comando recria o SQLite em `.dev-env/db.sqlite3` a partir de `schema.sql` e depende da CLI `sqlite3` instalada no sistema.
+
 ## 6. Valide o comportamento local
 
 - Abra `/admin`
@@ -143,6 +145,8 @@ O Wrangler iniciará um ambiente local. O painel administrativo ficará disponí
 ```bash
 npm test
 ```
+
+Se a sua meta for só verificar a suíte automatizada, `npm test` já basta. O `dev-init` é opcional e serve principalmente para quem quer reproduzir manualmente o estado local com dados de exemplo.
 
 ## 7. Escolha a forma de publicação
 
