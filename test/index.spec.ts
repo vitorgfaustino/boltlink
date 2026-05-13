@@ -46,10 +46,21 @@ const SCHEMA_STATEMENTS = [
 	  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 	  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 	  disabled_at TEXT,
+	  expires_at TEXT,
+	  go_live_at TEXT,
+	  redirect_type TEXT NOT NULL DEFAULT '302',
+	  tags TEXT,
+	  notes TEXT,
+	  has_qrcode INTEGER NOT NULL DEFAULT 0,
+	  group_id INTEGER,
+	  password_hash TEXT,
 	  version INTEGER NOT NULL DEFAULT 1
 	)` ,
 	"CREATE INDEX IF NOT EXISTS idx_links_slug ON links(slug)",
 	"CREATE INDEX IF NOT EXISTS idx_links_created_at ON links(created_at DESC)",
+	"CREATE INDEX IF NOT EXISTS idx_links_has_qrcode ON links(has_qrcode)",
+	"CREATE INDEX IF NOT EXISTS idx_links_tags ON links(tags)",
+	"CREATE INDEX IF NOT EXISTS idx_links_group_id ON links(group_id)",
 	`CREATE TABLE IF NOT EXISTS stats (
 	  id INTEGER PRIMARY KEY AUTOINCREMENT,
 	  link_id INTEGER,
@@ -61,6 +72,14 @@ const SCHEMA_STATEMENTS = [
 	)` ,
 	"CREATE INDEX IF NOT EXISTS idx_stats_link_id_clicked_at ON stats(link_id, clicked_at DESC)",
 	"CREATE INDEX IF NOT EXISTS idx_stats_slug_snapshot_clicked_at ON stats(slug_snapshot, clicked_at DESC)",
+	`CREATE TABLE IF NOT EXISTS link_groups (
+	  id INTEGER PRIMARY KEY AUTOINCREMENT,
+	  name TEXT NOT NULL,
+	  parent_id INTEGER,
+	  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	  FOREIGN KEY (parent_id) REFERENCES link_groups(id) ON DELETE SET NULL
+	)` ,
+	"CREATE INDEX IF NOT EXISTS idx_link_groups_parent_id ON link_groups(parent_id)",
 ];
 
 async function fetchWorker(url: string, init?: RequestInit, overrides?: Partial<Env>) {
@@ -80,6 +99,7 @@ async function resetDatabase() {
 }
 
 async function dropDatabase() {
+	await env.db_boltlink.prepare("DROP TABLE IF EXISTS link_groups").run();
 	await env.db_boltlink.prepare("DROP TABLE IF EXISTS stats").run();
 	await env.db_boltlink.prepare("DROP TABLE IF EXISTS links").run();
 }
@@ -98,7 +118,7 @@ describe("URL shortener worker", () => {
 		expect(response.headers.get("content-type")).toContain("text/html");
 		expect(body).toContain('href="/admin"');
 		expect(body).toContain('BoltLink');
-		expect(body).toContain('Versão atual: v1.0.0');
+		expect(body).toContain('v1.1.0');
 	});
 
 	it("serves health data on the /healt alias", async () => {
@@ -114,7 +134,7 @@ describe("URL shortener worker", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toContain("application/json");
-		expect(await response.json()).toEqual({ version: "1.0.0" });
+		expect(await response.json()).toEqual({ version: "1.1.0" });
 	});
 
 	it("serves the admin UI for localhost requests", async () => {
@@ -268,6 +288,7 @@ describe("URL shortener worker", () => {
 			headers: {
 				"CF-Connecting-IP": "203.0.113.10",
 				"CF-IPCountry": "BR",
+				"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0",
 			},
 		});
 		const ctx = createExecutionContext();
@@ -315,6 +336,7 @@ describe("URL shortener worker", () => {
 				headers: {
 					"CF-Connecting-IP": "203.0.113.11",
 					"CF-IPCountry": "BR",
+					"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0",
 				},
 			});
 			const ctx = createExecutionContext();

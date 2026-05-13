@@ -173,7 +173,6 @@ wrangler.local.jsonc
 !.vscode/settings.json
 .idea/
 .venv/
-RELEASE_NOTES.md
 
 # Python caches and one-off local scripts
 __pycache__/
@@ -196,3 +195,4 @@ wrangler.toml
 *.crt
 *.p12
 *.pfx
+.dev-env/

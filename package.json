@@ -1,6 +1,6 @@
 {
   "name": "boltlink",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "scripts": {
     "setup": "npm run wrangler:init && npm run cf-typegen",
@@ -12,7 +12,15 @@
     "start": "node scripts/wrangler.mjs dev",
     "test": "vitest run",
     "test:watch": "vitest",
-    "cf-typegen": "node scripts/wrangler.mjs types"
+    "cf-typegen": "node scripts/wrangler.mjs types",
+    "dev-init": "node scripts/dev-env-init.mjs",
+    "dev-reset": "rm -rf .dev-env/db.sqlite3 && npm run dev-init",
+    "dev-test": "vitest run test/ --reporter=verbose",
+    "dev-validate-phase-1": "npm run test -- --grep 'Phase 1'",
+    "dev-validate-phase-2": "npm run test -- --grep 'Phase 2'",
+    "dev-validate-phase-3": "npm run test -- --grep 'Phase 3'",
+    "dev-validate-phase-4": "npm run test -- --grep 'Phase 4'",
+    "dev-validate-phase-5": "npm run test -- --grep 'Phase 5'"
   },
   "cloudflare": {
     "bindings": {
@@ -42,6 +50,7 @@
   },
   "dependencies": {
     "hono": "^4.12.18",
-    "jose": "^6.2.3"
+    "jose": "^6.2.3",
+    "qrcode": "^1.5.4"
   }
 }

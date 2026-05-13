@@ -28,8 +28,10 @@
 import { Hono } from "hono";
 import type { Context, MiddlewareHandler } from "hono";
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import QRCode from "qrcode";
 import packageJson from "../package.json";
 import { rateLimitMiddleware } from "./rate-limit";
+import { isCountableClick, isCountablePasswordSubmission } from "./click-filter";
 import databaseSchema from "../schema.sql";
 
 type Bindings = {
@@ -54,6 +56,14 @@ type LinkRow = {
 	created_at: string;
 	updated_at: string;
 	disabled_at: string | null;
+	expires_at: string | null;
+	go_live_at: string | null;
+	redirect_type: "301" | "302";
+	tags: string | null;
+	notes: string | null;
+	has_qrcode: number;
+	group_id: number | null;
+	has_password: number;
 	version: number;
 };
 
@@ -61,6 +71,10 @@ type RedirectRow = {
 	id: number;
 	slug: string;
 	target_url: string;
+	expires_at: string | null;
+	go_live_at: string | null;
+	redirect_type: "301" | "302";
+	password_hash: string | null;
 };
 
 type StatsRow = {
@@ -72,12 +86,33 @@ type CreateLinkPayload = {
 	slug?: string;
 	targetUrl?: string;
 	url?: string;
+	redirectType?: "301" | "302";
+	tags?: string[];
+	notes?: string;
+	expiresAt?: string;
+	goLiveAt?: string;
+	groupId?: number | null;
+	password?: string;
 };
 
 type UpdateLinkPayload = {
 	targetUrl?: string;
 	url?: string;
 	slug?: string;
+	redirectType?: "301" | "302";
+	tags?: string[];
+	notes?: string;
+	expiresAt?: string | null;
+	goLiveAt?: string | null;
+	groupId?: number | null;
+	password?: string | null;
+};
+
+type LinkGroupRow = {
+	id: number;
+	name: string;
+	parent_id: number | null;
+	created_at: string;
 };
 
 const RESERVED_SLUGS = new Set([
@@ -99,6 +134,11 @@ const databaseSchemaStatements = databaseSchema
 	.filter(Boolean);
 const databaseSchemaBootstrap = new WeakMap<D1Database, Promise<void>>();
 const APP_VERSION = packageJson.version;
+const PASSWORD_RATE_LIMIT_MAX_ATTEMPTS = 5;
+const PASSWORD_RATE_LIMIT_WINDOW_MS = 60_000;
+const PASSWORD_SESSION_MAX_AGE_SECONDS = 300;
+const passwordAttempts = new Map<string, { count: number; resetAt: number }>();
+let writesSinceLastPurge = 0;
 
 const app = new Hono<AppContext>();
 
@@ -176,6 +216,41 @@ app.get("/admin.html", serveAdminAsset);
 app.get("/api/links", async (c) => {
 	const search = c.req.query("search")?.trim() ?? "";
 	const searchPattern = search ? `%${escapeLikePattern(search)}%` : null;
+	const tag = c.req.query("tag")?.trim() ?? "";
+	const tagPattern = tag ? `%\"${escapeLikePattern(tag)}\"%` : null;
+	const hasQrcode = c.req.query("has_qrcode");
+	const groupIdRaw = c.req.query("group_id");
+	const filters: string[] = ["disabled_at IS NULL"];
+	const bindings: Array<string | number> = [];
+
+	if (searchPattern) {
+		filters.push("(slug LIKE ? OR target_url LIKE ?)");
+		bindings.push(searchPattern, searchPattern);
+	}
+
+	if (tagPattern) {
+		filters.push("tags LIKE ?");
+		bindings.push(tagPattern);
+	}
+
+	if (hasQrcode === "1") {
+		filters.push("has_qrcode = 1");
+	} else if (hasQrcode === "0") {
+		filters.push("has_qrcode = 0");
+	}
+
+	if (groupIdRaw !== undefined) {
+		if (groupIdRaw === "null") {
+			filters.push("group_id IS NULL");
+		} else {
+			const groupId = Number.parseInt(groupIdRaw, 10);
+			if (!Number.isNaN(groupId)) {
+				filters.push("group_id = ?");
+				bindings.push(groupId);
+			}
+		}
+	}
+
 	const baseSql = `SELECT
 				id,
 				slug,
@@ -185,20 +260,22 @@ app.get("/api/links", async (c) => {
 				created_at,
 				updated_at,
 				disabled_at,
+				expires_at,
+				go_live_at,
+				redirect_type,
+				tags,
+				notes,
+				has_qrcode,
+				group_id,
+				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
 				version
 			FROM links
-			WHERE disabled_at IS NULL`;
-	const sql = searchPattern
-		? `${baseSql}
-			AND (slug LIKE ? ESCAPE '\\' OR target_url LIKE ? ESCAPE '\\')
-			ORDER BY created_at DESC
-			LIMIT 100`
-		: `${baseSql}
+			WHERE ${filters.join(" AND ")}
 			ORDER BY created_at DESC
 			LIMIT 100`;
-	const statement = searchPattern
-		? c.env.db_boltlink.prepare(sql).bind(searchPattern, searchPattern)
-		: c.env.db_boltlink.prepare(sql);
+	const statement = bindings.length
+		? c.env.db_boltlink.prepare(baseSql).bind(...bindings)
+		: c.env.db_boltlink.prepare(baseSql);
 	const result = await statement.all<LinkRow>();
 
 	return c.json({ links: result.results ?? [], search });
@@ -214,6 +291,42 @@ app.post("/api/links", async (c) => {
 	if (!targetUrl) {
 		return c.json({ error: "Invalid target URL" }, 400);
 	}
+
+	const redirectType = normalizeRedirectType(payload.redirectType);
+	if (!redirectType) {
+		return c.json({ error: "Invalid redirect type. Use '301' or '302'" }, 400);
+	}
+
+	const tags = normalizeTags(payload.tags);
+	if (payload.tags !== undefined && tags === null) {
+		return c.json({ error: "Invalid tags. Provide an array of strings" }, 400);
+	}
+
+	const notes = normalizeNotes(payload.notes);
+	if (payload.notes !== undefined && notes === null) {
+		return c.json({ error: "Invalid notes. Maximum length is 2000 chars" }, 400);
+	}
+
+	const expiresAt = normalizeDateTime(payload.expiresAt);
+	const goLiveAt = normalizeDateTime(payload.goLiveAt);
+	if ((payload.expiresAt && !expiresAt) || (payload.goLiveAt && !goLiveAt)) {
+		return c.json({ error: "Invalid date format. Use ISO-8601" }, 400);
+	}
+
+	if (expiresAt && goLiveAt && new Date(expiresAt).getTime() < new Date(goLiveAt).getTime()) {
+		return c.json({ error: "expiresAt cannot be earlier than goLiveAt" }, 400);
+	}
+
+	const groupId = normalizeGroupId(payload.groupId);
+	if (payload.groupId !== undefined && groupId === undefined) {
+		return c.json({ error: "Invalid groupId" }, 400);
+	}
+
+	if (groupId !== null && groupId !== undefined && !(await groupExists(c.env.db_boltlink, groupId))) {
+		return c.json({ error: "Group not found" }, 404);
+	}
+
+	const passwordHash = await hashPassword(payload.password);
 
 	const requestedSlug = payload.slug?.trim();
 	let slug = requestedSlug ?? "";
@@ -235,8 +348,18 @@ app.post("/api/links", async (c) => {
 
 	const createdLink = await c.env.db_boltlink
 		.prepare(
-			`INSERT INTO links (slug, target_url)
-			VALUES (?, ?)
+			`INSERT INTO links (
+				slug,
+				target_url,
+				expires_at,
+				go_live_at,
+				redirect_type,
+				tags,
+				notes,
+				group_id,
+				password_hash
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			RETURNING
 				id,
 				slug,
@@ -246,9 +369,27 @@ app.post("/api/links", async (c) => {
 				created_at,
 				updated_at,
 				disabled_at,
+				expires_at,
+				go_live_at,
+				redirect_type,
+				tags,
+				notes,
+				has_qrcode,
+				group_id,
+				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
 				version`,
 		)
-		.bind(slug, targetUrl)
+		.bind(
+			slug,
+			targetUrl,
+			expiresAt,
+			goLiveAt,
+			redirectType,
+			tags,
+			notes,
+			groupId ?? null,
+			passwordHash,
+		)
 		.first<LinkRow>();
 
 	return c.json({ link: createdLink }, 201);
@@ -305,6 +446,14 @@ app.get("/api/links/:slug/stats", async (c) => {
 				created_at,
 				updated_at,
 				disabled_at,
+				expires_at,
+				go_live_at,
+				redirect_type,
+				tags,
+				notes,
+				has_qrcode,
+				group_id,
+				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
 				version
 			FROM links
 			WHERE slug = ?`,
@@ -319,6 +468,240 @@ app.get("/api/links/:slug/stats", async (c) => {
 	return c.json({ link: summary, stats: recentStats.results ?? [] });
 });
 
+app.post("/api/links/:slug/qrcode", async (c) => {
+	const slug = c.req.param("slug");
+	const now = isoNow();
+	const updated = await c.env.db_boltlink
+		.prepare(
+			`UPDATE links
+			SET has_qrcode = 1, updated_at = ?, version = version + 1
+			WHERE slug = ? AND disabled_at IS NULL
+			RETURNING slug, has_qrcode`,
+		)
+		.bind(now, slug)
+		.first<{ slug: string; has_qrcode: number }>();
+
+	if (!updated) {
+		return c.json({ error: "Link not found" }, 404);
+	}
+
+	return c.json({ link: updated });
+});
+
+app.get("/api/links/:slug/qrcode", async (c) => {
+	const slug = c.req.param("slug");
+	const link = await c.env.db_boltlink
+		.prepare("SELECT slug FROM links WHERE slug = ? AND disabled_at IS NULL")
+		.bind(slug)
+		.first<{ slug: string }>();
+
+	if (!link) {
+		return c.json({ error: "Link not found" }, 404);
+	}
+
+	const shortUrl = new URL(`/${link.slug}`, c.req.url).toString();
+	const svg = await QRCode.toString(shortUrl, {
+		type: "svg",
+		margin: 2,
+		errorCorrectionLevel: "M",
+	});
+
+	return new Response(svg, {
+		status: 200,
+		headers: {
+			"Content-Type": "image/svg+xml; charset=utf-8",
+			"Cache-Control": "no-store",
+		},
+	});
+});
+
+app.post("/api/links/:slug/duplicate", async (c) => {
+	const slug = c.req.param("slug");
+	const source = await c.env.db_boltlink
+		.prepare(
+			`SELECT target_url, redirect_type, tags, notes, group_id
+			FROM links
+			WHERE slug = ? AND disabled_at IS NULL`,
+		)
+		.bind(slug)
+		.first<{ target_url: string; redirect_type: "301" | "302"; tags: string | null; notes: string | null; group_id: number | null }>();
+
+	if (!source) {
+		return c.json({ error: "Link not found" }, 404);
+	}
+
+	const duplicateSlug = await suggestDuplicateSlug(c.env.db_boltlink, slug);
+	const created = await c.env.db_boltlink
+		.prepare(
+			`INSERT INTO links (slug, target_url, redirect_type, tags, notes, group_id)
+			VALUES (?, ?, ?, ?, ?, ?)
+			RETURNING id, slug, target_url, clicks_total, last_clicked_at, created_at, updated_at, disabled_at,
+				expires_at, go_live_at, redirect_type, tags, notes, has_qrcode, group_id,
+				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password, version`,
+		)
+		.bind(duplicateSlug, source.target_url, source.redirect_type, source.tags, source.notes, source.group_id)
+		.first<LinkRow>();
+
+	return c.json({ link: created }, 201);
+});
+
+app.get("/api/groups", async (c) => {
+	const groups = await c.env.db_boltlink
+		.prepare("SELECT id, name, parent_id, created_at FROM link_groups ORDER BY name COLLATE NOCASE ASC")
+		.all<LinkGroupRow>();
+
+	return c.json({ groups: groups.results ?? [] });
+});
+
+app.post("/api/groups", async (c) => {
+	const payload = await parseJsonBody<{ name?: string; parentId?: number | null }>(c);
+	if (!payload?.name?.trim()) {
+		return c.json({ error: "Group name is required" }, 400);
+	}
+
+	const name = payload.name.trim().slice(0, 120);
+	const parentId = normalizeGroupId(payload.parentId);
+	if (payload.parentId !== undefined && parentId === undefined) {
+		return c.json({ error: "Invalid parentId" }, 400);
+	}
+
+	if (parentId !== null && parentId !== undefined && !(await groupExists(c.env.db_boltlink, parentId))) {
+		return c.json({ error: "Parent group not found" }, 404);
+	}
+
+	const created = await c.env.db_boltlink
+		.prepare("INSERT INTO link_groups (name, parent_id) VALUES (?, ?) RETURNING id, name, parent_id, created_at")
+		.bind(name, parentId ?? null)
+		.first<LinkGroupRow>();
+
+	return c.json({ group: created }, 201);
+});
+
+app.patch("/api/groups/:id", async (c) => {
+	const id = Number.parseInt(c.req.param("id"), 10);
+	if (Number.isNaN(id) || id <= 0) {
+		return c.json({ error: "Invalid group id" }, 400);
+	}
+
+	const payload = await parseJsonBody<{ name?: string; parentId?: number | null }>(c);
+	if (!payload) {
+		return c.json({ error: "Invalid JSON body" }, 400);
+	}
+
+	const updates: string[] = [];
+	const values: Array<string | number | null> = [];
+	if (payload.name !== undefined) {
+		const name = payload.name.trim();
+		if (!name) {
+			return c.json({ error: "Group name cannot be empty" }, 400);
+		}
+		updates.push("name = ?");
+		values.push(name.slice(0, 120));
+	}
+
+	if (payload.parentId !== undefined) {
+		const parentId = normalizeGroupId(payload.parentId);
+		if (parentId === undefined || parentId === id) {
+			return c.json({ error: "Invalid parentId" }, 400);
+		}
+		if (parentId !== null && !(await groupExists(c.env.db_boltlink, parentId))) {
+			return c.json({ error: "Parent group not found" }, 404);
+		}
+		updates.push("parent_id = ?");
+		values.push(parentId);
+	}
+
+	if (!updates.length) {
+		return c.json({ error: "No updatable fields provided" }, 400);
+	}
+
+	const updated = await c.env.db_boltlink
+		.prepare(`UPDATE link_groups SET ${updates.join(", ")} WHERE id = ? RETURNING id, name, parent_id, created_at`)
+		.bind(...values, id)
+		.first<LinkGroupRow>();
+
+	if (!updated) {
+		return c.json({ error: "Group not found" }, 404);
+	}
+
+	return c.json({ group: updated });
+});
+
+app.delete("/api/groups/:id", async (c) => {
+	const id = Number.parseInt(c.req.param("id"), 10);
+	if (Number.isNaN(id) || id <= 0) {
+		return c.json({ error: "Invalid group id" }, 400);
+	}
+
+	const usage = await c.env.db_boltlink
+		.prepare("SELECT COUNT(1) AS total FROM links WHERE group_id = ? AND disabled_at IS NULL")
+		.bind(id)
+		.first<{ total: number }>();
+	if ((usage?.total ?? 0) > 0) {
+		return c.json({ error: "Group is not empty" }, 409);
+	}
+
+	const deleted = await c.env.db_boltlink
+		.prepare("DELETE FROM link_groups WHERE id = ? RETURNING id")
+		.bind(id)
+		.first<{ id: number }>();
+
+	if (!deleted) {
+		return c.json({ error: "Group not found" }, 404);
+	}
+
+	return c.json({ ok: true });
+});
+
+app.post("/api/maintenance/purge-stats", async (c) => {
+	const payload = await parseJsonBody<{ retentionDays?: number }>(c);
+	const retentionDays = normalizeRetentionDays(payload?.retentionDays ?? 90);
+	if (!retentionDays) {
+		return c.json({ error: "Invalid retentionDays. Use one of: 30, 60, 90, 180, 365" }, 400);
+	}
+
+	const cutoff = new Date(Date.now() - retentionDays * 86_400_000).toISOString();
+	const result = await c.env.db_boltlink
+		.prepare("DELETE FROM stats WHERE clicked_at < ?")
+		.bind(cutoff)
+		.run();
+
+	return c.json({ ok: true, retentionDays, cutoff, deletedRows: result.meta.changes ?? 0 });
+});
+
+app.get("/api/preview", async (c) => {
+	const rawUrl = c.req.query("url")?.trim();
+	const normalized = normalizeTargetUrl(rawUrl);
+	if (!normalized) {
+		return c.json({ error: "Invalid target URL" }, 400);
+	}
+
+	try {
+		const response = await fetch(normalized, {
+			method: "GET",
+			headers: {
+				"User-Agent": "BoltLinkPreview/1.1.0",
+				Accept: "text/html,application/xhtml+xml",
+			},
+		});
+
+		if (!response.ok) {
+			return c.json({ preview: { url: normalized, domain: new URL(normalized).hostname } });
+		}
+
+		const contentType = response.headers.get("content-type") ?? "";
+		if (!contentType.includes("text/html")) {
+			return c.json({ preview: { url: normalized, domain: new URL(normalized).hostname } });
+		}
+
+		const html = (await response.text()).slice(0, 150_000);
+		const preview = extractPreviewMetadata(html, normalized);
+		return c.json({ preview });
+	} catch {
+		return c.json({ preview: { url: normalized, domain: new URL(normalized).hostname } });
+	}
+});
+
 app.get("/:slug", async (c) => {
 	const slug = c.req.param("slug");
 	if (isReservedSlug(slug)) {
@@ -329,7 +712,7 @@ app.get("/:slug", async (c) => {
 
 	const link = await c.env.db_boltlink
 		.prepare(
-			`SELECT id, slug, target_url
+			`SELECT id, slug, target_url, expires_at, go_live_at, redirect_type, password_hash
 			FROM links
 			WHERE slug = ? AND disabled_at IS NULL`,
 		)
@@ -340,8 +723,84 @@ app.get("/:slug", async (c) => {
 		return c.notFound();
 	}
 
-	const response = c.redirect(link.target_url, 302);
-	c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, c.req.raw, link, c.env.IP_HASH_SECRET));
+	if (link.go_live_at && new Date(link.go_live_at).getTime() > Date.now()) {
+		return c.notFound();
+	}
+
+	if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
+		return c.text("Link expired", 410);
+	}
+
+	if (link.password_hash && !hasValidPasswordSession(c.req.raw, c.env, link.slug)) {
+		return c.html(renderPasswordGate(link.slug));
+	}
+
+	const response = c.redirect(link.target_url, Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302);
+	
+	// Phase 1: Only record clicks for legitimate user navigation
+	// Filters out bots, crawlers, prefetch, prerender, and other non-human traffic
+	if (isCountableClick(c.req.raw)) {
+		c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, c.req.raw, link, c.env.IP_HASH_SECRET));
+	}
+	
+	return response;
+});
+
+app.post("/:slug", async (c) => {
+	const slug = c.req.param("slug");
+	if (isReservedSlug(slug)) {
+		return c.notFound();
+	}
+
+	await ensureDatabaseSchema(c.env.db_boltlink);
+	const link = await c.env.db_boltlink
+		.prepare(
+			`SELECT id, slug, target_url, expires_at, go_live_at, redirect_type, password_hash
+			FROM links
+			WHERE slug = ? AND disabled_at IS NULL`,
+		)
+		.bind(slug)
+		.first<RedirectRow>();
+
+	if (!link) {
+		return c.notFound();
+	}
+
+	if (!link.password_hash) {
+		return c.redirect(link.target_url, Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302);
+	}
+
+	if (link.go_live_at && new Date(link.go_live_at).getTime() > Date.now()) {
+		return c.notFound();
+	}
+
+	if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
+		return c.text("Link expired", 410);
+	}
+
+	const clientIp = c.req.raw.headers.get("CF-Connecting-IP") ?? "unknown";
+	if (!consumePasswordAttempt(slug, clientIp)) {
+		return c.text("Too many attempts. Try again in 1 minute.", 429);
+	}
+
+	const form = await c.req.raw.formData().catch(() => null);
+	const candidate = String(form?.get("password") ?? "");
+	if (!(await verifyPassword(candidate, link.password_hash))) {
+		return c.html(renderPasswordGate(link.slug, "Senha inválida."), 401);
+	}
+
+	const token = createPasswordSessionToken(c.env, link.slug);
+	const response = c.redirect(link.target_url, Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302);
+	const cookieSecure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+	response.headers.append(
+		"Set-Cookie",
+		`${passwordCookieName(link.slug)}=${token}; Path=/${slug}; HttpOnly; SameSite=Lax; Max-Age=${PASSWORD_SESSION_MAX_AGE_SECONDS}${cookieSecure}`,
+	);
+
+	if (isCountablePasswordSubmission(c.req.raw)) {
+		c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, c.req.raw, link, c.env.IP_HASH_SECRET));
+	}
+
 	return response;
 });
 
@@ -364,16 +823,112 @@ async function updateLink(c: Context<AppContext>) {
 		return c.json({ error: "Slug is immutable after creation" }, 400);
 	}
 
-	const targetUrl = normalizeTargetUrl(payload.targetUrl ?? payload.url);
-	if (!targetUrl) {
+	const targetUrlInput = payload.targetUrl ?? payload.url;
+	const targetUrl = targetUrlInput ? normalizeTargetUrl(targetUrlInput) : undefined;
+	if (targetUrlInput && !targetUrl) {
 		return c.json({ error: "Invalid target URL" }, 400);
 	}
 
+	const redirectType = payload.redirectType ? normalizeRedirectType(payload.redirectType) : undefined;
+	if (payload.redirectType && !redirectType) {
+		return c.json({ error: "Invalid redirect type. Use '301' or '302'" }, 400);
+	}
+
+	const tags = payload.tags !== undefined ? normalizeTags(payload.tags) : undefined;
+	if (payload.tags !== undefined && tags === null) {
+		return c.json({ error: "Invalid tags. Provide an array of strings" }, 400);
+	}
+
+	const notes = payload.notes !== undefined ? normalizeNotes(payload.notes) : undefined;
+	if (payload.notes !== undefined && notes === null) {
+		return c.json({ error: "Invalid notes. Maximum length is 2000 chars" }, 400);
+	}
+
+	const expiresAt = payload.expiresAt === null ? null : payload.expiresAt ? normalizeDateTime(payload.expiresAt) : undefined;
+	const goLiveAt = payload.goLiveAt === null ? null : payload.goLiveAt ? normalizeDateTime(payload.goLiveAt) : undefined;
+	if ((payload.expiresAt && expiresAt === null) || (payload.goLiveAt && goLiveAt === null)) {
+		return c.json({ error: "Invalid date format. Use ISO-8601" }, 400);
+	}
+
+	const groupId = payload.groupId !== undefined ? normalizeGroupId(payload.groupId) : undefined;
+	if (payload.groupId !== undefined && groupId === undefined) {
+		return c.json({ error: "Invalid groupId" }, 400);
+	}
+
+	if (groupId !== null && groupId !== undefined && !(await groupExists(c.env.db_boltlink, groupId))) {
+		return c.json({ error: "Group not found" }, 404);
+	}
+
+	const passwordHash = payload.password !== undefined
+		? await hashPassword(payload.password === null ? undefined : payload.password)
+		: undefined;
+
+	if (
+		(expiresAt || payload.expiresAt === null || goLiveAt || payload.goLiveAt === null)
+	) {
+		const existing = await c.env.db_boltlink
+			.prepare("SELECT expires_at, go_live_at FROM links WHERE slug = ? AND disabled_at IS NULL")
+			.bind(slug)
+			.first<{ expires_at: string | null; go_live_at: string | null }>();
+
+		if (!existing) {
+			return c.json({ error: "Link not found" }, 404);
+		}
+
+		const finalExpires = expiresAt === undefined ? existing.expires_at : expiresAt;
+		const finalGoLive = goLiveAt === undefined ? existing.go_live_at : goLiveAt;
+		if (finalExpires && finalGoLive && new Date(finalExpires).getTime() < new Date(finalGoLive).getTime()) {
+			return c.json({ error: "expiresAt cannot be earlier than goLiveAt" }, 400);
+		}
+	}
+
+	const updates: string[] = [];
+	const values: Array<string | number | null> = [];
+
+	if (targetUrl !== undefined) {
+		updates.push("target_url = ?");
+		values.push(targetUrl);
+	}
+	if (redirectType !== undefined) {
+		updates.push("redirect_type = ?");
+		values.push(redirectType);
+	}
+	if (tags !== undefined) {
+		updates.push("tags = ?");
+		values.push(tags);
+	}
+	if (notes !== undefined) {
+		updates.push("notes = ?");
+		values.push(notes);
+	}
+	if (expiresAt !== undefined) {
+		updates.push("expires_at = ?");
+		values.push(expiresAt);
+	}
+	if (goLiveAt !== undefined) {
+		updates.push("go_live_at = ?");
+		values.push(goLiveAt);
+	}
+	if (groupId !== undefined) {
+		updates.push("group_id = ?");
+		values.push(groupId ?? null);
+	}
+	if (passwordHash !== undefined) {
+		updates.push("password_hash = ?");
+		values.push(passwordHash);
+	}
+
+	if (!updates.length) {
+		return c.json({ error: "No updatable fields provided" }, 400);
+	}
+
 	const now = isoNow();
+	updates.push("updated_at = ?", "version = version + 1");
+	values.push(now);
 	const updatedLink = await c.env.db_boltlink
 		.prepare(
 			`UPDATE links
-			SET target_url = ?, updated_at = ?, version = version + 1
+			SET ${updates.join(", ")}
 			WHERE slug = ? AND disabled_at IS NULL
 			RETURNING
 				id,
@@ -384,9 +939,17 @@ async function updateLink(c: Context<AppContext>) {
 				created_at,
 				updated_at,
 				disabled_at,
+				expires_at,
+				go_live_at,
+				redirect_type,
+				tags,
+				notes,
+				has_qrcode,
+				group_id,
+				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
 				version`,
 		)
-		.bind(targetUrl, now, slug)
+		.bind(...values, slug)
 		.first<LinkRow>();
 
 	if (!updatedLink) {
@@ -434,12 +997,44 @@ function ensureDatabaseSchema(database: D1Database) {
 }
 
 async function initializeDatabaseSchema(database: D1Database) {
+	await reconcileLegacySchema(database);
 	for (const statement of databaseSchemaStatements) {
 		await database.prepare(statement).run();
 	}
 }
 
+async function reconcileLegacySchema(database: D1Database) {
+	const linksTable = await database
+		.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'links'")
+		.first<{ name: string }>();
+
+	if (!linksTable) {
+		return;
+	}
+
+	const info = await database.prepare("PRAGMA table_info(links)").all<{ name: string }>();
+	const existingColumns = new Set((info.results ?? []).map((column) => column.name));
+
+	const addColumnStatements: Array<[string, string]> = [
+		["expires_at", "ALTER TABLE links ADD COLUMN expires_at TEXT"],
+		["go_live_at", "ALTER TABLE links ADD COLUMN go_live_at TEXT"],
+		["redirect_type", "ALTER TABLE links ADD COLUMN redirect_type TEXT NOT NULL DEFAULT '302'"],
+		["tags", "ALTER TABLE links ADD COLUMN tags TEXT"],
+		["notes", "ALTER TABLE links ADD COLUMN notes TEXT"],
+		["has_qrcode", "ALTER TABLE links ADD COLUMN has_qrcode INTEGER NOT NULL DEFAULT 0"],
+		["group_id", "ALTER TABLE links ADD COLUMN group_id INTEGER"],
+		["password_hash", "ALTER TABLE links ADD COLUMN password_hash TEXT"],
+	];
+
+	for (const [columnName, statement] of addColumnStatements) {
+		if (!existingColumns.has(columnName)) {
+			await database.prepare(statement).run();
+		}
+	}
+}
+
 function renderHomePage() {
+	const currentYear = new Date().getFullYear();
 	return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -669,7 +1264,7 @@ function renderHomePage() {
 			<div class="actions">
 				<a class="button" href="/admin">Acessar painel</a>
 			</div>
-			<p class="footnote">Versão atual: v${APP_VERSION} &bull; Desenvolvido por Vitor Faustino &bull; Licença AGPL-3.0</p>
+			<p class="footnote">&copy; ${currentYear} &bull; v${APP_VERSION} &bull; <a href="https://github.com/vitorgfaustino/boltlink" target="_blank" rel="noopener">Código-fonte AGPL-3.0</a></p>
 		</section>
 	</main>
 </body>
@@ -812,6 +1407,242 @@ function parseCookie(cookieHeader: string | null) {
 	return cookies;
 }
 
+function normalizeRedirectType(value?: string) {
+	if (!value) {
+		return "302" as const;
+	}
+
+	if (value === "301" || value === "302") {
+		return value;
+	}
+
+	return null;
+}
+
+function normalizeTags(tags?: string[]) {
+	if (tags === undefined) {
+		return null;
+	}
+
+	if (!Array.isArray(tags)) {
+		return null;
+	}
+
+	const sanitized = tags
+		.map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+		.filter(Boolean)
+		.slice(0, 50);
+
+	if (!sanitized.length) {
+		return null;
+	}
+
+	return JSON.stringify(sanitized);
+}
+
+function normalizeNotes(notes?: string) {
+	if (notes === undefined) {
+		return null;
+	}
+
+	if (typeof notes !== "string") {
+		return null;
+	}
+
+	const trimmed = notes.trim();
+	if (!trimmed) {
+		return null;
+	}
+
+	if (trimmed.length > 2000) {
+		return null;
+	}
+
+	return trimmed;
+}
+
+function normalizeDateTime(value?: string) {
+	if (!value) {
+		return null;
+	}
+
+	const timestamp = new Date(value).getTime();
+	if (Number.isNaN(timestamp)) {
+		return null;
+	}
+
+	return new Date(timestamp).toISOString();
+}
+
+function normalizeGroupId(value: number | null | undefined) {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	if (value === null) {
+		return null;
+	}
+
+	if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+		return undefined;
+	}
+
+	return value;
+}
+
+function normalizeRetentionDays(value: number) {
+	const allowed = new Set([30, 60, 90, 180, 365]);
+	return allowed.has(value) ? value : null;
+}
+
+async function groupExists(database: D1Database, groupId: number) {
+	const group = await database
+		.prepare("SELECT 1 AS present FROM link_groups WHERE id = ? LIMIT 1")
+		.bind(groupId)
+		.first<{ present: number }>();
+
+	return Boolean(group);
+}
+
+async function suggestDuplicateSlug(database: D1Database, baseSlug: string) {
+	for (let suffix = 2; suffix < 1000; suffix += 1) {
+		const candidate = `${baseSlug}-${suffix}`;
+		if (!(await slugExists(database, candidate))) {
+			return candidate;
+		}
+	}
+
+	throw new Error("Unable to generate duplicate slug");
+}
+
+function passwordCookieName(slug: string) {
+	return `boltlink_gate_${slug}`;
+}
+
+function getPasswordSessionSecret(env: Bindings) {
+	return env.IP_HASH_SECRET?.trim() || env.API_KEY?.trim() || "boltlink-dev-session-secret";
+}
+
+function createPasswordSessionToken(env: Bindings, slug: string) {
+	const exp = Math.floor(Date.now() / 1000) + PASSWORD_SESSION_MAX_AGE_SECONDS;
+	const payload = `${slug}:${exp}`;
+	const secret = getPasswordSessionSecret(env);
+	const signature = simpleHmacLike(payload, secret);
+	return `${exp}.${signature}`;
+}
+
+function hasValidPasswordSession(request: Request, env: Bindings, slug: string) {
+	const cookies = parseCookie(request.headers.get("Cookie"));
+	const token = cookies?.[passwordCookieName(slug)];
+	if (!token) {
+		return false;
+	}
+
+	const [expRaw, signature] = token.split(".");
+	if (!expRaw || !signature) {
+		return false;
+	}
+
+	const exp = Number.parseInt(expRaw, 10);
+	if (Number.isNaN(exp) || exp < Math.floor(Date.now() / 1000)) {
+		return false;
+	}
+
+	const expected = simpleHmacLike(`${slug}:${exp}`, getPasswordSessionSecret(env));
+	return expected === signature;
+}
+
+function consumePasswordAttempt(slug: string, clientIp: string) {
+	const key = `${slug}:${clientIp}`;
+	const now = Date.now();
+	const current = passwordAttempts.get(key);
+	if (!current || current.resetAt <= now) {
+		passwordAttempts.set(key, { count: 1, resetAt: now + PASSWORD_RATE_LIMIT_WINDOW_MS });
+		return true;
+	}
+
+	if (current.count >= PASSWORD_RATE_LIMIT_MAX_ATTEMPTS) {
+		return false;
+	}
+
+	current.count += 1;
+	passwordAttempts.set(key, current);
+	return true;
+}
+
+async function hashPassword(password?: string) {
+	if (!password?.trim()) {
+		return null;
+	}
+
+	const salt = Array.from(crypto.getRandomValues(new Uint8Array(12)), (value) => value.toString(16).padStart(2, "0")).join("");
+	const digest = await sha256Hex(`${salt}:${password.trim()}`);
+	return `${salt}:${digest}`;
+}
+
+async function verifyPassword(candidate: string, storedHash: string) {
+	const [salt, expected] = storedHash.split(":");
+	if (!salt || !expected) {
+		return false;
+	}
+
+	const digest = await sha256Hex(`${salt}:${candidate ?? ""}`);
+	return digest === expected;
+}
+
+async function sha256Hex(content: string) {
+	const data = new TextEncoder().encode(content);
+	const digest = await crypto.subtle.digest("SHA-256", data);
+	return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+function simpleHmacLike(content: string, secret: string) {
+	let hash = 0;
+	const input = `${secret}:${content}`;
+	for (let index = 0; index < input.length; index += 1) {
+		hash = (hash << 5) - hash + input.charCodeAt(index);
+		hash |= 0;
+	}
+	return Math.abs(hash).toString(16);
+}
+
+function renderPasswordGate(slug: string, errorMessage = "") {
+	const message = errorMessage ? `<p style="color:#fda4af;">${escapeHtml(errorMessage)}</p>` : "";
+	return `<!doctype html>
+<html lang="pt-BR">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Link protegido</title>
+	<style>
+		body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0a0a0a; color: #f1f5f9; font-family: ui-monospace, Menlo, monospace; }
+		.card { width: min(420px, calc(100vw - 24px)); padding: 24px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: rgba(255,255,255,.04); }
+		input, button { width: 100%; min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.15); padding: 10px 12px; font: inherit; }
+		input { background: rgba(0,0,0,.2); color: #f1f5f9; margin: 10px 0 12px; }
+		button { background: #44d9ff; color: #0a0a0a; font-weight: 700; cursor: pointer; }
+	</style>
+</head>
+<body>
+	<form class="card" method="post" action="/${encodeURIComponent(slug)}">
+		<h1 style="margin:0 0 10px; font-size:1.2rem;">Link protegido por senha</h1>
+		<p style="margin:0; color:#94a3b8;">Digite a senha para continuar.</p>
+		${message}
+		<input type="password" name="password" autocomplete="current-password" required />
+		<button type="submit">Acessar</button>
+	</form>
+</body>
+</html>`;
+}
+
+function escapeHtml(value: string) {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;");
+}
+
 function validateSlug(slug: string) {
 	if (!SLUG_PATTERN.test(slug)) {
 		return "Slug must be 3-64 chars using only letters, numbers, underscore, or hyphen";
@@ -847,6 +1678,44 @@ function normalizeTargetUrl(candidate?: string) {
 	} catch {
 		return null;
 	}
+}
+
+function extractPreviewMetadata(html: string, sourceUrl: string) {
+	const getMeta = (property: string) => {
+		const patterns = [
+			new RegExp(`<meta[^>]+property=["']${property}["'][^>]+content=["']([^"']+)["']`, "i"),
+			new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${property}["']`, "i"),
+			new RegExp(`<meta[^>]+name=["']${property}["'][^>]+content=["']([^"']+)["']`, "i"),
+			new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${property}["']`, "i"),
+		];
+
+		for (const pattern of patterns) {
+			const match = html.match(pattern);
+			if (match?.[1]) {
+				return decodeHtmlEntities(match[1].trim());
+			}
+		}
+		return null;
+	};
+
+	const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+	const title = getMeta("og:title") ?? (titleMatch?.[1] ? decodeHtmlEntities(titleMatch[1].trim()) : null);
+	const description = getMeta("og:description") ?? getMeta("description");
+	const image = getMeta("og:image");
+	const url = getMeta("og:url") ?? sourceUrl;
+	const domain = new URL(sourceUrl).hostname;
+
+	return { title, description, image, url, domain };
+}
+
+function decodeHtmlEntities(value: string) {
+	return value
+		.replaceAll("&amp;", "&")
+		.replaceAll("&quot;", '"')
+		.replaceAll("&#39;", "'")
+		.replaceAll("&lt;", "<")
+		.replaceAll("&gt;", ">")
+		.trim();
 }
 
 function escapeLikePattern(value: string) {
@@ -900,6 +1769,13 @@ async function recordClick(database: D1Database, request: Request, link: Redirec
 				)
 				.bind(clickedAt, link.id),
 		]);
+
+		writesSinceLastPurge += 1;
+		if (writesSinceLastPurge >= 100) {
+			const cutoff = new Date(Date.now() - 90 * 86_400_000).toISOString();
+			await database.prepare("DELETE FROM stats WHERE clicked_at < ?").bind(cutoff).run();
+			writesSinceLastPurge = 0;
+		}
 	} catch (error) {
 		console.error("Failed to record click", error);
 	}
@@ -956,10 +1832,23 @@ function applySecurityHeaders(response: Response, path: string, requestUrl?: str
 	});
 	const isAdminPath = path === "/admin" || path === "/admin/" || path === "/admin.html" || path.startsWith("/admin/");
 	const isSensitivePath = isAdminPath || isApiPath(path);
+	const isRedirectResponse = response.status === 301 || response.status === 302;
 
 	securedResponse.headers.set("X-Content-Type-Options", "nosniff");
 	securedResponse.headers.set("X-Frame-Options", "DENY");
-	securedResponse.headers.set("Referrer-Policy", "no-referrer");
+	
+	// Phase 2: Conditional Referrer-Policy
+	// For public redirects (301/302), allow origin-level referrer to destination
+	// For admin/API paths, use strict no-referrer policy
+	if (isRedirectResponse && !isSensitivePath) {
+		// Public redirect: allow strict-origin-when-cross-origin
+		// This sends the origin (not full path) to the destination on HTTPS→HTTPS
+		securedResponse.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+	} else {
+		// Admin/API/sensitive paths: strict no-referrer
+		securedResponse.headers.set("Referrer-Policy", "no-referrer");
+	}
+	
 	securedResponse.headers.set("Permissions-Policy", "camera=(), geolocation=(), microphone=()");
 
 	if (requestUrl?.startsWith("https://")) {

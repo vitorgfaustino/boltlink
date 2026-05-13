@@ -4,20 +4,60 @@ Todas as mudanças relevantes deste projeto serão registradas neste arquivo.
 
 ## [Unreleased]
 
-### Corrigido
-- **`keep_vars` agora é `true` por padrão** em `wrangler.local.jsonc` ao ser gerado pelo `npm run wrangler:init`, evitando que deploys locais apaguem variáveis configuradas no painel do Worker.
-- **Bloco `vars` vazio removido** do `wrangler.jsonc` público. Strings vazias (`"TEAM_DOMAIN": ""`) sobrescrevam valores do painel durante deploys automáticos via GitHub.
-- **`src/index.ts` endurecido** para aceitar `TEAM_DOMAIN` e `POLICY_AUD` como `undefined`, garantindo que o Worker não quebre quando essas variáveis não existem no config.
+## [1.1.0] - 2026-05-13
 
 ### Adicionado
-- **Validação automática no deploy local**: `scripts/wrangler-routing.mjs` agora emite `WARNING` se detectar `vars` vazios ou `keep_vars: false` no `wrangler.local.jsonc` antes de rodar `npm run deploy`.
-- **Mensagens explicativas** no `npm run wrangler:init` sobre onde colocar `TEAM_DOMAIN`/`POLICY_AUD` (painel vs. config local) e sobre o risco de strings vazias.
+- Filtro de cliques reais em `src/click-filter.ts` para bloquear bots, crawlers, prefetch/prerender e tráfego automatizado.
+- Contabilização segura de cliques em links com senha após submissão válida do gate (`POST /:slug`).
+- Suporte a redirecionamento por link com status configurável (`301` ou `302`).
+- Janela de ativação e expiração por link (`go_live_at`, `expires_at`) com validações de consistência.
+- Suporte a tags e notas internas por link.
+- Suporte a QR code por link (`has_qrcode`) com endpoints de marcação e geração SVG (`/api/links/:slug/qrcode`).
+- Recurso de duplicação de link com sugestão automática de slug (`/api/links/:slug/duplicate`).
+- Suporte a grupos de links (`link_groups`) com CRUD em `/api/groups`.
+- Proteção opcional por senha em links curtos com hash+salt, sessão curta via cookie e rate limit por slug+IP.
+- Endpoint de manutenção para purge manual de analytics (`POST /api/maintenance/purge-stats`) com retenção configurável.
+- Endpoint `/api/preview` para extrair preview básico de URL de destino.
+- Novas migrations de evolução de schema: `0001_link_management.sql` e `0002_advanced_features.sql`.
+- Novos comandos de operação local: `dev-init`, `dev-reset`, `dev-test` e validações por fase no `package.json`.
+- Dependência `qrcode` adicionada para geração local de QR sem serviço externo.
+
+### Alterado
+- UX/Layout do admin (`public/admin.html`) redesenhado para fluxo mais escalável com seções colapsáveis (`Gerador de UTMs` e `Opções avançadas`).
+- Campos do formulário reorganizados com help text para todos os campos operacionais.
+- Termo de agendamento alterado de "Go live em" para "Ativa em" no formulário e nos cards.
+- Preview de URL/UTM em container scrollável com quebra de linha para evitar overflow visual.
+- Exclusão de link com janela de desfazer passou a exibir contador regressivo em segundos até o commit do `DELETE`.
+- Preview de imagem externa no admin agora respeita CSP local e mostra fallback de mensagem quando a origem não é permitida.
+- Header `Referrer-Policy` ficou condicional por contexto:
+  - redirects públicos usam `strict-origin-when-cross-origin`
+  - admin, API e respostas não-redirect usam `no-referrer`
+
+### Banco de dados
+- `schema.sql` atualizado para refletir o estado consolidado da 1.1.0 (`redirect_type`, `go_live_at`, `expires_at`, `tags`, `notes`, `has_qrcode`, `group_id`, `password_hash`).
+- Índices adicionados para novos filtros e consultas (`has_qrcode`, `tags`, `group_id`, `parent_id`).
+
+### Segurança e Privacidade
+- Persistência de analytics mantida sem `Referer` e sem `User-Agent` em banco.
+- IP continua sem persistência em texto puro; quando configurado, é armazenado apenas hash HMAC com segredo operacional.
+- Proteções de acesso administrativo e validações de segurança mantidas compatíveis com Cloudflare Access.
+
+### Testes
+- Suite ampliada para 69 testes automatizados cobrindo:
+  - filtro de cliques reais;
+  - política de referrer por tipo de rota;
+  - recursos avançados (redirect type, go-live, expiração, senha, QR, grupos);
+  - integração principal do Worker e configuração.
 
 ### Documentação
-- **README.md**: adicionada tabela comparativa de métodos de deploy (GitHub auto-deploy vs. deploy local) e regras de `keep_vars` e `vars`.
-- **AI-START.md**: adicionada seção "Detecção obrigatória do método de deploy" com árvore de decisão e regras críticas.
-- **docs/ai-guided-operations.md**: adicionado fluxo completo "Decidir método de deploy" com checklist pré-deploy.
-- **docs/ai-accepted-requests.md**: atualizado `atualizar_projeto` para perguntar o método de deploy antes de qualquer ação.
+- Novos guias públicos adicionados:
+  - `docs/click-policy.md`
+  - `docs/password-links.md`
+  - `docs/privacy.md`
+  - `docs/retention.md`
+  - `docs/ads-best-practices.md`
+  - `docs/upgrading.md`
+- `AI-START.md` expandido com quick start da 1.1.0, regras operacionais e checklist de bootstrap/upgrade.
 
 ## [1.0.0] - 2026-05-10
 

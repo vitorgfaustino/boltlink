@@ -118,6 +118,34 @@ Na primeira resposta, a IA deve deixar claro:
 Exemplos de pedidos que a IA deve reconhecer:
 
 - `Iniciar o Projeto`
+
+## Quick Start v1.1.0
+
+### Bootstrap local
+
+```bash
+npm install
+npm run setup
+npm run dev-init
+npm test
+```
+
+### Upgrade para v1.1.0
+
+```bash
+npm install
+npm test
+npx wrangler d1 migrations apply db_boltlink --local
+npx wrangler d1 migrations apply db_boltlink --remote
+npm run deploy
+```
+
+### Regras críticas da v1.1.0
+
+- Não persistir `Referer`
+- Não persistir `User-Agent`
+- Não armazenar UTMs separadamente (apenas em `target_url`)
+- Não remover rodapé AGPL-3.0 com link do código-fonte
 - `Continuar configuração do projeto`
 - `Atualizar o Projeto`
 - `Auditar estado operacional`

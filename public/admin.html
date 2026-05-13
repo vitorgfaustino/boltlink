@@ -170,6 +170,12 @@
       }
     }
 
+    @media (min-width: 768px) and (max-width: 900px) {
+      .layout {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+    }
+
     .panel {
       background: var(--surface);
       border: 1px solid var(--line);
@@ -271,13 +277,13 @@
       color: var(--muted);
     }
 
-    input, button {
+    input, button, select, textarea {
       font: inherit;
       border-radius: var(--radius-sm);
       transition: transform var(--motion-fast), border-color var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast), color var(--motion-fast), opacity var(--motion-fast);
     }
 
-    input {
+    input, select, textarea {
       width: 100%;
       min-width: 0;
       min-height: 50px;
@@ -291,10 +297,67 @@
       color: rgba(148, 163, 184, 0.7);
     }
 
-    input:focus {
+    input:focus, select:focus, textarea:focus {
       outline: none;
       border-color: var(--accent);
       box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 88px;
+    }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      transition: background-color var(--motion-medium), border-color var(--motion-medium);
+    }
+
+    details[open] {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(68, 217, 255, 0.2);
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--text-secondary);
+      padding: 4px 0;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: color var(--motion-fast);
+    }
+
+    summary:hover {
+      color: var(--accent);
+    }
+
+    summary::marker {
+      color: var(--accent);
+    }
+
+    .preview-box {
+      max-height: 140px;
+      overflow: auto;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: var(--radius-xs);
+      padding: 8px 10px;
+      word-break: break-all;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      font-family: var(--font);
+      line-height: 1.4;
+    }
+
+    .form-section {
+      display: grid;
+      gap: 12px;
+      margin-top: 8px;
     }
 
     input:hover:not(:focus):not([readonly]) {
@@ -692,6 +755,10 @@
         border-radius: 18px;
       }
 
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
       .search-main-row {
         grid-template-columns: minmax(0, 1fr) 48px;
       }
@@ -708,6 +775,11 @@
 
       .card-actions button {
         padding: 10px;
+      }
+
+      .preview-box {
+        max-height: 120px;
+        font-size: 0.82rem;
       }
     }
   </style>
@@ -757,8 +829,93 @@
 
           <label>
             URL de destino
+            <small>Pode ter ou não barra final. UTMs e parâmetros serão adicionados automaticamente.</small>
             <input id="target-url" name="target-url" type="url" required placeholder="https://exemplo.com/landing" />
           </label>
+
+          <label>
+            Tipo de redirect
+            <select id="redirect-type">
+              <option value="302">302 (temporário)</option>
+              <option value="301">301 (permanente)</option>
+            </select>
+          </label>
+
+          <div id="link-preview" class="empty" style="padding:14px;text-align:left;display:none;"></div>
+
+          <details>
+            <summary>Gerador de UTMs</summary>
+            <div class="form-section">
+              <small style="color: var(--muted);">Adicione parâmetros UTM para rastrear a origem do tráfego. Recomendado: source + medium + campaign.</small>
+              <label>
+                Fonte (utm_source)
+                <input id="utm-source" type="text" placeholder="google, facebook, newsletter, etc" />
+              </label>
+              <label>
+                Meio (utm_medium)
+                <input id="utm-medium" type="text" placeholder="cpc, email, social, organic, etc" />
+              </label>
+              <label>
+                Campanha (utm_campaign)
+                <input id="utm-campaign" type="text" placeholder="black_friday, q1_promo, etc" />
+              </label>
+              <label>
+                Conteúdo (opcional)
+                <input id="utm-content" type="text" placeholder="identificador do criativo ou anúncio" />
+              </label>
+              <label>
+                Termo (opcional)
+                <input id="utm-term" type="text" placeholder="palavra-chave em campanhas pagas" />
+              </label>
+              <div class="preview-box" id="utm-preview">Preview UTM: -</div>
+            </div>
+          </details>
+
+          <details>
+            <summary>Opções avançadas</summary>
+            <div class="form-section">
+              <label>
+                Tags (separadas por vírgula)
+                <input id="tags" type="text" placeholder="promo,2026,q1" />
+              </label>
+
+              <label>
+                Grupo
+                <select id="group-id">
+                  <option value="">Sem grupo</option>
+                </select>
+              </label>
+              <div class="slug-row">
+                <input id="new-group-name" type="text" placeholder="Novo grupo (ex: Campanhas 2026)" />
+                <button type="button" class="secondary compact" id="create-group-button">Criar grupo</button>
+              </div>
+
+              <label>
+                Ativa em (opcional)
+                <small>O link redireciona apenas depois desta data/hora. Útil para campanhas agendadas.</small>
+                <input id="go-live-at" type="datetime-local" />
+              </label>
+
+              <label>
+                Expira em (opcional)
+                <small>O link para de funcionar depois desta data/hora. Deixe vazio para sem expiração.</small>
+                <input id="expires-at" type="datetime-local" />
+              </label>
+
+              <label>
+                Senha do link (opcional)
+                <small>Proteja o link com uma senha. O visitante precisa inserir antes de ser redirecionado.</small>
+                <input id="password" type="password" placeholder="Deixe em branco para link público" />
+              </label>
+
+              <label>
+                Notas internas
+                <textarea id="notes" rows="3" maxlength="2000" placeholder="Contexto interno sobre o link"></textarea>
+              </label>
+
+              <small id="domain-warning" style="display:none;color:#facc15;">Este link redireciona para um domínio diferente. Isso pode causar destination mismatch em plataformas de ads.</small>
+            </div>
+          </details>
 
           <div class="actions">
             <button type="submit" id="submit-button" class="primary">
@@ -812,8 +969,9 @@
     </section>
 
     <footer class="app-footer" aria-label="Informação da versão">
-      <span id="app-version">v?</span>
-      <span style="margin-left: 6px;">&bull; Desenvolvido por Vitor Faustino &bull; Licença AGPL-3.0</span>
+      <span>&copy; <span id="footer-year"></span> &bull; <span id="app-version">v?</span> &bull;
+        <a href="https://github.com/vitorgfaustino/boltlink" target="_blank" rel="noopener">Código-fonte AGPL-3.0</a>
+      </span>
     </footer>
   </main>
 
@@ -822,6 +980,7 @@
       editingSlug: null,
       links: [],
       pendingDeletes: new Map(),
+      countdownInterval: null,
     };
 
     const ICONS = {
@@ -864,6 +1023,23 @@
     const linkForm = document.getElementById("link-form");
     const slugInput = document.getElementById("slug");
     const targetUrlInput = document.getElementById("target-url");
+    const linkPreview = document.getElementById("link-preview");
+    const redirectTypeInput = document.getElementById("redirect-type");
+    const tagsInput = document.getElementById("tags");
+    const groupIdInput = document.getElementById("group-id");
+    const createGroupButton = document.getElementById("create-group-button");
+    const newGroupNameInput = document.getElementById("new-group-name");
+    const goLiveAtInput = document.getElementById("go-live-at");
+    const expiresAtInput = document.getElementById("expires-at");
+    const notesInput = document.getElementById("notes");
+    const passwordInput = document.getElementById("password");
+    const domainWarning = document.getElementById("domain-warning");
+    const utmSourceInput = document.getElementById("utm-source");
+    const utmMediumInput = document.getElementById("utm-medium");
+    const utmCampaignInput = document.getElementById("utm-campaign");
+    const utmContentInput = document.getElementById("utm-content");
+    const utmTermInput = document.getElementById("utm-term");
+    const utmPreview = document.getElementById("utm-preview");
     const submitButton = document.getElementById("submit-button");
     const cancelButton = document.getElementById("cancel-button");
     const generateSlugButton = document.getElementById("generate-slug-button");
@@ -875,7 +1051,9 @@
     const linksList = document.getElementById("links-list");
     const linksCount = document.getElementById("links-count");
     const appVersion = document.getElementById("app-version");
+    const footerYear = document.getElementById("footer-year");
     const appOrigin = window.location.origin;
+    let previewTimer = null;
 
     function buttonMarkup(icon, label) {
       return `${ICONS[icon]}<span class="button-text">${label}</span>`;
@@ -935,21 +1113,222 @@
       return new URL(`/${slug}`, appOrigin).toString();
     }
 
+    function parseTags(value) {
+      const tags = value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      return tags.length ? tags : undefined;
+    }
+
+    function toIsoDateTime(localValue) {
+      if (!localValue) {
+        return undefined;
+      }
+      const date = new Date(localValue);
+      return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+    }
+
+    function toLocalInputDateTime(value) {
+      if (!value) {
+        return "";
+      }
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return "";
+      }
+      const offset = date.getTimezoneOffset();
+      const localDate = new Date(date.getTime() - offset * 60000);
+      return localDate.toISOString().slice(0, 16);
+    }
+
+    function buildUtmUrl(baseUrl) {
+      if (!baseUrl) {
+        return "";
+      }
+
+      try {
+        const parsed = new URL(baseUrl);
+        const entries = [
+          ["utm_source", utmSourceInput.value.trim()],
+          ["utm_medium", utmMediumInput.value.trim()],
+          ["utm_campaign", utmCampaignInput.value.trim()],
+          ["utm_content", utmContentInput.value.trim()],
+          ["utm_term", utmTermInput.value.trim()],
+        ];
+
+        entries.forEach(([key, value]) => {
+          if (value) {
+            parsed.searchParams.set(key, value);
+          } else {
+            parsed.searchParams.delete(key);
+          }
+        });
+
+        return parsed.toString();
+      } catch {
+        return "";
+      }
+    }
+
+    function refreshUtmPreview() {
+      const url = buildUtmUrl(targetUrlInput.value.trim());
+      utmPreview.textContent = url ? `Preview UTM: ${url}` : "Preview UTM: -";
+    }
+
+    function refreshDomainWarning() {
+      const targetValue = targetUrlInput.value.trim();
+      if (!targetValue) {
+        domainWarning.style.display = "none";
+        return;
+      }
+
+      try {
+        const sourceHost = new URL(appOrigin).hostname;
+        const targetHost = new URL(targetValue).hostname;
+        domainWarning.style.display = sourceHost !== targetHost ? "block" : "none";
+      } catch {
+        domainWarning.style.display = "none";
+      }
+    }
+
+    function renderLinkPreview(preview) {
+      if (!preview || (!preview.title && !preview.description && !preview.image)) {
+        linkPreview.style.display = "none";
+        linkPreview.innerHTML = "";
+        return;
+      }
+
+      const title = preview.title ? escapeHtml(preview.title) : escapeHtml(preview.domain || "Destino");
+      const description = preview.description ? escapeHtml(preview.description) : "Sem descrição disponível.";
+      const previewImageUrl = preview.image || "";
+      let isImageAllowed = false;
+      if (previewImageUrl) {
+        try {
+          const imageUrl = new URL(previewImageUrl, appOrigin);
+          isImageAllowed = imageUrl.origin === appOrigin || imageUrl.protocol === "data:";
+        } catch {
+          isImageAllowed = false;
+        }
+      }
+      const imageMarkup = isImageAllowed
+        ? `<img src="${escapeHtml(previewImageUrl)}" alt="Preview" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:10px;" />`
+        : "";
+      const imageHint = previewImageUrl && !isImageAllowed
+        ? '<p style="margin:0 0 8px;font-size:.78rem;color:var(--muted);">Imagem de preview indisponível neste ambiente por política de segurança (CSP).</p>'
+        : "";
+
+      linkPreview.style.display = "block";
+      linkPreview.innerHTML = `
+        ${imageMarkup}
+        ${imageHint}
+        <strong style="display:block;margin-bottom:6px;">${title}</strong>
+        <p style="margin:0;font-size:.86rem;color:var(--muted);">${description}</p>
+      `;
+    }
+
+    async function fetchLinkPreview(url) {
+      if (!url) {
+        renderLinkPreview(null);
+        return;
+      }
+
+      try {
+        const payload = await request(`/api/preview?url=${encodeURIComponent(url)}`, { method: "GET" });
+        renderLinkPreview(payload.preview || null);
+      } catch {
+        renderLinkPreview(null);
+      }
+    }
+
+    function schedulePreviewLoad() {
+      if (previewTimer) {
+        clearTimeout(previewTimer);
+      }
+      previewTimer = setTimeout(() => {
+        fetchLinkPreview(targetUrlInput.value.trim());
+      }, 350);
+    }
+
+    async function loadGroups() {
+      try {
+        const payload = await request("/api/groups", { method: "GET" });
+        const current = groupIdInput.value;
+        const options = ['<option value="">Sem grupo</option>'];
+        (payload.groups || []).forEach((group) => {
+          options.push(`<option value="${group.id}">${escapeHtml(group.name)}</option>`);
+        });
+        groupIdInput.innerHTML = options.join("");
+        if (current) {
+          groupIdInput.value = current;
+        }
+      } catch {
+        // Non-blocking: group listing is optional for basic flow
+      }
+    }
+
+    async function markQrCodeGenerated(slug) {
+      try {
+        await request(`/api/links/${encodeURIComponent(slug)}/qrcode`, { method: "POST" });
+      } catch {
+        // Keep UX resilient even if the QR flag fails
+      }
+    }
+
+    async function downloadQrForSlug(slug) {
+      const shortLink = buildShortLink(slug);
+      const response = await fetch(`/api/links/${encodeURIComponent(slug)}/qrcode`, {
+        method: "GET",
+        credentials: "same-origin",
+      });
+
+      if (!response.ok) {
+        throw new Error("Falha ao gerar QR Code");
+      }
+
+      const svgText = await response.text();
+      const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(svgBlob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${slug}-qrcode.svg`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      return shortLink;
+    }
+
     function resetForm() {
       state.editingSlug = null;
       linkForm.reset();
+      redirectTypeInput.value = "302";
       slugInput.readOnly = false;
       formTitle.textContent = "Criar link";
       submitButton.innerHTML = buttonMarkup("save", "Salvar link");
       cancelButton.innerHTML = buttonMarkup("cancel", "Cancelar");
       cancelButton.hidden = true;
       setStatus(formStatus, "");
+      refreshUtmPreview();
+      refreshDomainWarning();
+      renderLinkPreview(null);
     }
 
     function beginEdit(link) {
       state.editingSlug = link.slug;
       slugInput.value = link.slug;
       targetUrlInput.value = link.target_url;
+      redirectTypeInput.value = link.redirect_type || "302";
+      tagsInput.value = (() => {
+        try {
+          return (JSON.parse(link.tags || "[]") || []).join(", ");
+        } catch {
+          return "";
+        }
+      })();
+      notesInput.value = link.notes || "";
+      groupIdInput.value = link.group_id == null ? "" : String(link.group_id);
+      goLiveAtInput.value = toLocalInputDateTime(link.go_live_at);
+      expiresAtInput.value = toLocalInputDateTime(link.expires_at);
+      passwordInput.value = "";
       slugInput.readOnly = true;
       formTitle.textContent = `Editar /${link.slug}`;
       submitButton.innerHTML = buttonMarkup("update", "Atualizar");
@@ -957,6 +1336,9 @@
       cancelButton.hidden = false;
       setStatus(formStatus, "Slug travado após criação; altere apenas o destino.");
       targetUrlInput.focus();
+      refreshUtmPreview();
+      refreshDomainWarning();
+      schedulePreviewLoad();
     }
 
     function createClientSlug() {
@@ -998,8 +1380,18 @@
           const actionMarkup = isPendingDelete
             ? cardActionMarkup("undo-delete", "secondary", "cancel", "Desfazer exclusão", link.slug)
             : `${cardActionMarkup("copy", "secondary", "copy", "Copiar link", link.slug)}
+                  ${cardActionMarkup("qrcode", "secondary", "copy", "QR Code", link.slug)}
+                  ${cardActionMarkup("duplicate", "secondary", "copy", "Duplicar", link.slug)}
                   ${cardActionMarkup("edit", "secondary", "edit", "Editar link", link.slug)}
                   ${cardActionMarkup("delete", "danger", "trash", "Excluir link", link.slug)}`;
+
+          const parsedTags = (() => {
+            try {
+              return JSON.parse(link.tags || "[]");
+            } catch {
+              return [];
+            }
+          })();
 
           return `
             <article class="${cardClass}">
@@ -1016,7 +1408,13 @@
                 <span class="metric">Cliques <strong>${link.clicks_total}</strong></span>
                 <span class="metric">Último: <strong>${formatDate(link.last_clicked_at)}</strong></span>
                 <span class="metric">Criado: <strong>${formatDate(link.created_at)}</strong></span>
-                ${isPendingDelete ? '<span class="metric pending-note">Exclusão pendente</span>' : ""}
+                <span class="metric">Redirect <strong>${link.redirect_type || "302"}</strong></span>
+                ${link.expires_at ? `<span class="metric">Expira <strong>${formatDate(link.expires_at)}</strong></span>` : ""}
+                ${link.go_live_at ? `<span class="metric">Ativa <strong>${formatDate(link.go_live_at)}</strong></span>` : ""}
+                ${link.has_qrcode ? '<span class="metric">QR <strong>Ativo</strong></span>' : ""}
+                ${link.has_password ? '<span class="metric">Senha <strong>Protegido</strong></span>' : ""}
+                ${parsedTags.length ? `<span class="metric">Tags <strong>${escapeHtml(parsedTags.join(", "))}</strong></span>` : ""}
+                ${isPendingDelete ? `<span class="metric pending-note">Exclusão em <strong>${Math.ceil((state.pendingDeletes.get(link.slug)?.remaining || 0) / 1000)}s</strong></span>` : ""}
               </div>
             </article>
           `;
@@ -1065,29 +1463,66 @@
         return;
       }
 
+      const startTime = Date.now();
       const timeoutId = window.setTimeout(() => {
         commitDelete(link.slug);
       }, 5000);
 
-      state.pendingDeletes.set(link.slug, timeoutId);
+      state.pendingDeletes.set(link.slug, { timeoutId, startTime, remaining: 5000 });
+      
+      // Start countdown interval
+      if (!state.countdownInterval) {
+        state.countdownInterval = window.setInterval(() => {
+          const now = Date.now();
+          let hasChanges = false;
+          for (const [slug, data] of state.pendingDeletes.entries()) {
+            const elapsed = now - data.startTime;
+            const remaining = Math.max(0, 5000 - elapsed);
+            const prevSecond = Math.floor((data.remaining || 5000) / 1000);
+            const currSecond = Math.floor(remaining / 1000);
+            if (prevSecond !== currSecond) {
+              hasChanges = true;
+            }
+            data.remaining = remaining;
+          }
+          if (hasChanges) {
+            renderLinks();
+          }
+        }, 100);
+      }
+      
       renderLinks();
       setStatus(listStatus, `/${link.slug} será removido em 5 segundos. Use Desfazer para cancelar.`);
     }
 
     function undoDelete(slug) {
-      const timeoutId = state.pendingDeletes.get(slug);
-      if (!timeoutId) {
+      const data = state.pendingDeletes.get(slug);
+      if (!data) {
         return;
       }
 
-      window.clearTimeout(timeoutId);
+      window.clearTimeout(data.timeoutId);
       state.pendingDeletes.delete(slug);
+      
+      // Stop interval if no more pending deletes
+      if (state.pendingDeletes.size === 0 && state.countdownInterval) {
+        window.clearInterval(state.countdownInterval);
+        state.countdownInterval = null;
+      }
+      
       renderLinks();
       setStatus(listStatus, `Exclusão de /${slug} cancelada.`, "success");
     }
 
     async function commitDelete(slug) {
       state.pendingDeletes.delete(slug);
+      
+      // Stop interval if no more pending deletes
+      if (state.pendingDeletes.size === 0 && state.countdownInterval) {
+        window.clearInterval(state.countdownInterval);
+        state.countdownInterval = null;
+      }
+      
       renderLinks();
       setStatus(listStatus, `Excluindo /${slug}...`);
 
@@ -1109,9 +1544,18 @@
       setStatus(formStatus, state.editingSlug ? "Atualizando link..." : "Criando link...");
       setBusy(submitButton, true);
 
+      const urlWithUtm = buildUtmUrl(targetUrlInput.value.trim()) || targetUrlInput.value.trim();
+
       const body = {
         slug: slugInput.value.trim() || undefined,
-        targetUrl: targetUrlInput.value.trim(),
+        targetUrl: urlWithUtm,
+        redirectType: redirectTypeInput.value,
+        tags: parseTags(tagsInput.value),
+        notes: notesInput.value.trim() || undefined,
+        groupId: groupIdInput.value ? Number(groupIdInput.value) : null,
+        goLiveAt: toIsoDateTime(goLiveAtInput.value),
+        expiresAt: toIsoDateTime(expiresAtInput.value),
+        password: passwordInput.value.trim() || undefined,
       };
 
       try {
@@ -1119,7 +1563,16 @@
         if (state.editingSlug) {
           await request(`/api/links/${encodeURIComponent(state.editingSlug)}`, {
             method: "PATCH",
-            body: JSON.stringify({ targetUrl: body.targetUrl }),
+            body: JSON.stringify({
+              targetUrl: body.targetUrl,
+              redirectType: body.redirectType,
+              tags: body.tags,
+              notes: body.notes,
+              groupId: body.groupId,
+              goLiveAt: body.goLiveAt,
+              expiresAt: body.expiresAt,
+              password: body.password,
+            }),
           });
           successMessage = `Destino de /${state.editingSlug} atualizado.`;
         } else {
@@ -1148,6 +1601,37 @@
       slugInput.value = createClientSlug();
       slugInput.focus();
       slugInput.setSelectionRange(slugInput.value.length, slugInput.value.length);
+    });
+
+    createGroupButton.addEventListener("click", async () => {
+      const name = newGroupNameInput.value.trim();
+      if (!name) {
+        setStatus(formStatus, "Informe o nome do grupo antes de criar.", "error");
+        return;
+      }
+
+      try {
+        const payload = await request("/api/groups", {
+          method: "POST",
+          body: JSON.stringify({ name }),
+        });
+        newGroupNameInput.value = "";
+        await loadGroups();
+        groupIdInput.value = String(payload.group.id);
+        setStatus(formStatus, `Grupo \"${payload.group.name}\" criado.`, "success");
+      } catch (error) {
+        setStatus(formStatus, error.message, "error");
+      }
+    });
+
+    [targetUrlInput, utmSourceInput, utmMediumInput, utmCampaignInput, utmContentInput, utmTermInput].forEach((input) => {
+      input.addEventListener("input", () => {
+        refreshUtmPreview();
+        refreshDomainWarning();
+        if (input === targetUrlInput) {
+          schedulePreviewLoad();
+        }
+      });
     });
 
     searchForm.addEventListener("submit", (event) => {
@@ -1198,6 +1682,25 @@
         scheduleDelete(link);
       }
 
+      if (action === "qrcode") {
+        const shortLink = await downloadQrForSlug(link.slug);
+        await markQrCodeGenerated(link.slug);
+        await loadLinks(searchTermInput.value);
+        setStatus(listStatus, `QR Code gerado para ${shortLink}`, "success");
+        return;
+      }
+
+      if (action === "duplicate") {
+        try {
+          const payload = await request(`/api/links/${encodeURIComponent(link.slug)}/duplicate`, { method: "POST" });
+          await loadLinks(searchTermInput.value);
+          setStatus(listStatus, `Link duplicado como /${payload.link.slug}.`, "success");
+        } catch (error) {
+          setStatus(listStatus, error.message, "error");
+        }
+        return;
+      }
+
       if (action === "undo-delete") {
         undoDelete(slug);
       }
@@ -1234,7 +1737,9 @@
     }
 
     resetForm();
+    footerYear.textContent = String(new Date().getFullYear());
     loadLinks();
+    loadGroups();
     loadVersion();
   </script>
 </body>
