@@ -259,7 +259,24 @@
 
     form {
       display: grid;
+      gap: 22px;
+    }
+
+    #link-form {
       gap: 20px;
+    }
+
+    #link-form > label,
+    #link-form > .field-block,
+    #link-form > details,
+    #link-form > #link-preview,
+    #link-form > .actions,
+    #link-form > .status {
+      margin: 0;
+    }
+
+    #link-form > label {
+      gap: 10px;
     }
 
     label {
@@ -275,6 +292,19 @@
       font-weight: 400;
       line-height: 1.55;
       color: var(--muted);
+    }
+
+    .field-block {
+      display: grid;
+      gap: 10px;
+    }
+
+    .field-help {
+      margin: 0;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      color: var(--muted);
+      font-weight: 400;
     }
 
     input, button, select, textarea {
@@ -311,7 +341,7 @@
     details {
       border: 1px solid var(--line);
       border-radius: var(--radius-sm);
-      padding: 12px;
+      padding: 14px;
       background: rgba(255, 255, 255, 0.02);
       transition: background-color var(--motion-medium), border-color var(--motion-medium);
     }
@@ -356,8 +386,8 @@
 
     .form-section {
       display: grid;
-      gap: 12px;
-      margin-top: 8px;
+      gap: 16px;
+      margin-top: 12px;
     }
 
     input:hover:not(:focus):not([readonly]) {
@@ -812,20 +842,20 @@
           </div>
         </div>
         <form id="link-form">
-          <label>
-            <strong>Slug</strong>
-          </label>
-          <div class="slug-row">
-            <input id="slug" name="slug" type="text" maxlength="64" placeholder="campanha-q2" />
-            <button type="button" class="secondary compact" id="generate-slug-button">
-              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M17.65 6.35A8 8 0 1 0 19 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                <path d="M19 4v8h-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-              Gerar slug
-            </button>
+          <div class="field-block">
+            <label for="slug"><strong>Slug</strong></label>
+            <div class="slug-row">
+              <input id="slug" name="slug" type="text" maxlength="64" placeholder="campanha-q2" />
+              <button type="button" class="secondary compact" id="generate-slug-button">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M17.65 6.35A8 8 0 1 0 19 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M19 4v8h-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Gerar slug
+              </button>
+            </div>
+            <p class="field-help">Deixe o campo em branco para gerar o slug automaticamente ou defina manualmente se preferir.</p>
           </div>
-<small>Deixe o campo em branco para gerar o slug automaticamente ou defina manualmente se preferir.</small>
 
           <label>
             URL de destino
