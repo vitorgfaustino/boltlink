@@ -123,6 +123,14 @@ Esse passo é o caminho explícito recomendado quando você quiser inicializar o
 
 No fluxo one-click ou em bancos novos, o Worker também consegue criar o schema base automaticamente na primeira operação que usa o D1.
 
+Se o seu projeto já usa um binding ou `database_name` diferente do template oficial, use sempre o valor real já configurado no seu `wrangler.local.jsonc` e nunca o nome padrão do upstream. Para a migration remota, prefira o config local explícito:
+
+```bash
+npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc
+```
+
+Se `wrangler.local.jsonc` ainda não existir, recrie a configuração local com `npm run wrangler:init` ou retome o fluxo de setup até o arquivo privado ser gerado. Depois confirme ali o `database_id` real antes de tentar a migration remota.
+
 ## 5. Rode o projeto localmente
 
 ```bash

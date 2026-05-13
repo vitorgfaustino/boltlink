@@ -100,8 +100,9 @@ Se a ferramenta não conseguir ler arquivos do repositório automaticamente, ent
 6. Se o pedido for uma primeira instalação, usar a intenção `Iniciar o Projeto`.
 7. Se o pedido for `Atualizar o Projeto`, buscar novidades no repositório oficial acima e preservar os arquivos de overlay do projeto atual e as configurações individualizadas do Worker, em especial `wrangler.local.jsonc`, os valores reais já definidos em `wrangler.jsonc` como `name`, `routes`, `workers_dev`, `preview_urls` e bindings, `public/admin.html`, `public/logo.png` e `public/favicon.ico`. Ao atualizar, garanta a integridade da licença AGPL-3.0 inserindo as menções obrigatórias e os headers em todo o código-fonte (arquivos .ts, .html, .sql) e atualizando rodapés, sem apagar os overlays visuais do usuário.
 8. Antes de aplicar qualquer atualização, comparar o estado local com o remoto e pedir confirmação se houver divergência em arquivos que não fazem parte do template público puro, especialmente branding, overlays visuais e identidade operacional do Worker atual.
-9. Fazer apenas uma pergunta por vez quando faltar contexto obrigatório.
-10. Seguir o protocolo de execução em `docs/ai-guided-operations.md`.
+9. Se os valores de `name`, qualquer `binding` ou `database_name` em `wrangler.jsonc` já estiverem diferentes do upstream, trate isso como customização do projeto do usuário, não normalize para o padrão do repositório oficial e peça confirmação antes de alterar.
+10. Fazer apenas uma pergunta por vez quando faltar contexto obrigatório.
+11. Seguir o protocolo de execução em `docs/ai-guided-operations.md`.
 
 ## Primeira resposta esperada da IA
 
@@ -135,18 +136,24 @@ npm test
 > **Usuários vindo da v1.0.0** (inclusive com AI-START v1.0.0) podem seguir este fluxo normalmente.
 > O fluxo `Atualizar o Projeto` já preserva `wrangler.local.jsonc`, branding e configurações individualizadas do Worker.
 > A única atenção crítica é a aplicação obrigatória das migrations listadas abaixo.
+> Se o projeto já usa um `binding`, `name` ou `database_name` diferente do upstream, **não normalize para o padrão do repositório oficial**. Use sempre o valor real já configurado no projeto do usuário.
 
 ```bash
 npm install
 npm test
-npx wrangler d1 migrations apply db_boltlink --local
-npx wrangler d1 migrations apply db_boltlink --remote
+npx wrangler d1 migrations apply <nome-do-banco-ou-binding-real> --local
+npx wrangler d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc
 npm run deploy
 ```
 
 **Por que as migrations são obrigatórias:**
 A v1.1.0 adiciona as colunas `go_live_at`, `expires_at`, `tags`, `notes` e `password` na tabela `links`, e cria a tabela `link_groups`.
 Sem as migrations, o Worker carrega mas as funcionalidades de agendamento, expiração, tags, grupos e proteção por senha falham silenciosamente.
+
+**Se `wrangler.local.jsonc` não existir:**
+Antes de tentar a migration remota, recrie a configuração local com `npm run wrangler:init` ou, se estiver retomando o setup, use o fluxo `Iniciar o Projeto` novamente até gerar o arquivo privado.
+Depois disso, confirme no `wrangler.local.jsonc` o `database_id` real e o nome/binding correto do banco antes de aplicar a migration remota.
+Se o projeto já tiver um binding customizado, use esse valor real no comando e nunca o nome padrão do upstream.
 
 **Novo binding `APP_TIMEZONE` (opcional):**
 A v1.1.0 introduz a variável `APP_TIMEZONE` no `wrangler.jsonc` com padrão `"America/Sao_Paulo"`.
@@ -183,6 +190,8 @@ Ou defina o valor desejado em `wrangler.local.jsonc` para sobrescrever localment
 - Nunca crie um clone aninhado do BoltLink dentro da pasta final do projeto do usuário.
 - Nunca deixe a pasta `.git` do repositório oficial dentro da árvore final de um projeto derivado.
 - Nunca assuma que o remoto `origin` do repositório oficial será o remoto de push final do usuário.
+- Nunca sobrescreva `name`, `binding` ou `database_name` de um projeto derivado para igualar o upstream sem confirmação explícita do usuário; diferenças nesses campos normalmente são customização legítima do projeto em uso.
+- Nunca presuma que o nome do banco D1 seja `db_boltlink`; ao aplicar migrations, use o binding e o `database_name` reais do projeto, e se `wrangler.local.jsonc` não existir primeiro recrie a configuração local antes de tentar a migration remota.
 - Se o pedido for usar o botão `Deploy to Cloudflare Workers`, trate `wrangler.jsonc` como a configuração pública de deploy e explique que Cloudflare Access para `/admin`, `/admin.html` e `/api/*` continua sendo etapa manual de pós-deploy.
 - Não automatize a criação final do Cloudflare Access; faça o handoff e valide depois.
 - Trate `public/admin.html`, `public/logo.png`, `public/favicon.ico` e qualquer ajuste visual já existente como branding do usuário por padrão; nunca substitua esses arquivos sem confirmação explícita.

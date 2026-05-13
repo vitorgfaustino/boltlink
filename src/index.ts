@@ -1291,7 +1291,7 @@ function renderHomePage() {
 			<div class="logo">
 				<img src="/logo.png" alt="BoltLink" />
 			</div>
-			<h1><span class="accent">BoltLink</span> URL shortener</h1>
+			<h1><span class="accent">Gerenciador</span> de Links</h1>
 			<p>
 				Um encurtador de links privado, 100% serverless, com redirecionamento instantâneo na borda e dashboard protegido por Zero Trust.
 			</p>

@@ -125,5 +125,5 @@ Validar migrations localmente com Wrangler antes de concluir.
 
 ---
 
-Versão 1.0.0
+Versão 1.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

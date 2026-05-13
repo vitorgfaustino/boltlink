@@ -52,6 +52,10 @@ Nos Workers Builds, o comando `npm run deploy` usa automaticamente o `wrangler.j
 	<img src="public/tela-links.webp" alt="Painel de links do BoltLink" width="100%" />
 </p>
 
+<p align="center">
+	<img src="public/tela-link-protegido.webp" alt="Painel de links do BoltLink" width="100%" />
+</p>
+	
 ## O que este projeto faz
 
 - Cria links curtos com slug customizado ou gerado automaticamente.
@@ -168,6 +172,8 @@ npm run wrangler -- d1 migrations apply <nome-do-banco> --local
 ```
 
 No deploy one-click e em bancos novos, o schema base também é criado automaticamente na primeira operação que usa o D1.
+
+Se o projeto já tiver um binding ou `database_name` próprio, use sempre esse valor real nas migrations e, para a remota, prefira `-c wrangler.local.jsonc`. Se o arquivo privado ainda não existir, rode `npm run wrangler:init` ou retome o setup até ele ser criado.
 
 9. Rode o projeto localmente:
 
