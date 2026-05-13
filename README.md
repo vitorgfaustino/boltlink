@@ -195,6 +195,19 @@ npm run wrangler -- deploy --config wrangler.jsonc
 
 Sem esse `--config`, o deploy local continua exigindo `wrangler.local.jsonc` para evitar publicar acidentalmente com o template sanitizado.
 
+Se você for publicar em domínio próprio com deploy local, mantenha a rota no arquivo privado e troque o placeholder pelo hostname real:
+
+```jsonc
+"routes": [
+	{
+		"pattern": "links.seudominio.com",
+		"custom_domain": true
+	}
+]
+```
+
+Se o domínio já estiver configurado diretamente no painel da Cloudflare, deixe o `wrangler.local.jsonc` sem rota ativa e trate a Cloudflare como fonte da configuração da rota.
+
 ## Configuração segura
 
 - `wrangler.jsonc` é o template público e auditável.
@@ -202,6 +215,7 @@ Sem esse `--config`, o deploy local continua exigindo `wrangler.local.jsonc` par
 - `npm run wrangler:init` cria ou sincroniza o arquivo local com o template público sem apagar seus overrides privados.
 - `npm run setup` combina a sincronização do config local com a regeneração de tipos públicos.
 - `npm run deploy`, `npm run dev` e `npm run wrangler -- ...` usam a configuração local quando ela existe.
+- Se você usa domínio próprio com deploy local, o `routes` ativo pode viver no `wrangler.local.jsonc`; se a rota já está definida no painel da Cloudflare, mantenha o arquivo local sem rota ativa.
 - `npm run cf-typegen` continua lendo o template público para não expor valores reais no tipo gerado.
 - `API_KEY` deve ser armazenada como secret e usada apenas em `/api` e `/api/*`, nunca como `vars` públicas.
 - `IP_HASH_SECRET` deve ser armazenado como secret se você quiser gravar hashes de IP nos analytics; sem ele, `ip_hash` fica `NULL`.

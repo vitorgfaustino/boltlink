@@ -131,6 +131,19 @@ npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote
 
 Se `wrangler.local.jsonc` ainda não existir, recrie a configuração local com `npm run wrangler:init` ou retome o fluxo de setup até o arquivo privado ser gerado. Depois confirme ali o `database_id` real antes de tentar a migration remota.
 
+Se você publicar em domínio próprio pelo fluxo local, coloque o `routes` ativo no `wrangler.local.jsonc` e substitua o placeholder pelo hostname real do projeto:
+
+```jsonc
+"routes": [
+	{
+		"pattern": "links.seudominio.com",
+		"custom_domain": true
+	}
+]
+```
+
+Se a rota já estiver configurada no painel da Cloudflare, deixe o `wrangler.local.jsonc` sem rota ativa e não duplique essa definição no arquivo privado.
+
 ## 5. Rode o projeto localmente
 
 ```bash
