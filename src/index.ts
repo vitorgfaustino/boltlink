@@ -410,6 +410,11 @@ app.delete("/api/links/:slug", async (c) => {
 		return c.json({ error: "Reserved slug cannot be deleted" }, 400);
 	}
 
+	const existingLink = await c.env.db_boltlink
+		.prepare("SELECT group_id FROM links WHERE slug = ? AND disabled_at IS NULL")
+		.bind(slug)
+		.first<{ group_id: number | null }>();
+
 	const now = isoNow();
 	const deletedLink = await c.env.db_boltlink
 		.prepare(
@@ -423,6 +428,10 @@ app.delete("/api/links/:slug", async (c) => {
 
 	if (!deletedLink) {
 		return c.json({ error: "Link not found" }, 404);
+	}
+
+	if (existingLink?.group_id !== null && existingLink?.group_id !== undefined) {
+		await cleanupEmptyGroup(c.env.db_boltlink, existingLink.group_id);
 	}
 
 	return c.json({ ok: true, slug: deletedLink.slug });
@@ -866,6 +875,20 @@ async function updateLink(c: Context<AppContext>) {
 		return c.json({ error: "Group not found" }, 404);
 	}
 
+	let previousGroupId: number | null | undefined;
+	if (groupId !== undefined) {
+		const currentLink = await c.env.db_boltlink
+			.prepare("SELECT group_id FROM links WHERE slug = ? AND disabled_at IS NULL")
+			.bind(slug)
+			.first<{ group_id: number | null }>();
+
+		if (!currentLink) {
+			return c.json({ error: "Link not found" }, 404);
+		}
+
+		previousGroupId = currentLink.group_id;
+	}
+
 	const passwordHash = payload.password !== undefined
 		? await hashPassword(payload.password === null ? undefined : payload.password)
 		: undefined;
@@ -961,6 +984,10 @@ async function updateLink(c: Context<AppContext>) {
 
 	if (!updatedLink) {
 		return c.json({ error: "Link not found" }, 404);
+	}
+
+	if (groupId !== undefined && previousGroupId !== undefined && previousGroupId !== groupId && previousGroupId !== null) {
+		await cleanupEmptyGroup(c.env.db_boltlink, previousGroupId);
 	}
 
 	return c.json({ link: updatedLink });
@@ -1626,6 +1653,24 @@ async function groupExists(database: D1Database, groupId: number) {
 		.first<{ present: number }>();
 
 	return Boolean(group);
+}
+
+async function cleanupEmptyGroup(database: D1Database, groupId: number) {
+	const usage = await database
+		.prepare("SELECT COUNT(1) AS total FROM links WHERE group_id = ? AND disabled_at IS NULL")
+		.bind(groupId)
+		.first<{ total: number }>();
+
+	if ((usage?.total ?? 0) > 0) {
+		return false;
+	}
+
+	const deleted = await database
+		.prepare("DELETE FROM link_groups WHERE id = ? RETURNING id")
+		.bind(groupId)
+		.first<{ id: number }>();
+
+	return Boolean(deleted);
 }
 
 async function suggestDuplicateSlug(database: D1Database, baseSlug: string) {

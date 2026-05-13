@@ -312,6 +312,92 @@ describe("URL shortener worker", () => {
 		expect(payload.links[0].slug).toBe("without-group");
 	});
 
+	it("deletes an empty group after removing its last active link", async () => {
+		const groupResponse = await fetchWorker("http://localhost/api/groups", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ name: "Temporario" }),
+		});
+		const groupPayload = (await groupResponse.json()) as { group: { id: number } };
+
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				slug: "link-temporario",
+				targetUrl: "https://destination.example.com/temp",
+				groupId: groupPayload.group.id,
+			}),
+		});
+
+		const deleteResponse = await fetchWorker("http://localhost/api/links/link-temporario", {
+			method: "DELETE",
+		});
+
+		expect(deleteResponse.status).toBe(200);
+
+		const groupsResponse = await fetchWorker("http://localhost/api/groups");
+		const groupsPayload = (await groupsResponse.json()) as { groups: Array<{ id: number; name: string }> };
+		expect(groupsPayload.groups).toEqual(
+			expect.not.arrayContaining([expect.objectContaining({ id: groupPayload.group.id, name: "Temporario" })]),
+		);
+	});
+
+	it("deletes the original group when the last link moves to another group", async () => {
+		const sourceGroupResponse = await fetchWorker("http://localhost/api/groups", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ name: "Origem" }),
+		});
+		const sourceGroupPayload = (await sourceGroupResponse.json()) as { group: { id: number } };
+
+		const targetGroupResponse = await fetchWorker("http://localhost/api/groups", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ name: "Destino" }),
+		});
+		const targetGroupPayload = (await targetGroupResponse.json()) as { group: { id: number } };
+
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				slug: "link-movido",
+				targetUrl: "https://destination.example.com/moved",
+				groupId: sourceGroupPayload.group.id,
+			}),
+		});
+
+		const updateResponse = await fetchWorker("http://localhost/api/links/link-movido", {
+			method: "PATCH",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ groupId: targetGroupPayload.group.id }),
+		});
+
+		expect(updateResponse.status).toBe(200);
+
+		const groupsResponse = await fetchWorker("http://localhost/api/groups");
+		const groupsPayload = (await groupsResponse.json()) as { groups: Array<{ id: number; name: string }> };
+		expect(groupsPayload.groups).toEqual(
+			expect.arrayContaining([expect.objectContaining({ id: targetGroupPayload.group.id, name: "Destino" })]),
+		);
+		expect(groupsPayload.groups).toEqual(
+			expect.not.arrayContaining([expect.objectContaining({ id: sourceGroupPayload.group.id, name: "Origem" })]),
+		);
+	});
+
 	it("rejects target URLs without a dotted hostname", async () => {
 		const response = await fetchWorker("http://localhost/api/links", {
 			method: "POST",
