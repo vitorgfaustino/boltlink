@@ -17,9 +17,15 @@ Esta release adiciona controles mais completos para campanhas (ativação, expir
 - **Evolução de schema e upgrade guiado**: novas migrations (`0001`, `0002`) e documentação dedicada para atualização segura.
 
 **Validação desta release:**
-- 69 testes automatizados aprovados (filtro de clique, referrer policy, recursos avançados, integração Worker).
+- 70 testes automatizados aprovados (filtro de clique, referrer policy, recursos avançados, integração Worker e filtros complementares).
 - Fluxo admin validado localmente em layout responsivo e operações principais.
 - Revisão de segurança local concluída para manter fora do Git qualquer artefato de ambiente (`.dev-env/`, `.dev.vars*`, `wrangler.local.jsonc`).
+
+**Atualizações recentes de documentação e UX (local):**
+- Reposicionamento editorial para **Gerenciador de Links** em README e comunicação de produto.
+- Indicativo de timezone operacional no admin (`APP_TIMEZONE`, padrão `America/Sao_Paulo`).
+- Busca com foco em operação real: slug, URL, tags e notas.
+- Visualização de grupo diretamente no card do link para gestão mais rápida.
 
 ## 1.0.0 - 2026-05-10
 

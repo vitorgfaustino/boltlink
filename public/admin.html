@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0a0a0a" />
-  <title>BoltLink Admin</title>
+  <title>BoltLink | Gerenciador de Links</title>
   <style>
     :root {
       color-scheme: dark;
@@ -237,6 +237,20 @@
     .panel-heading-copy p {
       font-size: 0.92rem;
       line-height: 1.55;
+    }
+
+    .timezone-pill {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(68, 217, 255, 0.26);
+      background: rgba(68, 217, 255, 0.09);
+      color: #d8f7ff;
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
     }
 
     .counter-pill {
@@ -640,6 +654,13 @@
       background: var(--surface-strong);
     }
 
+    .search-help {
+      margin: 2px 0 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
     .search-input-shell {
       position: relative;
     }
@@ -736,6 +757,20 @@
       font-size: 0.92rem;
       color: var(--muted);
       word-break: break-all;
+    }
+
+    .group-badge {
+      display: inline-flex;
+      width: fit-content;
+      margin-top: 6px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(68, 217, 255, 0.28);
+      background: rgba(68, 217, 255, 0.11);
+      color: #c9f3ff;
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
     }
 
     .card-actions {
@@ -935,10 +970,10 @@
         <img src="/logo.png" alt="BoltLink" />
       </div>
       <h1 class="text-glow">
-        Encurtador de URLs<span class="terminal-cursor">_</span>
+        Gerenciador de Links<span class="terminal-cursor">_</span>
       </h1>
       <p>
-        Um setup 100% serverless que oferece redirecionamento instantâneo na borda e um dashboard de analytics protegido por Cloudflare Zero Trust.
+        Organize, atualize e acompanhe seus links em um único painel, com redirecionamento rápido, histórico estável para campanhas e controle total da sua operação.
       </p>
     </section>
 
@@ -1041,7 +1076,7 @@
           <details>
             <summary>Opções avançadas</summary>
             <div class="form-section">
-              <label>
+                <label>
                 Tags (separadas por vírgula)
                 <input id="tags" type="text" placeholder="promo,2026,q1" />
               </label>
@@ -1124,7 +1159,7 @@
         <div class="panel-header">
           <div class="panel-heading-copy">
             <h2>Links ativos</h2>
-            <p>Pesquise por slug ou URL de destino e gerencie a lista sem perder o contexto.</p>
+            <p class="search-help">Busca por: slug, URL de destino, tags e notas.</p>
           </div>
           <div class="counter-pill" aria-live="polite">
             Links criados: <strong id="links-count">0</strong>
@@ -1161,6 +1196,7 @@
       <span>&copy; <span id="footer-year"></span> &bull; <span id="app-version">v?</span> &bull;
         <a href="https://github.com/vitorgfaustino/boltlink" target="_blank" rel="noopener">Código-fonte AGPL-3.0</a>
       </span>
+      <span id="footer-timezone">Fuso: America/Sao_Paulo</span>
     </footer>
   </main>
 
@@ -1242,7 +1278,9 @@
     const linksCount = document.getElementById("links-count");
     const appVersion = document.getElementById("app-version");
     const footerYear = document.getElementById("footer-year");
+    const footerTimezone = document.getElementById("footer-timezone");
     const appOrigin = window.location.origin;
+    let appTimeZone = "America/Sao_Paulo";
     let previewTimer = null;
 
     function buttonMarkup(icon, label) {
@@ -1315,21 +1353,116 @@
       if (!localValue) {
         return undefined;
       }
-      const date = new Date(localValue);
-      return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+
+      const iso = localDateTimeToIsoInTimeZone(localValue, appTimeZone);
+      return iso || undefined;
     }
 
     function toLocalInputDateTime(value) {
       if (!value) {
         return "";
       }
+
+      return isoToLocalInputInTimeZone(value, appTimeZone);
+    }
+
+    function isValidTimeZone(value) {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: value }).format(new Date());
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function localDateTimeToIsoInTimeZone(value, timeZone) {
+      const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+      if (!match) {
+        return null;
+      }
+
+      const year = Number.parseInt(match[1], 10);
+      const month = Number.parseInt(match[2], 10);
+      const day = Number.parseInt(match[3], 10);
+      const hour = Number.parseInt(match[4], 10);
+      const minute = Number.parseInt(match[5], 10);
+      const second = Number.parseInt(match[6] || "0", 10);
+
+      if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 || second > 59) {
+        return null;
+      }
+
+      const desiredUtc = Date.UTC(year, month - 1, day, hour, minute, second);
+      let guessUtc = desiredUtc;
+
+      for (let i = 0; i < 4; i += 1) {
+        const zoned = getZonedParts(guessUtc, timeZone);
+        if (!zoned) {
+          return null;
+        }
+
+        const zonedAsUtc = Date.UTC(zoned.year, zoned.month - 1, zoned.day, zoned.hour, zoned.minute, zoned.second);
+        const delta = desiredUtc - zonedAsUtc;
+        guessUtc += delta;
+        if (delta === 0) {
+          break;
+        }
+      }
+
+      const finalZoned = getZonedParts(guessUtc, timeZone);
+      if (!finalZoned
+        || finalZoned.year !== year
+        || finalZoned.month !== month
+        || finalZoned.day !== day
+        || finalZoned.hour !== hour
+        || finalZoned.minute !== minute
+        || finalZoned.second !== second) {
+        return null;
+      }
+
+      return new Date(guessUtc).toISOString();
+    }
+
+    function isoToLocalInputInTimeZone(value, timeZone) {
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) {
         return "";
       }
-      const offset = date.getTimezoneOffset();
-      const localDate = new Date(date.getTime() - offset * 60000);
-      return localDate.toISOString().slice(0, 16);
+
+      const parts = getZonedParts(date.getTime(), timeZone);
+      if (!parts) {
+        return "";
+      }
+
+      const pad = (number) => String(number).padStart(2, "0");
+      return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}T${pad(parts.hour)}:${pad(parts.minute)}`;
+    }
+
+    function getZonedParts(timestamp, timeZone) {
+      try {
+        const formatter = new Intl.DateTimeFormat("en-US", {
+          timeZone,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+          hourCycle: "h23",
+        });
+        const map = new Map(formatter.formatToParts(new Date(timestamp)).map((part) => [part.type, part.value]));
+        return {
+          year: Number.parseInt(map.get("year") || "", 10),
+          month: Number.parseInt(map.get("month") || "", 10),
+          day: Number.parseInt(map.get("day") || "", 10),
+          hour: Number.parseInt(map.get("hour") || "", 10),
+          minute: Number.parseInt(map.get("minute") || "", 10),
+          second: Number.parseInt(map.get("second") || "", 10),
+        };
+      } catch {
+        return null;
+      }
     }
 
     function buildUtmUrl(baseUrl) {
@@ -1600,6 +1733,7 @@
                 <div class="slug-info">
                   <p class="slug">/${safeSlug}</p>
                   <div class="slug-url">${safeTargetUrl}</div>
+                  ${link.group_name ? `<span class="group-badge">Grupo: ${escapeHtml(link.group_name)}</span>` : ""}
                 </div>
                 <div class="card-actions">
                   ${actionMarkup}
@@ -1640,7 +1774,7 @@
           queryParams.set("search", normalizedSearch);
         }
         if (normalizedGroupFilter) {
-          queryParams.set("group_id", normalizedGroupFilter === "__none__" ? "none" : normalizedGroupFilter);
+          queryParams.set("group_id", normalizedGroupFilter === "__none__" ? "null" : normalizedGroupFilter);
         }
 
         const queryString = queryParams.toString();
@@ -1680,6 +1814,12 @@
         const payload = await response.json();
         if (payload?.version) {
           appVersion.textContent = `v${payload.version}`;
+        }
+        if (payload?.timezone && isValidTimeZone(payload.timezone)) {
+          appTimeZone = payload.timezone;
+        }
+        if (footerTimezone) {
+          footerTimezone.textContent = `Fuso: ${appTimeZone}`;
         }
       } catch {
         appVersion.textContent = "";

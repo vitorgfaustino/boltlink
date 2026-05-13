@@ -30,6 +30,9 @@
       "POLICY_AUD": {
         "description": "Cloudflare Access AUD tag for the self-hosted application that protects `/admin`, `/admin.html`, `/api`, and `/api/*`."
       },
+      "APP_TIMEZONE": {
+        "description": "Application timezone used to interpret scheduling fields (`Ativa em`/`Expira em`) when values are submitted without explicit timezone offset. Default: `America/Sao_Paulo`."
+      },
       "API_KEY": {
         "description": "Optional secret for internal API automation only. Store it as a secret, not as a public `vars` value."
       },

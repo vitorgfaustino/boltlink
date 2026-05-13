@@ -4,6 +4,18 @@ Todas as mudanças relevantes deste projeto serão registradas neste arquivo.
 
 ## [Unreleased]
 
+### Alterado
+- Posicionamento do produto atualizado de "encurtador de URLs" para "gerenciador de links" na comunicação principal do projeto e do painel admin.
+- Título e descrição do admin atualizados para linguagem mais orientada ao usuário final.
+- Indicativo de fuso horário exibido no painel de criação e na seção de agendamento.
+- Filtro por grupo no admin ajustado para `Sem grupo` retornar somente links sem `group_id`.
+- Busca de links ampliada no backend para incluir também `tags` e `notes`.
+- Badge de grupo adicionado nos cards de link para visualização imediata de pertencimento.
+
+### Configuração
+- Novo binding `APP_TIMEZONE` no Worker com padrão `America/Sao_Paulo`, usado para interpretação de datas de agendamento (`Ativa em` e `Expira em`).
+- Endpoint `/version` agora expõe também o timezone operacional em uso.
+
 ## [1.1.0] - 2026-05-13
 
 ### Adicionado

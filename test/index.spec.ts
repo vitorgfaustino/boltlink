@@ -134,7 +134,7 @@ describe("URL shortener worker", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toContain("application/json");
-		expect(await response.json()).toEqual({ version: "1.1.0" });
+		expect(await response.json()).toEqual({ version: "1.1.0", timezone: "America/Sao_Paulo" });
 	});
 
 	it("serves the admin UI for localhost requests", async () => {
@@ -241,6 +241,75 @@ describe("URL shortener worker", () => {
 			slug: "docs-team",
 			target_url: "https://docs.example.com/overview",
 		});
+
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				slug: "tagged-link",
+				targetUrl: "https://destination.example.com/offer",
+				tags: ["campanha-especial"],
+				notes: "link para publico premium",
+			}),
+		});
+
+		const searchByTag = await fetchWorker("http://localhost/api/links?search=campanha-especial");
+		const tagSearchPayload = (await searchByTag.json()) as {
+			links: Array<{ slug: string }>;
+		};
+		expect(tagSearchPayload.links).toEqual(
+			expect.arrayContaining([expect.objectContaining({ slug: "tagged-link" })]),
+		);
+
+		const searchByNotes = await fetchWorker("http://localhost/api/links?search=premium");
+		const notesSearchPayload = (await searchByNotes.json()) as {
+			links: Array<{ slug: string }>;
+		};
+		expect(notesSearchPayload.links).toEqual(
+			expect.arrayContaining([expect.objectContaining({ slug: "tagged-link" })]),
+		);
+	});
+
+	it("filters links that have no group using group_id=null", async () => {
+		const groupResponse = await fetchWorker("http://localhost/api/groups", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ name: "Campanhas" }),
+		});
+		const groupPayload = (await groupResponse.json()) as { group: { id: number } };
+
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				slug: "with-group",
+				targetUrl: "https://destination.example.com/group",
+				groupId: groupPayload.group.id,
+			}),
+		});
+
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				slug: "without-group",
+				targetUrl: "https://destination.example.com/no-group",
+			}),
+		});
+
+		const response = await fetchWorker("http://localhost/api/links?group_id=null");
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as { links: Array<{ slug: string }> };
+		expect(payload.links).toHaveLength(1);
+		expect(payload.links[0].slug).toBe("without-group");
 	});
 
 	it("rejects target URLs without a dotted hostname", async () => {

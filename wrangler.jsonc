@@ -55,6 +55,9 @@
 			"/api",
 			"/api/*"
 		]
+	},
+	"vars": {
+		"APP_TIMEZONE": "America/Sao_Paulo"
 	}
 	/**
 	 * Smart Placement

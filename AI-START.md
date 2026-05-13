@@ -132,6 +132,10 @@ npm test
 
 ### Upgrade para v1.1.0
 
+> **Usuários vindo da v1.0.0** (inclusive com AI-START v1.0.0) podem seguir este fluxo normalmente.
+> O fluxo `Atualizar o Projeto` já preserva `wrangler.local.jsonc`, branding e configurações individualizadas do Worker.
+> A única atenção crítica é a aplicação obrigatória das migrations listadas abaixo.
+
 ```bash
 npm install
 npm test
@@ -139,6 +143,21 @@ npx wrangler d1 migrations apply db_boltlink --local
 npx wrangler d1 migrations apply db_boltlink --remote
 npm run deploy
 ```
+
+**Por que as migrations são obrigatórias:**
+A v1.1.0 adiciona as colunas `go_live_at`, `expires_at`, `tags`, `notes` e `password` na tabela `links`, e cria a tabela `link_groups`.
+Sem as migrations, o Worker carrega mas as funcionalidades de agendamento, expiração, tags, grupos e proteção por senha falham silenciosamente.
+
+**Novo binding `APP_TIMEZONE` (opcional):**
+A v1.1.0 introduz a variável `APP_TIMEZONE` no `wrangler.jsonc` com padrão `"America/Sao_Paulo"`.
+Ela define o fuso usado em agendamentos e exibido no painel admin.
+Se o projeto derivado já tiver `wrangler.jsonc` individualizado, adicione manualmente:
+```jsonc
+"vars": {
+  "APP_TIMEZONE": "America/Sao_Paulo"
+}
+```
+Ou defina o valor desejado em `wrangler.local.jsonc` para sobrescrever localmente.
 
 ### Regras críticas da v1.1.0
 
@@ -220,5 +239,5 @@ Ao seguir este arquivo, a IA deve conseguir:
 
 ---
 
-Versão 1.0.0
+Versão 1.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

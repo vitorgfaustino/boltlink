@@ -39,6 +39,7 @@ type Bindings = {
 	ASSETS: Fetcher;
 	TEAM_DOMAIN: string;
 	POLICY_AUD: string;
+	APP_TIMEZONE?: string;
 	API_KEY?: string;
 	IP_HASH_SECRET?: string;
 };
@@ -63,6 +64,7 @@ type LinkRow = {
 	notes: string | null;
 	has_qrcode: number;
 	group_id: number | null;
+	group_name?: string | null;
 	has_password: number;
 	version: number;
 };
@@ -134,6 +136,7 @@ const databaseSchemaStatements = databaseSchema
 	.filter(Boolean);
 const databaseSchemaBootstrap = new WeakMap<D1Database, Promise<void>>();
 const APP_VERSION = packageJson.version;
+const DEFAULT_APP_TIMEZONE = "America/Sao_Paulo";
 const PASSWORD_RATE_LIMIT_MAX_ATTEMPTS = 5;
 const PASSWORD_RATE_LIMIT_WINDOW_MS = 60_000;
 const PASSWORD_SESSION_MAX_AGE_SECONDS = 300;
@@ -202,7 +205,7 @@ app.get("/health", (c) => {
 });
 
 app.get("/version", (c) => {
-	return c.json({ version: APP_VERSION });
+	return c.json({ version: APP_VERSION, timezone: getAppTimeZone(c.env) });
 });
 
 app.get("/healt", (c) => {
@@ -224,8 +227,8 @@ app.get("/api/links", async (c) => {
 	const bindings: Array<string | number> = [];
 
 	if (searchPattern) {
-		filters.push("(slug LIKE ? OR target_url LIKE ?)");
-		bindings.push(searchPattern, searchPattern);
+		filters.push("(slug LIKE ? OR target_url LIKE ? OR tags LIKE ? OR notes LIKE ?)");
+		bindings.push(searchPattern, searchPattern, searchPattern, searchPattern);
 	}
 
 	if (tagPattern) {
@@ -240,7 +243,7 @@ app.get("/api/links", async (c) => {
 	}
 
 	if (groupIdRaw !== undefined) {
-		if (groupIdRaw === "null") {
+		if (groupIdRaw === "null" || groupIdRaw === "none") {
 			filters.push("group_id IS NULL");
 		} else {
 			const groupId = Number.parseInt(groupIdRaw, 10);
@@ -252,26 +255,28 @@ app.get("/api/links", async (c) => {
 	}
 
 	const baseSql = `SELECT
-				id,
-				slug,
-				target_url,
-				clicks_total,
-				last_clicked_at,
-				created_at,
-				updated_at,
-				disabled_at,
-				expires_at,
-				go_live_at,
-				redirect_type,
-				tags,
-				notes,
-				has_qrcode,
-				group_id,
-				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
-				version
+				links.id,
+				links.slug,
+				links.target_url,
+				links.clicks_total,
+				links.last_clicked_at,
+				links.created_at,
+				links.updated_at,
+				links.disabled_at,
+				links.expires_at,
+				links.go_live_at,
+				links.redirect_type,
+				links.tags,
+				links.notes,
+				links.has_qrcode,
+				links.group_id,
+				link_groups.name AS group_name,
+				CASE WHEN links.password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
+				links.version
 			FROM links
+			LEFT JOIN link_groups ON link_groups.id = links.group_id
 			WHERE ${filters.join(" AND ")}
-			ORDER BY created_at DESC
+			ORDER BY links.created_at DESC
 			LIMIT 100`;
 	const statement = bindings.length
 		? c.env.db_boltlink.prepare(baseSql).bind(...bindings)
@@ -307,10 +312,11 @@ app.post("/api/links", async (c) => {
 		return c.json({ error: "Invalid notes. Maximum length is 2000 chars" }, 400);
 	}
 
-	const expiresAt = normalizeDateTime(payload.expiresAt);
-	const goLiveAt = normalizeDateTime(payload.goLiveAt);
+	const appTimeZone = getAppTimeZone(c.env);
+	const expiresAt = normalizeDateTime(payload.expiresAt, appTimeZone);
+	const goLiveAt = normalizeDateTime(payload.goLiveAt, appTimeZone);
 	if ((payload.expiresAt && !expiresAt) || (payload.goLiveAt && !goLiveAt)) {
-		return c.json({ error: "Invalid date format. Use ISO-8601" }, 400);
+		return c.json({ error: `Invalid date format. Use ISO-8601 or yyyy-MM-ddTHH:mm in timezone ${appTimeZone}` }, 400);
 	}
 
 	if (expiresAt && goLiveAt && new Date(expiresAt).getTime() < new Date(goLiveAt).getTime()) {
@@ -844,10 +850,11 @@ async function updateLink(c: Context<AppContext>) {
 		return c.json({ error: "Invalid notes. Maximum length is 2000 chars" }, 400);
 	}
 
-	const expiresAt = payload.expiresAt === null ? null : payload.expiresAt ? normalizeDateTime(payload.expiresAt) : undefined;
-	const goLiveAt = payload.goLiveAt === null ? null : payload.goLiveAt ? normalizeDateTime(payload.goLiveAt) : undefined;
+	const appTimeZone = getAppTimeZone(c.env);
+	const expiresAt = payload.expiresAt === null ? null : payload.expiresAt ? normalizeDateTime(payload.expiresAt, appTimeZone) : undefined;
+	const goLiveAt = payload.goLiveAt === null ? null : payload.goLiveAt ? normalizeDateTime(payload.goLiveAt, appTimeZone) : undefined;
 	if ((payload.expiresAt && expiresAt === null) || (payload.goLiveAt && goLiveAt === null)) {
-		return c.json({ error: "Invalid date format. Use ISO-8601" }, 400);
+		return c.json({ error: `Invalid date format. Use ISO-8601 or yyyy-MM-ddTHH:mm in timezone ${appTimeZone}` }, 400);
 	}
 
 	const groupId = payload.groupId !== undefined ? normalizeGroupId(payload.groupId) : undefined;
@@ -1461,17 +1468,134 @@ function normalizeNotes(notes?: string) {
 	return trimmed;
 }
 
-function normalizeDateTime(value?: string) {
+function normalizeDateTime(value?: string, timeZone = DEFAULT_APP_TIMEZONE) {
 	if (!value) {
 		return null;
 	}
 
-	const timestamp = new Date(value).getTime();
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return null;
+	}
+
+	if (isNaiveLocalDateTime(trimmed)) {
+		return localDateTimeToIsoInTimeZone(trimmed, timeZone);
+	}
+
+	const timestamp = new Date(trimmed).getTime();
 	if (Number.isNaN(timestamp)) {
 		return null;
 	}
 
 	return new Date(timestamp).toISOString();
+}
+
+function isNaiveLocalDateTime(value: string) {
+	return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value);
+}
+
+function getAppTimeZone(env: Pick<Bindings, "APP_TIMEZONE">) {
+	const candidate = env.APP_TIMEZONE?.trim();
+	if (!candidate) {
+		return DEFAULT_APP_TIMEZONE;
+	}
+
+	try {
+		new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format(new Date());
+		return candidate;
+	} catch {
+		return DEFAULT_APP_TIMEZONE;
+	}
+}
+
+function localDateTimeToIsoInTimeZone(value: string, timeZone: string) {
+	const match = value.match(
+		/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/,
+	);
+	if (!match) {
+		return null;
+	}
+
+	const year = Number.parseInt(match[1], 10);
+	const month = Number.parseInt(match[2], 10);
+	const day = Number.parseInt(match[3], 10);
+	const hour = Number.parseInt(match[4], 10);
+	const minute = Number.parseInt(match[5], 10);
+	const second = Number.parseInt(match[6] ?? "0", 10);
+
+	if (
+		month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 || second > 59
+	) {
+		return null;
+	}
+
+	const desiredUtc = Date.UTC(year, month - 1, day, hour, minute, second);
+	let guessUtc = desiredUtc;
+
+	for (let i = 0; i < 4; i += 1) {
+		const zoned = getZonedParts(guessUtc, timeZone);
+		if (!zoned) {
+			return null;
+		}
+
+		const zonedAsUtc = Date.UTC(
+			zoned.year,
+			zoned.month - 1,
+			zoned.day,
+			zoned.hour,
+			zoned.minute,
+			zoned.second,
+		);
+		const delta = desiredUtc - zonedAsUtc;
+		guessUtc += delta;
+
+		if (delta === 0) {
+			break;
+		}
+	}
+
+	const finalZoned = getZonedParts(guessUtc, timeZone);
+	if (
+		!finalZoned
+		|| finalZoned.year !== year
+		|| finalZoned.month !== month
+		|| finalZoned.day !== day
+		|| finalZoned.hour !== hour
+		|| finalZoned.minute !== minute
+		|| finalZoned.second !== second
+	) {
+		return null;
+	}
+
+	return new Date(guessUtc).toISOString();
+}
+
+function getZonedParts(timestamp: number, timeZone: string) {
+	try {
+		const formatter = new Intl.DateTimeFormat("en-US", {
+			timeZone,
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+			hour: "2-digit",
+			minute: "2-digit",
+			second: "2-digit",
+			hour12: false,
+			hourCycle: "h23",
+		});
+		const parts = formatter.formatToParts(new Date(timestamp));
+		const map = new Map(parts.map((part) => [part.type, part.value]));
+		return {
+			year: Number.parseInt(map.get("year") ?? "", 10),
+			month: Number.parseInt(map.get("month") ?? "", 10),
+			day: Number.parseInt(map.get("day") ?? "", 10),
+			hour: Number.parseInt(map.get("hour") ?? "", 10),
+			minute: Number.parseInt(map.get("minute") ?? "", 10),
+			second: Number.parseInt(map.get("second") ?? "", 10),
+		};
+	} catch {
+		return null;
+	}
 }
 
 function normalizeGroupId(value: number | null | undefined) {
