@@ -1,5 +1,5 @@
 /**
- * Phase 2 Tests: Transparent Referrer Policy
+ * Referrer Policy Tests
  * BoltLink v1.1.0
  * AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
  */
@@ -66,7 +66,7 @@ async function resetDatabase() {
 	await env.db_boltlink.prepare("DELETE FROM links").run();
 }
 
-describe("Phase 2: Transparent Referrer Policy", () => {
+describe("Referrer policy behavior", () => {
 	beforeEach(async () => {
 		await resetDatabase();
 	});

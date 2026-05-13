@@ -279,6 +279,13 @@
       gap: 10px;
     }
 
+    .field-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
     label {
       display: grid;
       gap: 8px;
@@ -305,6 +312,81 @@
       line-height: 1.55;
       color: var(--muted);
       font-weight: 400;
+    }
+
+    .help-tip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .help-tip-btn {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      min-height: 20px;
+      border-radius: 999px;
+      border: 1px solid rgba(68, 217, 255, 0.32);
+      background: rgba(68, 217, 255, 0.08);
+      color: var(--accent);
+      font-size: 0.74rem;
+      font-weight: 700;
+      line-height: 1;
+      padding: 0;
+      cursor: pointer;
+      box-shadow: none;
+    }
+
+    .help-tip-btn:hover,
+    .help-tip-btn:focus-visible {
+      border-color: rgba(68, 217, 255, 0.62);
+      background: rgba(68, 217, 255, 0.18);
+      color: #e2f8ff;
+      outline: none;
+      transform: none;
+      box-shadow: 0 0 0 3px rgba(68, 217, 255, 0.15);
+    }
+
+    .help-tip-text {
+      position: absolute;
+      left: 50%;
+      top: calc(100% + 10px);
+      transform: translateX(-50%);
+      width: min(260px, 70vw);
+      padding: 10px 12px;
+      border: 1px solid rgba(68, 217, 255, 0.22);
+      border-radius: var(--radius-xs);
+      background: rgba(3, 8, 16, 0.98);
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      font-weight: 400;
+      line-height: 1.45;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity var(--motion-fast), visibility var(--motion-fast);
+      z-index: 8;
+      text-align: left;
+    }
+
+    .help-tip-text::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -6px;
+      width: 10px;
+      height: 10px;
+      border-left: 1px solid rgba(68, 217, 255, 0.22);
+      border-top: 1px solid rgba(68, 217, 255, 0.22);
+      background: rgba(3, 8, 16, 0.98);
+      transform: translateX(-50%) rotate(45deg);
+    }
+
+    .help-tip:hover .help-tip-text,
+    .help-tip:focus-within .help-tip-text {
+      opacity: 1;
+      visibility: visible;
     }
 
     input, button, select, textarea {
@@ -535,6 +617,27 @@
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 12px;
       align-items: stretch;
+    }
+
+    .search-filter-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+    }
+
+    .search-filter-row label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+
+    .search-filter-row select {
+      min-height: 44px;
+      padding: 10px 14px;
+      background: var(--surface-strong);
     }
 
     .search-input-shell {
@@ -793,6 +896,11 @@
         grid-template-columns: minmax(0, 1fr) 48px;
       }
 
+      .search-filter-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
       .search-primary-btn {
         width: 48px;
         min-width: 48px;
@@ -843,7 +951,15 @@
         </div>
         <form id="link-form">
           <div class="field-block">
-            <label for="slug"><strong>Slug</strong></label>
+            <label for="slug">
+              <span class="field-label">
+                <strong>Slug</strong>
+                <span class="help-tip">
+                  <button type="button" class="help-tip-btn" aria-label="Ajuda sobre slug">i</button>
+                  <span class="help-tip-text">Deixe em branco para gerar automaticamente ou informe manualmente se quiser um padrão próprio.</span>
+                </span>
+              </span>
+            </label>
             <div class="slug-row">
               <input id="slug" name="slug" type="text" maxlength="64" placeholder="campanha-q2" />
               <button type="button" class="secondary compact" id="generate-slug-button">
@@ -854,12 +970,16 @@
                 Gerar slug
               </button>
             </div>
-            <p class="field-help">Deixe o campo em branco para gerar o slug automaticamente ou defina manualmente se preferir.</p>
           </div>
 
           <label>
-            URL de destino
-            <small>Pode ter ou não barra final. UTMs e parâmetros serão adicionados automaticamente.</small>
+            <span class="field-label">
+              URL de destino
+              <span class="help-tip">
+                <button type="button" class="help-tip-btn" aria-label="Ajuda sobre URL de destino">i</button>
+                <span class="help-tip-text">Pode ter ou não barra final. UTMs e parâmetros serão adicionados automaticamente.</span>
+              </span>
+            </span>
             <input id="target-url" name="target-url" type="url" required placeholder="https://exemplo.com/landing" />
           </label>
 
@@ -876,17 +996,34 @@
           <details>
             <summary>Gerador de UTMs</summary>
             <div class="form-section">
-              <small style="color: var(--muted);">Adicione parâmetros UTM para rastrear a origem do tráfego. Recomendado: source + medium + campaign.</small>
               <label>
-                Fonte (utm_source)
+                <span class="field-label">
+                  Fonte (utm_source)
+                  <span class="help-tip">
+                    <button type="button" class="help-tip-btn" aria-label="Ajuda sobre utm_source">i</button>
+                    <span class="help-tip-text">Identifica de onde veio o tráfego: exemplo google, newsletter ou instagram.</span>
+                  </span>
+                </span>
                 <input id="utm-source" type="text" placeholder="google, facebook, newsletter, etc" />
               </label>
               <label>
-                Meio (utm_medium)
+                <span class="field-label">
+                  Meio (utm_medium)
+                  <span class="help-tip">
+                    <button type="button" class="help-tip-btn" aria-label="Ajuda sobre utm_medium">i</button>
+                    <span class="help-tip-text">Canal da campanha, como cpc, email, social ou organic.</span>
+                  </span>
+                </span>
                 <input id="utm-medium" type="text" placeholder="cpc, email, social, organic, etc" />
               </label>
               <label>
-                Campanha (utm_campaign)
+                <span class="field-label">
+                  Campanha (utm_campaign)
+                  <span class="help-tip">
+                    <button type="button" class="help-tip-btn" aria-label="Ajuda sobre utm_campaign">i</button>
+                    <span class="help-tip-text">Nome da ação ou período da campanha, como black_friday ou lancamento_q3.</span>
+                  </span>
+                </span>
                 <input id="utm-campaign" type="text" placeholder="black_friday, q1_promo, etc" />
               </label>
               <label>
@@ -921,20 +1058,35 @@
               </div>
 
               <label>
-                Ativa em (opcional)
-                <small>O link redireciona apenas depois desta data/hora. Útil para campanhas agendadas.</small>
+                <span class="field-label">
+                  Ativa em (opcional)
+                  <span class="help-tip">
+                    <button type="button" class="help-tip-btn" aria-label="Ajuda sobre ativação de link">i</button>
+                    <span class="help-tip-text">O link só começa a redirecionar após esta data/hora. Útil para campanhas agendadas.</span>
+                  </span>
+                </span>
                 <input id="go-live-at" type="datetime-local" />
               </label>
 
               <label>
-                Expira em (opcional)
-                <small>O link para de funcionar depois desta data/hora. Deixe vazio para sem expiração.</small>
+                <span class="field-label">
+                  Expira em (opcional)
+                  <span class="help-tip">
+                    <button type="button" class="help-tip-btn" aria-label="Ajuda sobre expiração de link">i</button>
+                    <span class="help-tip-text">Define quando o link para de funcionar. Deixe vazio para manter ativo sem prazo.</span>
+                  </span>
+                </span>
                 <input id="expires-at" type="datetime-local" />
               </label>
 
               <label>
-                Senha do link (opcional)
-                <small>Proteja o link com uma senha. O visitante precisa inserir antes de ser redirecionado.</small>
+                <span class="field-label">
+                  Senha do link (opcional)
+                  <span class="help-tip">
+                    <button type="button" class="help-tip-btn" aria-label="Ajuda sobre senha do link">i</button>
+                    <span class="help-tip-text">Quando configurada, o visitante precisa informar a senha antes do redirecionamento.</span>
+                  </span>
+                </span>
                 <input id="password" type="password" placeholder="Deixe em branco para link público" />
               </label>
 
@@ -990,6 +1142,13 @@
                   <path d="M21 21 16.65 16.65M10.5 18A7.5 7.5 0 1 1 18 10.5 7.5 7.5 0 0 1 10.5 18Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </button>
+            </div>
+            <div class="search-filter-row">
+              <label for="search-group-id">Filtrar por grupo</label>
+              <select id="search-group-id" name="search-group-id">
+                <option value="">Todos os grupos</option>
+                <option value="__none__">Sem grupo</option>
+              </select>
             </div>
           </form>
         </div>
@@ -1075,6 +1234,7 @@
     const generateSlugButton = document.getElementById("generate-slug-button");
     const searchForm = document.getElementById("search-form");
     const searchTermInput = document.getElementById("search-term");
+    const searchGroupIdInput = document.getElementById("search-group-id");
     const formTitle = document.getElementById("form-title");
     const formStatus = document.getElementById("form-status");
     const listStatus = document.getElementById("list-status");
@@ -1283,14 +1443,25 @@
     async function loadGroups() {
       try {
         const payload = await request("/api/groups", { method: "GET" });
-        const current = groupIdInput.value;
-        const options = ['<option value="">Sem grupo</option>'];
+        const currentFormGroup = groupIdInput.value;
+        const currentSearchGroup = searchGroupIdInput.value;
+        const formOptions = ['<option value="">Sem grupo</option>'];
+        const searchOptions = [
+          '<option value="">Todos os grupos</option>',
+          '<option value="__none__">Sem grupo</option>',
+        ];
         (payload.groups || []).forEach((group) => {
-          options.push(`<option value="${group.id}">${escapeHtml(group.name)}</option>`);
+          const option = `<option value="${group.id}">${escapeHtml(group.name)}</option>`;
+          formOptions.push(option);
+          searchOptions.push(option);
         });
-        groupIdInput.innerHTML = options.join("");
-        if (current) {
-          groupIdInput.value = current;
+        groupIdInput.innerHTML = formOptions.join("");
+        searchGroupIdInput.innerHTML = searchOptions.join("");
+        if (currentFormGroup) {
+          groupIdInput.value = currentFormGroup;
+        }
+        if (currentSearchGroup) {
+          searchGroupIdInput.value = currentSearchGroup;
         }
       } catch {
         // Non-blocking: group listing is optional for basic flow
@@ -1452,19 +1623,46 @@
         .join("");
     }
 
-    async function loadLinks(searchTerm = "") {
+    async function loadLinks(searchTerm = searchTermInput.value, groupFilter = searchGroupIdInput.value) {
       const normalizedSearch = searchTerm.trim();
-      setStatus(listStatus, normalizedSearch ? `Pesquisando por "${normalizedSearch}"...` : "Carregando links...");
+      const normalizedGroupFilter = String(groupFilter || "").trim();
+
+      setStatus(
+        listStatus,
+        normalizedSearch || normalizedGroupFilter
+          ? "Aplicando filtros..."
+          : "Carregando links...",
+      );
 
       try {
-        const searchQuery = normalizedSearch ? `?search=${encodeURIComponent(normalizedSearch)}` : "";
-        const payload = await request(`/api/links${searchQuery}`, { method: "GET" });
+        const queryParams = new URLSearchParams();
+        if (normalizedSearch) {
+          queryParams.set("search", normalizedSearch);
+        }
+        if (normalizedGroupFilter) {
+          queryParams.set("group_id", normalizedGroupFilter === "__none__" ? "none" : normalizedGroupFilter);
+        }
+
+        const queryString = queryParams.toString();
+        const payload = await request(`/api/links${queryString ? `?${queryString}` : ""}`, { method: "GET" });
         state.links = payload.links || [];
         renderLinks();
+
+        const hasAnyFilter = Boolean(normalizedSearch || normalizedGroupFilter);
+        const groupLabel = normalizedGroupFilter === "__none__"
+          ? "Sem grupo"
+          : normalizedGroupFilter
+            ? (searchGroupIdInput.options[searchGroupIdInput.selectedIndex]?.text || "Grupo")
+            : "";
+        const filterLabels = [
+          normalizedSearch ? `texto: "${normalizedSearch}"` : "",
+          groupLabel ? `grupo: ${groupLabel}` : "",
+        ].filter(Boolean);
+
         setStatus(
           listStatus,
-          normalizedSearch
-            ? `${state.links.length} resultado(s) para "${normalizedSearch}".`
+          hasAnyFilter
+            ? `${state.links.length} resultado(s) para ${filterLabels.join(" | ")}.`
             : `${state.links.length} link(s) carregado(s).`,
         );
       } catch (error) {
@@ -1561,11 +1759,11 @@
         if (state.editingSlug === slug) {
           resetForm();
         }
-        await loadLinks(searchTermInput.value);
+        await loadLinks(searchTermInput.value, searchGroupIdInput.value);
         setStatus(listStatus, `/${slug} removido.`, "success");
       } catch (error) {
         setStatus(listStatus, error.message, "error");
-        await loadLinks(searchTermInput.value);
+        await loadLinks(searchTermInput.value, searchGroupIdInput.value);
       }
     }
 
@@ -1666,17 +1864,21 @@
 
     searchForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      loadLinks(searchTermInput.value);
+      loadLinks(searchTermInput.value, searchGroupIdInput.value);
     });
 
     searchTermInput.addEventListener("search", () => {
-      loadLinks(searchTermInput.value);
+      loadLinks(searchTermInput.value, searchGroupIdInput.value);
     });
 
     searchTermInput.addEventListener("input", () => {
       if (!searchTermInput.value.trim()) {
-        loadLinks("");
+        loadLinks("", searchGroupIdInput.value);
       }
+    });
+
+    searchGroupIdInput.addEventListener("change", () => {
+      loadLinks(searchTermInput.value, searchGroupIdInput.value);
     });
 
     linksList.addEventListener("click", async (event) => {
@@ -1715,7 +1917,7 @@
       if (action === "qrcode") {
         const shortLink = await downloadQrForSlug(link.slug);
         await markQrCodeGenerated(link.slug);
-        await loadLinks(searchTermInput.value);
+        await loadLinks(searchTermInput.value, searchGroupIdInput.value);
         setStatus(listStatus, `QR Code gerado para ${shortLink}`, "success");
         return;
       }
@@ -1723,7 +1925,7 @@
       if (action === "duplicate") {
         try {
           const payload = await request(`/api/links/${encodeURIComponent(link.slug)}/duplicate`, { method: "POST" });
-          await loadLinks(searchTermInput.value);
+          await loadLinks(searchTermInput.value, searchGroupIdInput.value);
           setStatus(listStatus, `Link duplicado como /${payload.link.slug}.`, "success");
         } catch (error) {
           setStatus(listStatus, error.message, "error");

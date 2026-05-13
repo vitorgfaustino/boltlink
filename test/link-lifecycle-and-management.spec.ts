@@ -69,7 +69,7 @@ async function resetDatabase() {
 	await env.db_boltlink.prepare("DELETE FROM link_groups").run();
 }
 
-describe("Phase 4 and 5 features", () => {
+describe("Link lifecycle and management features", () => {
 	beforeEach(async () => {
 		await resetDatabase();
 	});
