@@ -10,7 +10,9 @@ Quando `password_hash` está configurado para um slug:
 
 - Senha é armazenada como hash com salt
 - Sessão curta via cookie `HttpOnly` (`Max-Age=300`) assinado com HMAC SHA-256
-- `PASSWORD_SESSION_SECRET` é recomendado em produção; sem ele, o Worker usa `API_KEY` ou fallback aleatório em memória
+- `PASSWORD_SESSION_SECRET` nao e obrigatorio para o produto inteiro; ele so e recomendado quando a instancia usa links protegidos por senha em producao
+- `PASSWORD_SESSION_SECRET` deve ser tratado como `Secret`, nao como `Text` em `vars`
+- Se ele nao existir, o Worker usa `API_KEY` ou fallback aleatorio em memoria
 - Rate limit de tentativa por slug com chave derivada de IP apenas em memória (5/min)
 
 ## Fluxo
@@ -22,7 +24,7 @@ Quando `password_hash` está configurado para um slug:
 
 ## Limitação atual
 
-Sessão do gate é assinada localmente para duração curta. O fallback aleatório em memória é adequado para desenvolvimento, mas pode invalidar sessões quando o isolate reinicia. Em produção, configure `PASSWORD_SESSION_SECRET`.
+Sessão do gate é assinada localmente para duração curta. O fallback aleatório em memória é adequado para desenvolvimento, mas pode invalidar sessões quando o isolate reinicia. Em produção com links protegidos por senha, configure `PASSWORD_SESSION_SECRET` como secret do Worker.
 
 ---
 

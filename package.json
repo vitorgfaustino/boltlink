@@ -36,6 +36,9 @@
       "API_KEY": {
         "description": "Optional secret for internal API automation only. Store it as a secret, not as a public `vars` value."
       },
+      "PASSWORD_SESSION_SECRET": {
+        "description": "Optional but recommended when using password-protected links in production. Generate a long random value, for example with `openssl rand -hex 32`. Store it as a Worker secret. For local development, use `.dev.vars`. For deployed Workers, use the Cloudflare dashboard or `wrangler secret put`."
+      },
       "db_boltlink": {
         "description": "D1 database used for links and aggregate click counters. The deploy flow can provision it automatically from the Wrangler config."
       }

@@ -33,12 +33,13 @@ try {
 	console.log("IMPORTANT: wrangler.local.jsonc is your private operational config.");
 	console.log("- keep_vars is now set to true by default so dashboard values are preserved during local deploys.");
 	console.log("- If you use GitHub auto-deploy or the Cloudflare Deploy Button, leave TEAM_DOMAIN and POLICY_AUD");
-	console.log("  OUT of this file; they should be set only in the Cloudflare dashboard.");
+	console.log("  OUT of this file; they should be set in the Cloudflare dashboard.");
 	console.log("- If you use npm run deploy locally, you MAY add TEAM_DOMAIN and POLICY_AUD here, but only with real values.");
 	console.log("- Never commit wrangler.local.jsonc or .dev.vars to Git.");
-	console.log("- Keep API_KEY in .dev.vars or in Cloudflare secret storage.");
+	console.log("- Keep API_KEY and PASSWORD_SESSION_SECRET in .dev.vars for local development.");
+	console.log("- For deployed Workers, set API_KEY and PASSWORD_SESSION_SECRET as Cloudflare secrets.");
 	console.log("");
-	console.log("Next: set the real D1, Access and optional API key values in your local or dashboard configuration.");
+	console.log("Next: set the real D1, Access and optional secret values in your local or dashboard configuration.");
 } catch (error) {
 	console.error(error instanceof Error ? error.message : String(error));
 	process.exit(1);

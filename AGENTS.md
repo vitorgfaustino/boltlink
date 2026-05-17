@@ -58,6 +58,9 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - mapeie linguagem natural para uma intenção aceita antes de executar ações
 - para atualizações, trate `https://github.com/vitorgfaustino/boltlink` como fonte oficial
 - preserve `wrangler.local.jsonc`, `public/admin.html`, `public/logo.png` e `public/favicon.ico` em projetos derivados
+- se o projeto usa GitHub auto-deploy ou o Deploy Button, não copie `TEAM_DOMAIN`, `POLICY_AUD`, `API_KEY` ou `PASSWORD_SESSION_SECRET` para o template público nem para instruções que sobrescrevam valores do dashboard
+- nesses fluxos, `wrangler.local.jsonc` não deve ser tratado como fonte de verdade para essas variáveis operacionais
+- em deploy local via Wrangler, `TEAM_DOMAIN` e `POLICY_AUD` podem existir em `wrangler.local.jsonc`, mas `API_KEY` e `PASSWORD_SESSION_SECRET` devem preferir `.dev.vars` ou Cloudflare secrets
 - não automatize a criação final do Cloudflare Access
 
 ## Regras de documentação pública

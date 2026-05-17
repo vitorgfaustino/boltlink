@@ -107,6 +107,10 @@ Depois do deploy:
 4. opcionalmente configurar `API_KEY` e `PASSWORD_SESSION_SECRET`
 5. opcionalmente trocar para domínio próprio
 
+Se voce nao usa links protegidos por senha, pode deixar `PASSWORD_SESSION_SECRET` sem configurar.
+Se voce usa GitHub auto-deploy ou o botao de deploy da Cloudflare, configure `PASSWORD_SESSION_SECRET` no painel da Cloudflare como `Secret`.
+Se voce publica com Wrangler local, use `.dev.vars` para desenvolvimento e `wrangler secret put PASSWORD_SESSION_SECRET` para o Worker implantado.
+
 ## Página pública de privacidade
 
 A instância publicada agora inclui uma página pública em `/privacidade`, servida a partir de `public/privacidade.html`.
@@ -147,6 +151,9 @@ O upgrade aplica a migration `0003_lgpd_minimization.sql`, que remove `stats` e 
 - `upload_source_maps` fica desligado por padrão
 - `API_KEY` continua opcional para automações internas
 - `PASSWORD_SESSION_SECRET` é recomendado em produção para assinar sessões curtas de links protegidos por senha
+- `TEAM_DOMAIN` e `POLICY_AUD` são valores de texto
+- `API_KEY` e `PASSWORD_SESSION_SECRET` devem ser tratados como `Secret`
+- `wrangler.local.jsonc` só afeta deploys locais via Wrangler; GitHub auto-deploy e o Deploy Button usam o template público e os valores definidos no painel
 
 ## Referências
 

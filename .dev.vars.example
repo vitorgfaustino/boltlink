@@ -5,6 +5,8 @@
 # TEAM_DOMAIN and POLICY_AUD are only required after you configure Cloudflare Access.
 # API_KEY is optional and only applies to /api and /api/* automation.
 # PASSWORD_SESSION_SECRET signs short-lived password-gate sessions. Use a unique random value in production.
+# For GitHub auto-deploy or the Deploy Button, set production values in Cloudflare Variables and Secrets instead of local files.
+# TEAM_DOMAIN and POLICY_AUD are text values; API_KEY and PASSWORD_SESSION_SECRET should be treated as secrets.
 
 TEAM_DOMAIN=https://your-team.cloudflareaccess.com
 POLICY_AUD=replace-with-your-access-aud

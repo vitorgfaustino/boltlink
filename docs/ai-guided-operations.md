@@ -11,6 +11,8 @@ Levar o usuário do setup ao upgrade sem adivinhar dados e sem ultrapassar os ch
 - preserve `wrangler.jsonc` como template público
 - preserve `wrangler.local.jsonc` como configuração privada local
 - preserve overlays do projeto do usuário
+- em GitHub auto-deploy e Deploy Button, trate o dashboard da Cloudflare como origem de `TEAM_DOMAIN`, `POLICY_AUD`, `API_KEY` e `PASSWORD_SESSION_SECRET`
+- em deploy local via Wrangler, aceite `TEAM_DOMAIN` e `POLICY_AUD` no `wrangler.local.jsonc`, mas trate `API_KEY` e `PASSWORD_SESSION_SECRET` como secrets em `.dev.vars` ou no Worker
 - não automatize a criação final do Cloudflare Access
 - não reintroduza `stats`, `IP_HASH_SECRET`, `last_clicked_at` ou `notes`
 

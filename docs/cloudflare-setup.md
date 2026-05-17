@@ -84,6 +84,10 @@ Depois do deploy:
 
 Não existe mais etapa de publicar `IP_HASH_SECRET`.
 
+Se voce nao usa links protegidos por senha, `PASSWORD_SESSION_SECRET` pode ficar ausente.
+Se voce usa GitHub auto-deploy ou o Deploy Button, configure `TEAM_DOMAIN` e `POLICY_AUD` como texto no dashboard e `PASSWORD_SESSION_SECRET` como `Secret`.
+Se voce publica com Wrangler local, `TEAM_DOMAIN` e `POLICY_AUD` podem existir no `wrangler.local.jsonc`, mas `PASSWORD_SESSION_SECRET` deve ficar em `.dev.vars` para desenvolvimento e em Cloudflare Secret para o Worker implantado.
+
 ## Upgrade one-click / GitHub auto-deploy
 
 Para quem já está em produção e recebe atualização por GitHub:
@@ -91,6 +95,13 @@ Para quem já está em produção e recebe atualização por GitHub:
 - o código novo já reconcilia schema legado em runtime
 - ainda assim, a forma recomendada é aplicar a migration `0003_lgpd_minimization.sql`
 - o efeito do upgrade é remover `stats`, `last_clicked_at` e `notes`
+- `wrangler.local.jsonc` não participa desse fluxo e não sobrescreve variáveis do ambiente de GitHub/Workers Builds
+
+## Variaveis e secrets
+
+- `TEAM_DOMAIN` e `POLICY_AUD` sao `Text`
+- `API_KEY` e `PASSWORD_SESSION_SECRET` sao `Secret`
+- `PASSWORD_SESSION_SECRET` nao e obrigatorio para a instancia inteira; ele so e recomendado quando houver links protegidos por senha em producao
 
 ## Observabilidade e logs
 

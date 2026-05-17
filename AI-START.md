@@ -218,6 +218,14 @@ Depois do deploy:
 
 Não existe mais etapa de publicar `IP_HASH_SECRET`.
 
+Regras para esses valores:
+
+- se o projeto usa GitHub auto-deploy ou o Deploy Button, `wrangler.local.jsonc` nao deve fornecer `TEAM_DOMAIN`, `POLICY_AUD`, `API_KEY` ou `PASSWORD_SESSION_SECRET`
+- nesses fluxos, `TEAM_DOMAIN` e `POLICY_AUD` vivem como texto no dashboard e `API_KEY`/`PASSWORD_SESSION_SECRET` vivem como secrets no dashboard
+- se o projeto publica com Wrangler local, `TEAM_DOMAIN` e `POLICY_AUD` podem existir em `wrangler.local.jsonc`
+- em deploy local, `API_KEY` e `PASSWORD_SESSION_SECRET` devem viver em `.dev.vars` para desenvolvimento ou em secrets do Worker para o ambiente implantado
+- `PASSWORD_SESSION_SECRET` nao e obrigatorio quando a instancia nao usa links protegidos por senha
+
 ## Checkpoints manuais obrigatórios
 
 A IA deve parar e entregar handoff quando a tarefa depender de:
