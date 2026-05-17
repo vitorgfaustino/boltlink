@@ -41,6 +41,7 @@ type Bindings = {
 	POLICY_AUD: string;
 	APP_TIMEZONE?: string;
 	API_KEY?: string;
+	PASSWORD_SESSION_SECRET?: string;
 };
 
 type AppContext = {
@@ -137,6 +138,7 @@ const DEFAULT_APP_TIMEZONE = "America/Sao_Paulo";
 const PASSWORD_RATE_LIMIT_MAX_ATTEMPTS = 5;
 const PASSWORD_RATE_LIMIT_WINDOW_MS = 60_000;
 const PASSWORD_SESSION_MAX_AGE_SECONDS = 300;
+const passwordSessionFallbackSecret = crypto.randomUUID();
 const passwordAttempts = new Map<string, { count: number; resetAt: number }>();
 
 const app = new Hono<AppContext>();
@@ -619,7 +621,7 @@ app.get("/api/preview", async (c) => {
 		const response = await fetch(normalized, {
 			method: "GET",
 			headers: {
-				"User-Agent": "BoltLinkPreview/1.1.0",
+				"User-Agent": `BoltLinkPreview/${APP_VERSION}`,
 				Accept: "text/html,application/xhtml+xml",
 			},
 		});
@@ -670,7 +672,7 @@ app.get("/:slug", async (c) => {
 		return c.text("Link expired", 410);
 	}
 
-	if (link.password_hash && !hasValidPasswordSession(c.req.raw, c.env, link.slug)) {
+	if (link.password_hash && !(await hasValidPasswordSession(c.req.raw, c.env, link.slug))) {
 		return c.html(renderPasswordGate(link.slug));
 	}
 
@@ -725,7 +727,7 @@ app.post("/:slug", async (c) => {
 		return c.html(renderPasswordGate(link.slug, "Senha inválida."), 401);
 	}
 
-	const token = createPasswordSessionToken(c.env, link.slug);
+	const token = await createPasswordSessionToken(c.env, link.slug);
 	const response = c.redirect(link.target_url, Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302);
 	const cookieSecure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
 	response.headers.append(
@@ -1672,18 +1674,18 @@ function passwordCookieName(slug: string) {
 }
 
 function getPasswordSessionSecret(env: Bindings) {
-	return env.API_KEY?.trim() || "boltlink-dev-session-secret";
+	return env.PASSWORD_SESSION_SECRET?.trim() || env.API_KEY?.trim() || passwordSessionFallbackSecret;
 }
 
-function createPasswordSessionToken(env: Bindings, slug: string) {
+async function createPasswordSessionToken(env: Bindings, slug: string) {
 	const exp = Math.floor(Date.now() / 1000) + PASSWORD_SESSION_MAX_AGE_SECONDS;
 	const payload = `${slug}:${exp}`;
 	const secret = getPasswordSessionSecret(env);
-	const signature = simpleHmacLike(payload, secret);
+	const signature = await hmacSha256Hex(payload, secret);
 	return `${exp}.${signature}`;
 }
 
-function hasValidPasswordSession(request: Request, env: Bindings, slug: string) {
+async function hasValidPasswordSession(request: Request, env: Bindings, slug: string) {
 	const cookies = parseCookie(request.headers.get("Cookie"));
 	const token = cookies?.[passwordCookieName(slug)];
 	if (!token) {
@@ -1700,8 +1702,8 @@ function hasValidPasswordSession(request: Request, env: Bindings, slug: string) 
 		return false;
 	}
 
-	const expected = simpleHmacLike(`${slug}:${exp}`, getPasswordSessionSecret(env));
-	return expected === signature;
+	const expected = await hmacSha256Hex(`${slug}:${exp}`, getPasswordSessionSecret(env));
+	return constantTimeEqual(expected, signature);
 }
 
 async function consumePasswordAttempt(slug: string, clientIp: string | null) {
@@ -1748,14 +1750,29 @@ async function sha256Hex(content: string) {
 	return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 
-function simpleHmacLike(content: string, secret: string) {
-	let hash = 0;
-	const input = `${secret}:${content}`;
-	for (let index = 0; index < input.length; index += 1) {
-		hash = (hash << 5) - hash + input.charCodeAt(index);
-		hash |= 0;
+async function hmacSha256Hex(content: string, secret: string) {
+	const encoder = new TextEncoder();
+	const key = await crypto.subtle.importKey(
+		"raw",
+		encoder.encode(secret),
+		{ name: "HMAC", hash: "SHA-256" },
+		false,
+		["sign"],
+	);
+	const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(content));
+	return Array.from(new Uint8Array(signature), (value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+function constantTimeEqual(left: string, right: string) {
+	if (left.length !== right.length) {
+		return false;
 	}
-	return Math.abs(hash).toString(16);
+
+	let diff = 0;
+	for (let index = 0; index < left.length; index += 1) {
+		diff |= left.charCodeAt(index) ^ right.charCodeAt(index);
+	}
+	return diff === 0;
 }
 
 function renderPasswordGate(slug: string, errorMessage = "") {

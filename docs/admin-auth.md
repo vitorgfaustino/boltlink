@@ -36,3 +36,8 @@ Depois do deploy:
 ## Observação de responsabilidade
 
 Cloudflare Access continua sendo componente operacional do deploy. O operador do ambiente é responsável pelas políticas de acesso, provedores de identidade, sessão, MFA e revisão periódica dessas regras.
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

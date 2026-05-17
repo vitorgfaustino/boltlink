@@ -22,3 +22,8 @@ Isso preserva apenas a origem quando o navegador decidir enviá-la. Path e query
 - perda de atribuição: valide UTMs
 - incompatibilidade de domínio: revise a política da plataforma de ads
 - clique inflado: revise tráfego automatizado e aplique Cloudflare WAF Rate Limiting Rules
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

@@ -67,6 +67,23 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - em arquivos versionados de configuração, use placeholders em vez de IDs, hostnames e credenciais reais
 - quando alterar comportamento do produto, atualize a documentação correspondente
 
+## Regra para mudanças de versão
+
+Ao preparar uma nova versão do produto, a IA deve revisar e sincronizar pelo menos:
+
+- `package.json`
+- `README.md`
+- `AI-START.md`
+- `AGENTS.md`
+- `CHANGELOG.md`
+- `RELEASE_NOTES.md`
+- `docs/`
+- `public/` quando houver texto visível de versão, política pública ou comportamento alterado
+- `schema.sql` e `migrations/` quando houver mudança de banco
+- `wrangler.jsonc` e exemplos de ambiente quando houver mudança operacional
+
+Antes de concluir uma mudança de versão, a IA deve procurar referências antigas da versão anterior, recursos removidos e fluxos documentais desatualizados para não deixar material legal, operacional ou técnico para trás.
+
 ## Validação mínima
 
 Para mudanças de código:
@@ -88,7 +105,7 @@ Para mudanças de banco:
 ## Segurança operacional
 
 - não commitar `.dev.vars`, `.env` ou segredos
-- não expor valores reais de `API_KEY`, `TEAM_DOMAIN` ou `POLICY_AUD`
+- não expor valores reais de `API_KEY`, `PASSWORD_SESSION_SECRET`, `TEAM_DOMAIN` ou `POLICY_AUD`
 - não assumir que a proteção do Access fora do Worker elimina a validação do token dentro do Worker
 
 ## Prioridades ao implementar

@@ -121,6 +121,14 @@ Fluxo para `Iniciar o Projeto`:
 8. rodar `npm test`
 9. parar antes da criação final do Access
 
+Se o pedido for iniciar o projeto apenas localmente para testes manuais, a IA deve incluir:
+
+```bash
+npm run dev-init
+```
+
+Esse comando cria `.dev-env/db.sqlite3` localmente para navegação e experimentação. O diretório `.dev-env/` é ignorado pelo Git e não deve ser tratado como artefato versionado.
+
 ## Fluxo para atualizar instalações existentes
 
 Esse fluxo precisa cobrir tanto instalações novas quanto legadas.
@@ -205,7 +213,7 @@ Depois do deploy:
 1. validar `workers.dev`
 2. configurar Access para `/admin`, `/admin.html`, `/api` e `/api/*`
 3. preencher `TEAM_DOMAIN` e `POLICY_AUD`
-4. opcionalmente configurar `API_KEY`
+4. opcionalmente configurar `API_KEY` e `PASSWORD_SESSION_SECRET`
 5. opcionalmente trocar para domínio próprio
 
 Não existe mais etapa de publicar `IP_HASH_SECRET`.
@@ -239,6 +247,15 @@ Setup local:
 ```bash
 npm install
 npm run setup
+```
+
+Setup local com banco SQLite de apoio:
+
+```bash
+npm install
+npm run setup
+npm run dev-init
+npm run dev
 ```
 
 Criar D1 com update do config local:
@@ -280,3 +297,8 @@ Se a IA seguir este arquivo corretamente, ela deve conseguir:
 - aplicar migrations corretas da linha `2.0.0`
 - respeitar o modelo de publicação do usuário
 - parar nos checkpoints manuais corretos
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

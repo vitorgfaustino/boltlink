@@ -1,3 +1,5 @@
+-- Copyright (c) 2026 Vitor Faustino
+-- AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
 -- BoltLink v2.0.0 Migration
 -- Privacy-first data minimization: remove event analytics and free-form notes.
 

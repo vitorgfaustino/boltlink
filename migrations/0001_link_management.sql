@@ -1,4 +1,6 @@
--- BoltLink v1.1.0 Phase 3-4 Migration
+-- Copyright (c) 2026 Vitor Faustino
+-- AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
+-- BoltLink historical migration for link management features
 -- Adds link management features: UTM support, QR codes, expiration, tags, etc.
 
 -- Phase 3: UTM support, QR code flag, redirect type control

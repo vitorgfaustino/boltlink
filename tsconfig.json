@@ -1,4 +1,6 @@
 {
+	/* Copyright (c) 2026 Vitor Faustino */
+	/* AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink */
 	"compilerOptions": {
 		/* Visit https://aka.ms/tsconfig.json to read more about this file */
 

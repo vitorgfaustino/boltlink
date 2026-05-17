@@ -3,6 +3,8 @@
  * https://developers.cloudflare.com/workers/wrangler/configuration/
  */
 {
+	// Copyright (c) 2026 Vitor Faustino
+	// AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
 	// Public template only. Copy this file to wrangler.local.jsonc for real values.
 	// Never commit the local file.
 	"$schema": "node_modules/wrangler/config-schema.json",

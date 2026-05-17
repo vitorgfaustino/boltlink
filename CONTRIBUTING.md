@@ -57,7 +57,7 @@ Se você quiser adaptar o projeto para seu próprio uso, a recomendação é tra
 ## Contexto técnico para relatar problemas
 
 - O slug é imutável após a criação.
-- O redirect não deve esperar a gravação de analytics.
+- O redirect não deve esperar a atualização da contagem agregada.
 - `wrangler.jsonc` é o template público da configuração.
 - `wrangler.local.jsonc` é a configuração privada e não deve ser versionada.
 - O admin depende de Cloudflare Access quando configurado para produção.
@@ -82,5 +82,5 @@ npm test
 
 ---
 
-Versão 1.0.0
+Versão 2.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

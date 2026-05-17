@@ -9,8 +9,9 @@ Quando `password_hash` está configurado para um slug:
 ## Segurança
 
 - Senha é armazenada como hash com salt
-- Sessão curta via cookie `HttpOnly` (`Max-Age=300`)
-- Rate limit de tentativa por slug+IP (5/min)
+- Sessão curta via cookie `HttpOnly` (`Max-Age=300`) assinado com HMAC SHA-256
+- `PASSWORD_SESSION_SECRET` é recomendado em produção; sem ele, o Worker usa `API_KEY` ou fallback aleatório em memória
+- Rate limit de tentativa por slug com chave derivada de IP apenas em memória (5/min)
 
 ## Fluxo
 
@@ -21,4 +22,9 @@ Quando `password_hash` está configurado para um slug:
 
 ## Limitação atual
 
-Sessão do gate é assinada localmente para duração curta. Em cenários de alta criticidade, use também proteção externa via Cloudflare Access.
+Sessão do gate é assinada localmente para duração curta. O fallback aleatório em memória é adequado para desenvolvimento, mas pode invalidar sessões quando o isolate reinicia. Em produção, configure `PASSWORD_SESSION_SECRET`.
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

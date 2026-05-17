@@ -58,3 +58,8 @@ Se você atualiza pelo GitHub ou pelo botão:
 - a contagem continua existindo em `clicks_total`
 - o referrer público passa a ser apenas `strict-origin`
 - métricas detalhadas deixam de existir por padrão
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

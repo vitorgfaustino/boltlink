@@ -60,3 +60,8 @@ O autor original do software não se torna controlador, operador ou encarregado 
 Para apoiar quem publicar uma instância do produto, o repositório inclui um modelo genérico em `docs/privacy-template.md`, que deve ser adaptado pelo operador antes do uso público.
 
 A instância pública padrão também expõe uma página em `/privacidade`, servida por `public/privacidade.html`, para que a política aplicável ao ambiente publicado fique acessível fora do repositório.
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

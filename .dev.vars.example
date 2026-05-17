@@ -1,8 +1,12 @@
+# Copyright (c) 2026 Vitor Faustino
+# AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
 # Local development only
 # Do not commit real values
 # TEAM_DOMAIN and POLICY_AUD are only required after you configure Cloudflare Access.
 # API_KEY is optional and only applies to /api and /api/* automation.
+# PASSWORD_SESSION_SECRET signs short-lived password-gate sessions. Use a unique random value in production.
 
 TEAM_DOMAIN=https://your-team.cloudflareaccess.com
 POLICY_AUD=replace-with-your-access-aud
 API_KEY=replace-with-a-local-admin-api-key
+PASSWORD_SESSION_SECRET=replace-with-a-random-session-secret

@@ -79,7 +79,7 @@ Depois do deploy:
 1. valide `workers.dev`
 2. configure Cloudflare Access para `/admin`, `/admin.html`, `/api` e `/api/*`
 3. preencha `TEAM_DOMAIN` e `POLICY_AUD`
-4. opcionalmente configure `API_KEY`
+4. opcionalmente configure `API_KEY` e `PASSWORD_SESSION_SECRET`
 5. opcionalmente troque para domínio próprio
 
 Não existe mais etapa de publicar `IP_HASH_SECRET`.
@@ -97,3 +97,8 @@ Para quem já está em produção e recebe atualização por GitHub:
 Por padrão, o template público não persiste logs do Worker.
 
 Se o operador reativar logs, Logpush, source maps ou outra telemetria externa, isso passa a ser responsabilidade operacional dele.
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

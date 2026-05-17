@@ -28,3 +28,9 @@
 - o upgrade relevante é `0003_lgpd_minimization.sql`
 - o endpoint `/api/links/:slug/stats` não faz mais parte do produto
 - o endpoint `/api/maintenance/purge-stats` não faz mais parte do produto
+- para pedido de teste local/manual, a IA pode incluir `npm run dev-init` para criar `.dev-env/db.sqlite3`
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

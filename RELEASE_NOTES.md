@@ -51,3 +51,9 @@ npm install
 npm run wrangler:init
 npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
 npm test
+```
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

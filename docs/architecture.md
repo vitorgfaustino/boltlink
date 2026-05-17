@@ -69,3 +69,8 @@ Não existe mais persistência de evento por clique.
 - `/api` e `/api/*` continuam com rate limit em memória
 - o gate de senha usa chave derivada de IP apenas em memória
 - para abuso público e produção real, a recomendação é Cloudflare WAF Rate Limiting Rules
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

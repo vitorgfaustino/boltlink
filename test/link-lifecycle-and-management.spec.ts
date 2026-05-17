@@ -1,3 +1,20 @@
+/**
+ * Copyright (c) 2026 Vitor Faustino
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 import {
 	env,
 	createExecutionContext,
@@ -191,5 +208,27 @@ describe("Link lifecycle and management features", () => {
 		});
 		expect(gateResponse.status).toBe(200);
 		expect(await gateResponse.text()).toContain("Link protegido por senha");
+
+		const unlockResponse = await fetchWorker("https://example.com/locked-link", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				"user-agent": "Mozilla/5.0",
+			},
+			body: "password=abc123",
+		});
+		expect(unlockResponse.status).toBe(302);
+		expect(unlockResponse.headers.get("Location")).toBe("https://example.com/locked");
+		const sessionCookie = unlockResponse.headers.get("Set-Cookie")?.split(";")[0];
+		expect(sessionCookie).toContain("boltlink_gate_locked-link=");
+
+		const unlockedResponse = await fetchWorker("https://example.com/locked-link", {
+			headers: {
+				Cookie: sessionCookie ?? "",
+				"user-agent": "Mozilla/5.0",
+			},
+		});
+		expect(unlockedResponse.status).toBe(302);
+		expect(unlockedResponse.headers.get("Location")).toBe("https://example.com/locked");
 	});
 });

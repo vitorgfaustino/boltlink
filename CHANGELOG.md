@@ -29,3 +29,8 @@
 
 - fluxos Wrangler, AI-start e one-click reescritos para a nova baseline
 - guias de upgrade e privacidade atualizados
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

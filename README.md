@@ -4,6 +4,8 @@ BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel ad
 
 **Versão 2.0.0 - AGPL-3.0**
 
+Ele funciona como encurtador de URLs, mas o objetivo real do projeto é maior: manter links públicos estáveis, simples de operar e independentes de plataformas terceiras, com controle do redirect, proteção do painel e uma baseline de privacidade mais rígida do que a maioria das ferramentas desse tipo.
+
 Esta versão muda o produto para uma baseline LGPD mais rígida:
 
 - sem `stats`
@@ -13,6 +15,39 @@ Esta versão muda o produto para uma baseline LGPD mais rígida:
 - contagem apenas agregada em `clicks_total`
 - `Referrer-Policy: strict-origin` nos redirects públicos
 - `Referrer-Policy: no-referrer` no admin, API e demais respostas
+
+## O que é o BoltLink
+
+Na prática, o BoltLink existe para resolver cenários como:
+
+- link da bio que precisa continuar estável
+- QR Code impresso que não pode quebrar
+- URL curta para campanhas, materiais, vídeos e documentos
+- gestão própria de links sem depender de serviços externos para redirect e painel
+
+O foco do sistema é manter o caminho crítico do redirect enxuto e previsível, enquanto o painel administrativo continua suficiente para operação real do dia a dia.
+
+## O que diferencia este projeto
+
+- **Controle do stack**: o redirect, o painel e o banco ficam no mesmo projeto, em Cloudflare Workers + D1.
+- **Privacidade por padrão**: a linha `2.0.0` remove analytics detalhado por evento e mantém apenas contagem agregada.
+- **Admin protegido**: o painel continua pensado para operar com Cloudflare Access.
+- **Produto pequeno, mas operacional**: slug imutável, QR code, grupos, tags, expiração, ativação e links com senha já fazem parte do fluxo.
+- **Distribuição aberta com AGPL**: quem adaptar e operar em rede precisa manter o código derivado sob a mesma licença.
+
+## Telas
+
+<p align="center">
+  <img src="public/tela-home.webp" alt="Tela inicial do BoltLink" width="100%" />
+</p>
+
+<p align="center">
+  <img src="public/tela-links.webp" alt="Painel administrativo do BoltLink" width="100%" />
+</p>
+
+<p align="center">
+  <img src="public/tela-link-protegido.webp" alt="Tela de link protegido por senha" width="100%" />
+</p>
 
 ## Deploy na Cloudflare
 
@@ -43,6 +78,14 @@ Se quiser criar o D1 já com jurisdição:
 npm run wrangler -- d1 create <nome-do-banco> --binding db_boltlink --update-config --jurisdiction=eu
 ```
 
+Para desenvolvimento manual com banco SQLite local de apoio:
+
+```bash
+npm run dev-init
+```
+
+Esse fluxo cria `.dev-env/db.sqlite3` localmente. O diretório `.dev-env/` é ignorado pelo Git e não vai para o GitHub.
+
 ### 2. Operação guiada por IA
 
 Comece por `AI-START.md`.
@@ -61,7 +104,7 @@ Depois do deploy:
 1. validar `workers.dev`
 2. configurar Access para `/admin`, `/admin.html`, `/api` e `/api/*`
 3. preencher `TEAM_DOMAIN` e `POLICY_AUD`
-4. opcionalmente configurar `API_KEY`
+4. opcionalmente configurar `API_KEY` e `PASSWORD_SESSION_SECRET`
 5. opcionalmente trocar para domínio próprio
 
 ## Página pública de privacidade
@@ -103,6 +146,7 @@ O upgrade aplica a migration `0003_lgpd_minimization.sql`, que remove `stats` e 
 - `observability` fica desligado por padrão
 - `upload_source_maps` fica desligado por padrão
 - `API_KEY` continua opcional para automações internas
+- `PASSWORD_SESSION_SECRET` é recomendado em produção para assinar sessões curtas de links protegidos por senha
 
 ## Referências
 
@@ -112,6 +156,7 @@ O upgrade aplica a migration `0003_lgpd_minimization.sql`, que remove `stats` e 
 - `docs/privacy-template.md`
 - `docs/architecture.md`
 - `docs/upgrading.md`
+- `docs/local-development.md`
 - `AGENTS.md`
 
 ## Licença

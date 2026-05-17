@@ -26,3 +26,8 @@ Regras principais:
 - nenhum `User-Agent` é persistido
 - nenhum IP é persistido
 - a contagem é apenas agregada no registro do link
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

@@ -56,3 +56,8 @@ Se o usuário opera por one-click ou GitHub:
 - o código novo já reconcilia schema legado em runtime
 - ainda assim, a migration `0003_lgpd_minimization.sql` continua sendo o caminho recomendado
 - o handoff obrigatório continua sendo Access
+
+---
+
+Versão 2.0.0
+Criado por Vitor Faustino - vitorfaustino.com.br

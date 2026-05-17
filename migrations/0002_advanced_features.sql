@@ -1,4 +1,6 @@
--- BoltLink v1.1.0 Phase 5 Migration
+-- Copyright (c) 2026 Vitor Faustino
+-- AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
+-- BoltLink historical migration for advanced features
 -- Adds advanced features: link groups and password-protected links
 
 CREATE TABLE IF NOT EXISTS link_groups (
