@@ -64,6 +64,12 @@ Depois do deploy:
 4. opcionalmente configurar `API_KEY`
 5. opcionalmente trocar para domínio próprio
 
+## Página pública de privacidade
+
+A instância publicada agora inclui uma página pública em `/privacidade`, servida a partir de `public/privacidade.html`.
+
+Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do uso público real.
+
 ## O que o projeto faz
 
 - cria links curtos com slug customizado ou automático

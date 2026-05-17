@@ -58,3 +58,5 @@ O projeto é distribuído sob AGPL-3.0 e com disclaimer, mas quem implanta e ope
 O autor original do software não se torna controlador, operador ou encarregado apenas por distribuir o código-fonte.
 
 Para apoiar quem publicar uma instância do produto, o repositório inclui um modelo genérico em `docs/privacy-template.md`, que deve ser adaptado pelo operador antes do uso público.
+
+A instância pública padrão também expõe uma página em `/privacidade`, servida por `public/privacidade.html`, para que a política aplicável ao ambiente publicado fique acessível fora do repositório.

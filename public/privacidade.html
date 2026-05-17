@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <title>Política de Privacidade</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0a0a;
+      --bg-mesh-1: rgba(68, 217, 255, 0.18);
+      --bg-mesh-2: rgba(14, 165, 233, 0.14);
+      --surface: rgba(255, 255, 255, 0.06);
+      --line: rgba(255, 255, 255, 0.1);
+      --line-hover: rgba(68, 217, 255, 0.34);
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #44d9ff;
+      --radius: 18px;
+      --radius-sm: 12px;
+      --shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+      --font: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font);
+      color: var(--text);
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(circle at top, var(--bg-mesh-1), transparent 28%),
+        radial-gradient(circle at 85% 15%, var(--bg-mesh-2), transparent 24%),
+        linear-gradient(180deg, #040608, var(--bg) 48%, #06080d);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    main {
+      width: min(900px, 100%);
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+
+    .shell {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      padding: 28px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .topbar a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 5vw, 3rem);
+      line-height: 1.05;
+    }
+
+    h2 {
+      margin: 28px 0 10px;
+      font-size: 1rem;
+    }
+
+    p, li {
+      color: var(--muted);
+      line-height: 1.75;
+    }
+
+    ul {
+      margin: 10px 0 0;
+      padding-left: 20px;
+    }
+
+    code {
+      color: var(--text);
+      font-family: inherit;
+    }
+
+    .notice {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border: 1px solid var(--line-hover);
+      border-radius: var(--radius-sm);
+      background: rgba(68, 217, 255, 0.08);
+    }
+
+    .footnote {
+      margin-top: 28px;
+      font-size: 0.86rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="shell">
+      <div class="topbar">
+        <a href="/">Voltar ao início</a>
+        <a href="/admin">Acessar painel</a>
+      </div>
+
+      <h1>Política de Privacidade</h1>
+      <p>Última atualização: <strong>17/05/2026</strong></p>
+
+      <div class="notice">
+        <p style="margin:0;">
+          Este texto é um modelo público inicial da instância. Antes do uso real, o operador deste serviço deve revisar e adaptar os campos de identificação, contatos, bases legais, subprocessadores e retenções aplicáveis ao próprio ambiente.
+        </p>
+      </div>
+
+      <h2>1. Quem opera este serviço</h2>
+      <p>
+        Este serviço deve ser operado pela pessoa física ou jurídica que publicou esta instância. Substitua este bloco pelos dados reais do operador:
+      </p>
+      <ul>
+        <li>Operador/controlador: <code>[preencher]</code></li>
+        <li>E-mail de contato: <code>[preencher]</code></li>
+        <li>Canal de privacidade: <code>[preencher]</code></li>
+      </ul>
+
+      <h2>2. Finalidade</h2>
+      <p>
+        Este serviço é utilizado para criar, administrar e redirecionar links curtos, com contagem agregada de acessos e proteção administrativa.
+      </p>
+
+      <h2>3. Dados persistidos pelo produto</h2>
+      <ul>
+        <li><code>slug</code> do link</li>
+        <li>URL de destino</li>
+        <li>contador agregado <code>clicks_total</code></li>
+        <li>datas operacionais, tags, grupos e QR code</li>
+        <li>hash de senha, quando o link for protegido</li>
+      </ul>
+
+      <h2>4. Dados que não são persistidos por padrão</h2>
+      <ul>
+        <li>IP em texto puro</li>
+        <li>hash de IP</li>
+        <li>país por clique</li>
+        <li><code>Referer</code></li>
+        <li><code>User-Agent</code></li>
+        <li>eventos individuais por clique</li>
+      </ul>
+
+      <h2>5. Referrer e redirecionamento</h2>
+      <p>
+        Nos redirects públicos, esta instância utiliza <code>Referrer-Policy: strict-origin</code>. Isso permite que o destino receba apenas a origem do tráfego quando o navegador decidir enviá-la, sem encaminhar o caminho completo nem a query string como referrer.
+      </p>
+
+      <h2>6. Segurança</h2>
+      <p>
+        O painel administrativo e a API de gestão podem ser protegidos por Cloudflare Access e por controles adicionais definidos pelo operador do ambiente.
+      </p>
+
+      <h2>7. Infraestrutura e provedores</h2>
+      <p>
+        Esta instância pode utilizar serviços de infraestrutura e segurança de terceiros, como Cloudflare, conforme a configuração feita pelo operador. O operador deve listar aqui os subprocessadores efetivamente usados.
+      </p>
+
+      <h2>8. Direitos do titular</h2>
+      <p>
+        O operador desta instância deve informar aqui os canais para exercício de direitos previstos na legislação aplicável, incluindo acesso, correção, eliminação, bloqueio e informações sobre compartilhamento, quando cabíveis.
+      </p>
+
+      <h2>9. Responsabilidade pelo uso desta instância</h2>
+      <p>
+        O software BoltLink é distribuído sob AGPL-3.0 como software livre. O autor original do software não se torna automaticamente controlador, operador ou encarregado dos dados tratados por quem implanta esta instância.
+      </p>
+      <p>
+        A responsabilidade pela operação concreta deste ambiente, pela definição de finalidade, base legal, retenção, conteúdo inserido e serviços conectados é exclusiva do operador desta instância.
+      </p>
+
+      <p class="footnote">
+        Esta página deve ser revisada e personalizada antes do uso público da instância.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

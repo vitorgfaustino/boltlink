@@ -211,6 +211,7 @@ app.get("/healt", (c) => {
 app.get("/admin", serveAdminAsset);
 app.get("/admin/", serveAdminAsset);
 app.get("/admin.html", serveAdminAsset);
+app.get("/privacidade", servePrivacyAsset);
 
 app.get("/api/links", async (c) => {
 	const search = c.req.query("search")?.trim() ?? "";
@@ -920,6 +921,24 @@ async function serveAdminAsset(c: Context<AppContext>) {
 	return applySecurityHeaders(response, c.req.path, c.req.url);
 }
 
+async function servePrivacyAsset(c: Context<AppContext>) {
+	const assetUrl = new URL(c.req.url);
+	assetUrl.pathname = "/privacidade.html";
+
+	const response = await c.env.ASSETS.fetch(
+		new Request(assetUrl.toString(), {
+			method: "GET",
+			headers: c.req.raw.headers,
+		}),
+	);
+
+	if (response.status === 404) {
+		return c.text("Privacy policy not found", 404);
+	}
+
+	return applySecurityHeaders(response, c.req.path, c.req.url);
+}
+
 function serveHealth(c: Context<AppContext>) {
 	return c.json({ ok: true, service: "boltlink" });
 }
@@ -1288,7 +1307,7 @@ function renderHomePage() {
 			<div class="actions">
 				<a class="button" href="/admin">Acessar painel</a>
 			</div>
-			<p class="footnote">&copy; ${currentYear} &bull; v${APP_VERSION} &bull; <a href="https://github.com/vitorgfaustino/boltlink" target="_blank" rel="noopener">Código-fonte AGPL-3.0</a></p>
+			<p class="footnote">&copy; ${currentYear} &bull; v${APP_VERSION} &bull; <a href="/privacidade">Política de privacidade</a> &bull; <a href="https://github.com/vitorgfaustino/boltlink" target="_blank" rel="noopener">Código-fonte AGPL-3.0</a></p>
 		</section>
 	</main>
 </body>
