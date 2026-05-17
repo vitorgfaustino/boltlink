@@ -42,7 +42,6 @@ const SCHEMA_STATEMENTS = [
 	  slug TEXT NOT NULL UNIQUE,
 	  target_url TEXT NOT NULL,
 	  clicks_total INTEGER NOT NULL DEFAULT 0,
-	  last_clicked_at TEXT,
 	  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 	  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 	  disabled_at TEXT,
@@ -50,7 +49,6 @@ const SCHEMA_STATEMENTS = [
 	  go_live_at TEXT,
 	  redirect_type TEXT NOT NULL DEFAULT '302',
 	  tags TEXT,
-	  notes TEXT,
 	  has_qrcode INTEGER NOT NULL DEFAULT 0,
 	  group_id INTEGER,
 	  password_hash TEXT,
@@ -61,17 +59,6 @@ const SCHEMA_STATEMENTS = [
 	"CREATE INDEX IF NOT EXISTS idx_links_has_qrcode ON links(has_qrcode)",
 	"CREATE INDEX IF NOT EXISTS idx_links_tags ON links(tags)",
 	"CREATE INDEX IF NOT EXISTS idx_links_group_id ON links(group_id)",
-	`CREATE TABLE IF NOT EXISTS stats (
-	  id INTEGER PRIMARY KEY AUTOINCREMENT,
-	  link_id INTEGER,
-	  slug_snapshot TEXT NOT NULL,
-	  clicked_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-	  ip_hash TEXT,
-	  country TEXT,
-	  FOREIGN KEY (link_id) REFERENCES links(id) ON DELETE SET NULL
-	)` ,
-	"CREATE INDEX IF NOT EXISTS idx_stats_link_id_clicked_at ON stats(link_id, clicked_at DESC)",
-	"CREATE INDEX IF NOT EXISTS idx_stats_slug_snapshot_clicked_at ON stats(slug_snapshot, clicked_at DESC)",
 	`CREATE TABLE IF NOT EXISTS link_groups (
 	  id INTEGER PRIMARY KEY AUTOINCREMENT,
 	  name TEXT NOT NULL,
@@ -94,7 +81,7 @@ async function resetDatabase() {
 	for (const statement of SCHEMA_STATEMENTS) {
 		await env.db_boltlink.prepare(statement).run();
 	}
-	await env.db_boltlink.prepare("DELETE FROM stats").run();
+	await env.db_boltlink.prepare("DROP TABLE IF EXISTS stats").run();
 	await env.db_boltlink.prepare("DELETE FROM links").run();
 }
 
@@ -118,7 +105,7 @@ describe("URL shortener worker", () => {
 		expect(response.headers.get("content-type")).toContain("text/html");
 		expect(body).toContain('href="/admin"');
 		expect(body).toContain('BoltLink');
-		expect(body).toContain('v1.1.0');
+		expect(body).toContain('v2.0.0');
 	});
 
 	it("serves health data on the /healt alias", async () => {
@@ -134,7 +121,7 @@ describe("URL shortener worker", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toContain("application/json");
-		expect(await response.json()).toEqual({ version: "1.1.0", timezone: "America/Sao_Paulo" });
+		expect(await response.json()).toEqual({ version: "2.0.0", timezone: "America/Sao_Paulo" });
 	});
 
 	it("serves the admin UI for localhost requests", async () => {
@@ -251,7 +238,6 @@ describe("URL shortener worker", () => {
 				slug: "tagged-link",
 				targetUrl: "https://destination.example.com/offer",
 				tags: ["campanha-especial"],
-				notes: "link para publico premium",
 			}),
 		});
 
@@ -263,13 +249,6 @@ describe("URL shortener worker", () => {
 			expect.arrayContaining([expect.objectContaining({ slug: "tagged-link" })]),
 		);
 
-		const searchByNotes = await fetchWorker("http://localhost/api/links?search=premium");
-		const notesSearchPayload = (await searchByNotes.json()) as {
-			links: Array<{ slug: string }>;
-		};
-		expect(notesSearchPayload.links).toEqual(
-			expect.arrayContaining([expect.objectContaining({ slug: "tagged-link" })]),
-		);
 	});
 
 	it("filters links that have no group using group_id=null", async () => {
@@ -415,7 +394,7 @@ describe("URL shortener worker", () => {
 		expect(payload.error).toBe("Invalid target URL");
 	});
 
-	it("updates destination while keeping the slug stable and records analytics asynchronously", async () => {
+	it("updates destination while keeping the slug stable and records clicks asynchronously", async () => {
 		await fetchWorker("http://localhost/api/links", {
 			method: "POST",
 			headers: {
@@ -463,55 +442,22 @@ describe("URL shortener worker", () => {
 			target_url: "https://destination.example.com/updated",
 			clicks_total: 1,
 		});
-
-		const storedStat = await env.db_boltlink
-			.prepare("SELECT slug_snapshot, country, ip_hash FROM stats WHERE slug_snapshot = ?")
-			.bind("stable-slug")
-			.first<{ slug_snapshot: string; country: string; ip_hash: string | null }>();
-
-		expect(storedStat?.slug_snapshot).toBe("stable-slug");
-		expect(storedStat?.country).toBe("BR");
-		expect(storedStat?.ip_hash).toBeNull();
 	});
 
-	it("stores a stable HMAC IP hash when IP_HASH_SECRET is configured", async () => {
+	it("returns 404 for removed stats endpoint", async () => {
 		await fetchWorker("http://localhost/api/links", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
 			},
 			body: JSON.stringify({
-				slug: "hashed-ip",
+				slug: "stats-gone",
 				targetUrl: "https://destination.example.com/analytics",
 			}),
 		});
 
-		for (let i = 0; i < 2; i++) {
-			const request = new IncomingRequest("https://example.com/hashed-ip", {
-				headers: {
-					"CF-Connecting-IP": "203.0.113.11",
-					"CF-IPCountry": "BR",
-					"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0",
-				},
-			});
-			const ctx = createExecutionContext();
-			const response = await worker.fetch(
-				request,
-				{ ...env, IP_HASH_SECRET: "test-ip-hash-secret" } as unknown as Env,
-				ctx,
-			);
-			expect(response.status).toBe(302);
-			await waitOnExecutionContext(ctx);
-		}
-
-		const stats = await env.db_boltlink
-			.prepare("SELECT ip_hash FROM stats WHERE slug_snapshot = ? ORDER BY id ASC")
-			.bind("hashed-ip")
-			.all<{ ip_hash: string | null }>();
-
-		expect(stats.results).toHaveLength(2);
-		expect(stats.results?.[0]?.ip_hash).toMatch(/^[a-f0-9]{64}$/);
-		expect(stats.results?.[0]?.ip_hash).toBe(stats.results?.[1]?.ip_hash);
+		const response = await fetchWorker("http://localhost/api/links/stats-gone/stats");
+		expect(response.status).toBe(404);
 	});
 
 	it("soft deletes links so the slug stops redirecting", async () => {

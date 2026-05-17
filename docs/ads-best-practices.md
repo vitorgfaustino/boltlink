@@ -1,26 +1,24 @@
-# Ads Best Practices (BoltLink)
+# Ads Best Practices
 
 ## Objetivo
 
-BoltLink é um redirecionador. Analytics de campanha deve continuar no destino (GA4, Meta, etc.).
+BoltLink é um redirecionador com contagem agregada. A atribuição detalhada deve continuar no destino.
 
 ## Recomendações
 
-- Use UTMs no `target_url` ao criar o link
-- Prefira domínio de destino para campanhas com políticas estritas de `destination mismatch`
-- Evite trocar destino de slug ativo no meio da campanha sem rastreio de versão
-- Para campanhas críticas, valide a cadeia completa:
-  1. URL curta
-  2. Redirect final
-  3. Presença de UTMs
+- use UTMs no `target_url`
+- prefira medir campanha no analytics do destino
+- não dependa de referrer completo
+- valide a cadeia: URL curta, redirect final, UTMs no destino
 
 ## Referrer
 
-Para redirects públicos, BoltLink usa `Referrer-Policy: strict-origin-when-cross-origin`.
-Isso permite enviar origem (não URL completa) quando aplicável.
+Nos redirects públicos, BoltLink usa `Referrer-Policy: strict-origin`.
+
+Isso preserva apenas a origem quando o navegador decidir enviá-la. Path e query não são encaminhados como referrer.
 
 ## Diagnóstico rápido
 
-- Queda de atribuição: validar UTMs no destino
-- Divergência de domínio: revisar política da plataforma de ads
-- Clique inflado: verificar origem de tráfego automatizado
+- perda de atribuição: valide UTMs
+- incompatibilidade de domínio: revise a política da plataforma de ads
+- clique inflado: revise tráfego automatizado e aplique Cloudflare WAF Rate Limiting Rules

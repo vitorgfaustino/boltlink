@@ -1,6 +1,6 @@
 /**
  * Phase 1 Tests: Click Filter
- * BoltLink v1.1.0
+ * BoltLink v2.0.0
  * AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
  */
 

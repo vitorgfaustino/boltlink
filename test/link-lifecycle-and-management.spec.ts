@@ -12,7 +12,6 @@ const SCHEMA_STATEMENTS = [
 	  slug TEXT NOT NULL UNIQUE,
 	  target_url TEXT NOT NULL,
 	  clicks_total INTEGER NOT NULL DEFAULT 0,
-	  last_clicked_at TEXT,
 	  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 	  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 	  disabled_at TEXT,
@@ -20,7 +19,6 @@ const SCHEMA_STATEMENTS = [
 	  go_live_at TEXT,
 	  redirect_type TEXT NOT NULL DEFAULT '302',
 	  tags TEXT,
-	  notes TEXT,
 	  has_qrcode INTEGER NOT NULL DEFAULT 0,
 	  group_id INTEGER,
 	  password_hash TEXT,
@@ -31,17 +29,6 @@ const SCHEMA_STATEMENTS = [
 	"CREATE INDEX IF NOT EXISTS idx_links_has_qrcode ON links(has_qrcode)",
 	"CREATE INDEX IF NOT EXISTS idx_links_tags ON links(tags)",
 	"CREATE INDEX IF NOT EXISTS idx_links_group_id ON links(group_id)",
-	`CREATE TABLE IF NOT EXISTS stats (
-	  id INTEGER PRIMARY KEY AUTOINCREMENT,
-	  link_id INTEGER,
-	  slug_snapshot TEXT NOT NULL,
-	  clicked_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-	  ip_hash TEXT,
-	  country TEXT,
-	  FOREIGN KEY (link_id) REFERENCES links(id) ON DELETE SET NULL
-	)`,
-	"CREATE INDEX IF NOT EXISTS idx_stats_link_id_clicked_at ON stats(link_id, clicked_at DESC)",
-	"CREATE INDEX IF NOT EXISTS idx_stats_slug_snapshot_clicked_at ON stats(slug_snapshot, clicked_at DESC)",
 	`CREATE TABLE IF NOT EXISTS link_groups (
 	  id INTEGER PRIMARY KEY AUTOINCREMENT,
 	  name TEXT NOT NULL,
@@ -64,7 +51,7 @@ async function resetDatabase() {
 	for (const statement of SCHEMA_STATEMENTS) {
 		await env.db_boltlink.prepare(statement).run();
 	}
-	await env.db_boltlink.prepare("DELETE FROM stats").run();
+	await env.db_boltlink.prepare("DROP TABLE IF EXISTS stats").run();
 	await env.db_boltlink.prepare("DELETE FROM links").run();
 	await env.db_boltlink.prepare("DELETE FROM link_groups").run();
 }

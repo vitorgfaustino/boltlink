@@ -3,7 +3,7 @@
  * Determines if a redirect should be counted as a legitimate user click
  * Filters out bots, crawlers, prefetch, prerender, and non-human traffic
  * 
- * BoltLink v1.1.0 — Phase 1: Real Click Filtering
+ * BoltLink v2.0.0 — Real Click Filtering
  * AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
  */
 

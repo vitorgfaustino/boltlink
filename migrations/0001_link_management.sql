@@ -9,9 +9,8 @@ ALTER TABLE links ADD COLUMN redirect_type TEXT NOT NULL DEFAULT '302';
 ALTER TABLE links ADD COLUMN expires_at TEXT;
 ALTER TABLE links ADD COLUMN go_live_at TEXT;
 
--- Phase 4: Link categorization and internal notes
+-- Phase 4: Link categorization
 ALTER TABLE links ADD COLUMN tags TEXT;
-ALTER TABLE links ADD COLUMN notes TEXT;
 
 -- Create indexes for new columns
 CREATE INDEX IF NOT EXISTS idx_links_has_qrcode ON links(has_qrcode);

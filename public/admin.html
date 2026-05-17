@@ -1155,11 +1155,6 @@
                 <input id="password" type="password" placeholder="Deixe em branco para link público" />
               </label>
 
-              <label>
-                Notas internas
-                <textarea id="notes" rows="3" maxlength="2000" placeholder="Contexto interno sobre o link"></textarea>
-              </label>
-
               <small id="domain-warning" style="display:none;color:#facc15;">Este link redireciona para um domínio diferente. Isso pode causar destination mismatch em plataformas de ads.</small>
             </div>
           </details>
@@ -1286,7 +1281,6 @@
     const newGroupNameInput = document.getElementById("new-group-name");
     const goLiveAtInput = document.getElementById("go-live-at");
     const expiresAtInput = document.getElementById("expires-at");
-    const notesInput = document.getElementById("notes");
     const passwordInput = document.getElementById("password");
     const domainWarning = document.getElementById("domain-warning");
     const utmSourceInput = document.getElementById("utm-source");
@@ -1688,7 +1682,6 @@
           return "";
         }
       })();
-      notesInput.value = link.notes || "";
       groupIdInput.value = link.group_id == null ? "" : String(link.group_id);
       goLiveAtInput.value = toLocalInputDateTime(link.go_live_at);
       expiresAtInput.value = toLocalInputDateTime(link.expires_at);
@@ -1771,7 +1764,6 @@
               </div>
               <div class="metrics">
                 <span class="metric">Cliques <strong>${link.clicks_total}</strong></span>
-                <span class="metric">Último: <strong>${formatDate(link.last_clicked_at)}</strong></span>
                 <span class="metric">Criado: <strong>${formatDate(link.created_at)}</strong></span>
                 <span class="metric">Redirect <strong>${link.redirect_type || "302"}</strong></span>
                 ${link.expires_at ? `<span class="metric">Expira <strong>${formatDate(link.expires_at)}</strong></span>` : ""}
@@ -1949,7 +1941,6 @@
         targetUrl: urlWithUtm,
         redirectType: redirectTypeInput.value,
         tags: parseTags(tagsInput.value),
-        notes: notesInput.value.trim() || undefined,
         groupId: groupIdInput.value ? Number(groupIdInput.value) : null,
         goLiveAt: toIsoDateTime(goLiveAtInput.value),
         expiresAt: toIsoDateTime(expiresAtInput.value),
@@ -1965,7 +1956,6 @@
               targetUrl: body.targetUrl,
               redirectType: body.redirectType,
               tags: body.tags,
-              notes: body.notes,
               groupId: body.groupId,
               goLiveAt: body.goLiveAt,
               expiresAt: body.expiresAt,

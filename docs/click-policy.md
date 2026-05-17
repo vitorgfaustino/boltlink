@@ -1,32 +1,28 @@
-# Click Policy (v1.1.0)
+# Click Policy (v2.0.0)
 
-## O que conta como clique
+## O que conta
 
-BoltLink contabiliza clique apenas quando `isCountableClick(request)` retorna `true`.
+BoltLink incrementa `clicks_total` apenas quando `isCountableClick(request)` retorna `true`.
 
 Regras principais:
-- Método deve ser `GET`
-- Bloqueia prefetch/prerender por headers `Purpose`, `Sec-Purpose`, `X-Purpose`
-- Aceita `Sec-Fetch-Mode: navigate`
-- Rejeita `User-Agent` vazio
-- Rejeita bots/crawlers/monitores conhecidos
-- Sem heurística confiável: fallback conservador para não contar
 
-## O que NÃO conta
+- método `GET`
+- bloqueio de prefetch e prerender por `Purpose`, `Sec-Purpose` e `X-Purpose`
+- aceitação explícita de `Sec-Fetch-Mode: navigate`
+- rejeição de `User-Agent` vazio
+- rejeição de bots, crawlers, previews sociais, monitores e clientes automatizados
 
-- Bots de busca e SEO
-- Preview social (Facebook, WhatsApp, Telegram, Slack etc.)
-- Monitores de uptime
-- Ferramentas CLI (`curl`, `wget`) e clientes automatizados
-- Prefetch/prerender do navegador
+## O que não existe mais
+
+- tabela `stats`
+- país por clique
+- hash de IP
+- último clique
+- purge de analytics
 
 ## Privacidade
 
-Nenhum `Referer` é armazenado.
-Nenhum `User-Agent` é persistido.
-IP em texto puro não é salvo.
-
-## Atualização da lista de bots
-
-A lista está centralizada em [src/click-filter.ts](../src/click-filter.ts).
-Atualize os padrões conforme surgirem novas assinaturas de tráfego automatizado.
+- nenhum `Referer` é persistido
+- nenhum `User-Agent` é persistido
+- nenhum IP é persistido
+- a contagem é apenas agregada no registro do link

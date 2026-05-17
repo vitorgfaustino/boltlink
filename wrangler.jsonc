@@ -13,9 +13,9 @@
 	"workers_dev": true,
 	"preview_urls": true,
 	"observability": {
-		"enabled": true
+		"enabled": false
 	},
-	"upload_source_maps": true,
+	"upload_source_maps": false,
 	"compatibility_flags": [
 		"nodejs_compat"
 	],

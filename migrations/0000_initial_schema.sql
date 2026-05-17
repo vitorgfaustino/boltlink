@@ -32,7 +32,6 @@ CREATE TABLE IF NOT EXISTS links (
   slug TEXT NOT NULL UNIQUE,
   target_url TEXT NOT NULL,
   clicks_total INTEGER NOT NULL DEFAULT 0,
-  last_clicked_at TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   disabled_at TEXT,
@@ -41,16 +40,3 @@ CREATE TABLE IF NOT EXISTS links (
 
 CREATE INDEX IF NOT EXISTS idx_links_slug ON links(slug);
 CREATE INDEX IF NOT EXISTS idx_links_created_at ON links(created_at DESC);
-
-CREATE TABLE IF NOT EXISTS stats (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  link_id INTEGER,
-  slug_snapshot TEXT NOT NULL,
-  clicked_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ip_hash TEXT,
-  country TEXT,
-  FOREIGN KEY (link_id) REFERENCES links(id) ON DELETE SET NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_stats_link_id_clicked_at ON stats(link_id, clicked_at DESC);
-CREATE INDEX IF NOT EXISTS idx_stats_slug_snapshot_clicked_at ON stats(slug_snapshot, clicked_at DESC);

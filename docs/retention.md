@@ -1,27 +1,21 @@
-# Stats Retention
+# Retention (BoltLink v2.0.0)
 
-## Política padrão
+## Estado atual
 
-- Retenção de stats: 90 dias
+BoltLink não mantém mais tabela de eventos de clique.
 
-## Estratégias suportadas
+Por isso:
 
-- Limpeza lazy no `recordClick()`
-  - A cada 100 writes, remove stats anteriores ao cutoff
-- Purga manual via API
-  - `POST /api/maintenance/purge-stats`
-  - Payload opcional: `{ "retentionDays": 30|60|90|180|365 }`
+- não existe retenção de `stats`
+- não existe endpoint de purge de analytics
+- a única métrica persistida é `links.clicks_total`
 
-## Exemplo
+## O que ainda precisa de política operacional
 
-```bash
-curl -X POST http://localhost:8787/api/maintenance/purge-stats \
-  -H 'Content-Type: application/json' \
-  -d '{"retentionDays":90}'
-```
+- retenção dos próprios links criados pelo operador
+- retenção de grupos
+- retenção de logs externos ativados no ambiente Cloudflare
 
-## Observações
+## Upgrade
 
-- Purga reduz storage
-- Purga também consome writes no D1
-- Ajuste retenção conforme necessidade de auditoria/custo
+Ao atualizar de versões anteriores, a migration `0003_lgpd_minimization.sql` remove `stats` e reconstrói `links` sem `last_clicked_at` e sem `notes`.

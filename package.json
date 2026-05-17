@@ -1,6 +1,6 @@
 {
   "name": "boltlink",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "setup": "npm run wrangler:init && npm run cf-typegen",
@@ -36,11 +36,8 @@
       "API_KEY": {
         "description": "Optional secret for internal API automation only. Store it as a secret, not as a public `vars` value."
       },
-      "IP_HASH_SECRET": {
-        "description": "Optional secret used to generate HMAC-SHA-256 IP hashes for privacy-preserving analytics. Generate a random value and keep it outside versioned files."
-      },
       "db_boltlink": {
-        "description": "D1 database used for links and click analytics. The deploy flow can provision it automatically from the Wrangler config."
+        "description": "D1 database used for links and aggregate click counters. The deploy flow can provision it automatically from the Wrangler config."
       }
     }
   },

@@ -41,7 +41,6 @@ type Bindings = {
 	POLICY_AUD: string;
 	APP_TIMEZONE?: string;
 	API_KEY?: string;
-	IP_HASH_SECRET?: string;
 };
 
 type AppContext = {
@@ -53,7 +52,6 @@ type LinkRow = {
 	slug: string;
 	target_url: string;
 	clicks_total: number;
-	last_clicked_at: string | null;
 	created_at: string;
 	updated_at: string;
 	disabled_at: string | null;
@@ -61,7 +59,6 @@ type LinkRow = {
 	go_live_at: string | null;
 	redirect_type: "301" | "302";
 	tags: string | null;
-	notes: string | null;
 	has_qrcode: number;
 	group_id: number | null;
 	group_name?: string | null;
@@ -79,18 +76,12 @@ type RedirectRow = {
 	password_hash: string | null;
 };
 
-type StatsRow = {
-	clicked_at: string;
-	country: string | null;
-};
-
 type CreateLinkPayload = {
 	slug?: string;
 	targetUrl?: string;
 	url?: string;
 	redirectType?: "301" | "302";
 	tags?: string[];
-	notes?: string;
 	expiresAt?: string;
 	goLiveAt?: string;
 	groupId?: number | null;
@@ -103,7 +94,6 @@ type UpdateLinkPayload = {
 	slug?: string;
 	redirectType?: "301" | "302";
 	tags?: string[];
-	notes?: string;
 	expiresAt?: string | null;
 	goLiveAt?: string | null;
 	groupId?: number | null;
@@ -135,13 +125,19 @@ const databaseSchemaStatements = databaseSchema
 	.map((statement) => statement.trim())
 	.filter(Boolean);
 const databaseSchemaBootstrap = new WeakMap<D1Database, Promise<void>>();
+const LINK_INDEX_STATEMENTS = [
+	"CREATE INDEX IF NOT EXISTS idx_links_slug ON links(slug)",
+	"CREATE INDEX IF NOT EXISTS idx_links_created_at ON links(created_at DESC)",
+	"CREATE INDEX IF NOT EXISTS idx_links_has_qrcode ON links(has_qrcode)",
+	"CREATE INDEX IF NOT EXISTS idx_links_tags ON links(tags)",
+	"CREATE INDEX IF NOT EXISTS idx_links_group_id ON links(group_id)",
+];
 const APP_VERSION = packageJson.version;
 const DEFAULT_APP_TIMEZONE = "America/Sao_Paulo";
 const PASSWORD_RATE_LIMIT_MAX_ATTEMPTS = 5;
 const PASSWORD_RATE_LIMIT_WINDOW_MS = 60_000;
 const PASSWORD_SESSION_MAX_AGE_SECONDS = 300;
 const passwordAttempts = new Map<string, { count: number; resetAt: number }>();
-let writesSinceLastPurge = 0;
 
 const app = new Hono<AppContext>();
 
@@ -227,8 +223,8 @@ app.get("/api/links", async (c) => {
 	const bindings: Array<string | number> = [];
 
 	if (searchPattern) {
-		filters.push("(slug LIKE ? OR target_url LIKE ? OR tags LIKE ? OR notes LIKE ?)");
-		bindings.push(searchPattern, searchPattern, searchPattern, searchPattern);
+		filters.push("(slug LIKE ? OR target_url LIKE ? OR tags LIKE ?)");
+		bindings.push(searchPattern, searchPattern, searchPattern);
 	}
 
 	if (tagPattern) {
@@ -259,7 +255,6 @@ app.get("/api/links", async (c) => {
 				links.slug,
 				links.target_url,
 				links.clicks_total,
-				links.last_clicked_at,
 				links.created_at,
 				links.updated_at,
 				links.disabled_at,
@@ -267,7 +262,6 @@ app.get("/api/links", async (c) => {
 				links.go_live_at,
 				links.redirect_type,
 				links.tags,
-				links.notes,
 				links.has_qrcode,
 				links.group_id,
 				link_groups.name AS group_name,
@@ -305,11 +299,6 @@ app.post("/api/links", async (c) => {
 	const tags = normalizeTags(payload.tags);
 	if (payload.tags !== undefined && tags === null) {
 		return c.json({ error: "Invalid tags. Provide an array of strings" }, 400);
-	}
-
-	const notes = normalizeNotes(payload.notes);
-	if (payload.notes !== undefined && notes === null) {
-		return c.json({ error: "Invalid notes. Maximum length is 2000 chars" }, 400);
 	}
 
 	const appTimeZone = getAppTimeZone(c.env);
@@ -361,17 +350,15 @@ app.post("/api/links", async (c) => {
 				go_live_at,
 				redirect_type,
 				tags,
-				notes,
 				group_id,
 				password_hash
 			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			RETURNING
 				id,
 				slug,
 				target_url,
 				clicks_total,
-				last_clicked_at,
 				created_at,
 				updated_at,
 				disabled_at,
@@ -379,7 +366,6 @@ app.post("/api/links", async (c) => {
 				go_live_at,
 				redirect_type,
 				tags,
-				notes,
 				has_qrcode,
 				group_id,
 				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
@@ -392,7 +378,6 @@ app.post("/api/links", async (c) => {
 			goLiveAt,
 			redirectType,
 			tags,
-			notes,
 			groupId ?? null,
 			passwordHash,
 		)
@@ -435,52 +420,6 @@ app.delete("/api/links/:slug", async (c) => {
 	}
 
 	return c.json({ ok: true, slug: deletedLink.slug });
-});
-
-app.get("/api/links/:slug/stats", async (c) => {
-	const slug = c.req.param("slug");
-	const recentStats = await c.env.db_boltlink
-		.prepare(
-			`SELECT clicked_at, country
-			FROM stats
-			WHERE slug_snapshot = ?
-			ORDER BY clicked_at DESC
-			LIMIT 50`,
-		)
-		.bind(slug)
-		.all<StatsRow>();
-
-	const summary = await c.env.db_boltlink
-		.prepare(
-			`SELECT
-				id,
-				slug,
-				target_url,
-				clicks_total,
-				last_clicked_at,
-				created_at,
-				updated_at,
-				disabled_at,
-				expires_at,
-				go_live_at,
-				redirect_type,
-				tags,
-				notes,
-				has_qrcode,
-				group_id,
-				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
-				version
-			FROM links
-			WHERE slug = ?`,
-		)
-		.bind(slug)
-		.first<LinkRow>();
-
-	if (!summary) {
-		return c.json({ error: "Link not found" }, 404);
-	}
-
-	return c.json({ link: summary, stats: recentStats.results ?? [] });
 });
 
 app.post("/api/links/:slug/qrcode", async (c) => {
@@ -534,12 +473,12 @@ app.post("/api/links/:slug/duplicate", async (c) => {
 	const slug = c.req.param("slug");
 	const source = await c.env.db_boltlink
 		.prepare(
-			`SELECT target_url, redirect_type, tags, notes, group_id
+			`SELECT target_url, redirect_type, tags, group_id
 			FROM links
 			WHERE slug = ? AND disabled_at IS NULL`,
 		)
 		.bind(slug)
-		.first<{ target_url: string; redirect_type: "301" | "302"; tags: string | null; notes: string | null; group_id: number | null }>();
+		.first<{ target_url: string; redirect_type: "301" | "302"; tags: string | null; group_id: number | null }>();
 
 	if (!source) {
 		return c.json({ error: "Link not found" }, 404);
@@ -548,13 +487,13 @@ app.post("/api/links/:slug/duplicate", async (c) => {
 	const duplicateSlug = await suggestDuplicateSlug(c.env.db_boltlink, slug);
 	const created = await c.env.db_boltlink
 		.prepare(
-			`INSERT INTO links (slug, target_url, redirect_type, tags, notes, group_id)
-			VALUES (?, ?, ?, ?, ?, ?)
-			RETURNING id, slug, target_url, clicks_total, last_clicked_at, created_at, updated_at, disabled_at,
-				expires_at, go_live_at, redirect_type, tags, notes, has_qrcode, group_id,
+			`INSERT INTO links (slug, target_url, redirect_type, tags, group_id)
+			VALUES (?, ?, ?, ?, ?)
+			RETURNING id, slug, target_url, clicks_total, created_at, updated_at, disabled_at,
+				expires_at, go_live_at, redirect_type, tags, has_qrcode, group_id,
 				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password, version`,
 		)
-		.bind(duplicateSlug, source.target_url, source.redirect_type, source.tags, source.notes, source.group_id)
+		.bind(duplicateSlug, source.target_url, source.redirect_type, source.tags, source.group_id)
 		.first<LinkRow>();
 
 	return c.json({ link: created }, 201);
@@ -668,22 +607,6 @@ app.delete("/api/groups/:id", async (c) => {
 	return c.json({ ok: true });
 });
 
-app.post("/api/maintenance/purge-stats", async (c) => {
-	const payload = await parseJsonBody<{ retentionDays?: number }>(c);
-	const retentionDays = normalizeRetentionDays(payload?.retentionDays ?? 90);
-	if (!retentionDays) {
-		return c.json({ error: "Invalid retentionDays. Use one of: 30, 60, 90, 180, 365" }, 400);
-	}
-
-	const cutoff = new Date(Date.now() - retentionDays * 86_400_000).toISOString();
-	const result = await c.env.db_boltlink
-		.prepare("DELETE FROM stats WHERE clicked_at < ?")
-		.bind(cutoff)
-		.run();
-
-	return c.json({ ok: true, retentionDays, cutoff, deletedRows: result.meta.changes ?? 0 });
-});
-
 app.get("/api/preview", async (c) => {
 	const rawUrl = c.req.query("url")?.trim();
 	const normalized = normalizeTargetUrl(rawUrl);
@@ -751,13 +674,11 @@ app.get("/:slug", async (c) => {
 	}
 
 	const response = c.redirect(link.target_url, Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302);
-	
-	// Phase 1: Only record clicks for legitimate user navigation
-	// Filters out bots, crawlers, prefetch, prerender, and other non-human traffic
+
 	if (isCountableClick(c.req.raw)) {
-		c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, c.req.raw, link, c.env.IP_HASH_SECRET));
+		c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, link.id));
 	}
-	
+
 	return response;
 });
 
@@ -793,8 +714,7 @@ app.post("/:slug", async (c) => {
 		return c.text("Link expired", 410);
 	}
 
-	const clientIp = c.req.raw.headers.get("CF-Connecting-IP") ?? "unknown";
-	if (!consumePasswordAttempt(slug, clientIp)) {
+	if (!(await consumePasswordAttempt(slug, c.req.raw.headers.get("CF-Connecting-IP")))) {
 		return c.text("Too many attempts. Try again in 1 minute.", 429);
 	}
 
@@ -813,7 +733,7 @@ app.post("/:slug", async (c) => {
 	);
 
 	if (isCountablePasswordSubmission(c.req.raw)) {
-		c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, c.req.raw, link, c.env.IP_HASH_SECRET));
+		c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, link.id));
 	}
 
 	return response;
@@ -852,11 +772,6 @@ async function updateLink(c: Context<AppContext>) {
 	const tags = payload.tags !== undefined ? normalizeTags(payload.tags) : undefined;
 	if (payload.tags !== undefined && tags === null) {
 		return c.json({ error: "Invalid tags. Provide an array of strings" }, 400);
-	}
-
-	const notes = payload.notes !== undefined ? normalizeNotes(payload.notes) : undefined;
-	if (payload.notes !== undefined && notes === null) {
-		return c.json({ error: "Invalid notes. Maximum length is 2000 chars" }, 400);
 	}
 
 	const appTimeZone = getAppTimeZone(c.env);
@@ -927,10 +842,6 @@ async function updateLink(c: Context<AppContext>) {
 		updates.push("tags = ?");
 		values.push(tags);
 	}
-	if (notes !== undefined) {
-		updates.push("notes = ?");
-		values.push(notes);
-	}
 	if (expiresAt !== undefined) {
 		updates.push("expires_at = ?");
 		values.push(expiresAt);
@@ -965,7 +876,6 @@ async function updateLink(c: Context<AppContext>) {
 				slug,
 				target_url,
 				clicks_total,
-				last_clicked_at,
 				created_at,
 				updated_at,
 				disabled_at,
@@ -973,7 +883,6 @@ async function updateLink(c: Context<AppContext>) {
 				go_live_at,
 				redirect_type,
 				tags,
-				notes,
 				has_qrcode,
 				group_id,
 				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
@@ -1048,13 +957,21 @@ async function reconcileLegacySchema(database: D1Database) {
 
 	const info = await database.prepare("PRAGMA table_info(links)").all<{ name: string }>();
 	const existingColumns = new Set((info.results ?? []).map((column) => column.name));
+	const hasLegacyLinksColumns = existingColumns.has("last_clicked_at") || existingColumns.has("notes");
+	const statsTable = await database
+		.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'stats'")
+		.first<{ name: string }>();
+
+	if (hasLegacyLinksColumns || statsTable) {
+		await rebuildLinksTable(database, existingColumns, Boolean(statsTable));
+		return;
+	}
 
 	const addColumnStatements: Array<[string, string]> = [
 		["expires_at", "ALTER TABLE links ADD COLUMN expires_at TEXT"],
 		["go_live_at", "ALTER TABLE links ADD COLUMN go_live_at TEXT"],
 		["redirect_type", "ALTER TABLE links ADD COLUMN redirect_type TEXT NOT NULL DEFAULT '302'"],
 		["tags", "ALTER TABLE links ADD COLUMN tags TEXT"],
-		["notes", "ALTER TABLE links ADD COLUMN notes TEXT"],
 		["has_qrcode", "ALTER TABLE links ADD COLUMN has_qrcode INTEGER NOT NULL DEFAULT 0"],
 		["group_id", "ALTER TABLE links ADD COLUMN group_id INTEGER"],
 		["password_hash", "ALTER TABLE links ADD COLUMN password_hash TEXT"],
@@ -1065,6 +982,79 @@ async function reconcileLegacySchema(database: D1Database) {
 			await database.prepare(statement).run();
 		}
 	}
+}
+
+async function rebuildLinksTable(database: D1Database, existingColumns: Set<string>, hasStatsTable: boolean) {
+	if (hasStatsTable) {
+		await database.prepare("DROP TABLE IF EXISTS stats").run();
+	}
+
+	await database.prepare("ALTER TABLE links RENAME TO links_legacy").run();
+	await database.prepare(
+		`CREATE TABLE IF NOT EXISTS links (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			slug TEXT NOT NULL UNIQUE,
+			target_url TEXT NOT NULL,
+			clicks_total INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+			disabled_at TEXT,
+			expires_at TEXT,
+			go_live_at TEXT,
+			redirect_type TEXT NOT NULL DEFAULT '302',
+			tags TEXT,
+			has_qrcode INTEGER NOT NULL DEFAULT 0,
+			group_id INTEGER,
+			password_hash TEXT,
+			version INTEGER NOT NULL DEFAULT 1
+		)`,
+	).run();
+
+	await database.prepare(
+		`INSERT INTO links (
+			id,
+			slug,
+			target_url,
+			clicks_total,
+			created_at,
+			updated_at,
+			disabled_at,
+			expires_at,
+			go_live_at,
+			redirect_type,
+			tags,
+			has_qrcode,
+			group_id,
+			password_hash,
+			version
+		)
+		SELECT
+			${selectLegacyColumn(existingColumns, "id", "NULL")},
+			${selectLegacyColumn(existingColumns, "slug", "''")},
+			${selectLegacyColumn(existingColumns, "target_url", "''")},
+			${selectLegacyColumn(existingColumns, "clicks_total", "0")},
+			${selectLegacyColumn(existingColumns, "created_at", "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')")},
+			${selectLegacyColumn(existingColumns, "updated_at", "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')")},
+			${selectLegacyColumn(existingColumns, "disabled_at", "NULL")},
+			${selectLegacyColumn(existingColumns, "expires_at", "NULL")},
+			${selectLegacyColumn(existingColumns, "go_live_at", "NULL")},
+			${selectLegacyColumn(existingColumns, "redirect_type", "'302'")},
+			${selectLegacyColumn(existingColumns, "tags", "NULL")},
+			${selectLegacyColumn(existingColumns, "has_qrcode", "0")},
+			${selectLegacyColumn(existingColumns, "group_id", "NULL")},
+			${selectLegacyColumn(existingColumns, "password_hash", "NULL")},
+			${selectLegacyColumn(existingColumns, "version", "1")}
+		FROM links_legacy`,
+	).run();
+
+	await database.prepare("DROP TABLE links_legacy").run();
+	for (const statement of LINK_INDEX_STATEMENTS) {
+		await database.prepare(statement).run();
+	}
+}
+
+function selectLegacyColumn(existingColumns: Set<string>, columnName: string, fallbackSql: string) {
+	return existingColumns.has(columnName) ? columnName : fallbackSql;
 }
 
 function renderHomePage() {
@@ -1474,27 +1464,6 @@ function normalizeTags(tags?: string[]) {
 	return JSON.stringify(sanitized);
 }
 
-function normalizeNotes(notes?: string) {
-	if (notes === undefined) {
-		return null;
-	}
-
-	if (typeof notes !== "string") {
-		return null;
-	}
-
-	const trimmed = notes.trim();
-	if (!trimmed) {
-		return null;
-	}
-
-	if (trimmed.length > 2000) {
-		return null;
-	}
-
-	return trimmed;
-}
-
 function normalizeDateTime(value?: string, timeZone = DEFAULT_APP_TIMEZONE) {
 	if (!value) {
 		return null;
@@ -1641,11 +1610,6 @@ function normalizeGroupId(value: number | null | undefined) {
 	return value;
 }
 
-function normalizeRetentionDays(value: number) {
-	const allowed = new Set([30, 60, 90, 180, 365]);
-	return allowed.has(value) ? value : null;
-}
-
 async function groupExists(database: D1Database, groupId: number) {
 	const group = await database
 		.prepare("SELECT 1 AS present FROM link_groups WHERE id = ? LIMIT 1")
@@ -1689,7 +1653,7 @@ function passwordCookieName(slug: string) {
 }
 
 function getPasswordSessionSecret(env: Bindings) {
-	return env.IP_HASH_SECRET?.trim() || env.API_KEY?.trim() || "boltlink-dev-session-secret";
+	return env.API_KEY?.trim() || "boltlink-dev-session-secret";
 }
 
 function createPasswordSessionToken(env: Bindings, slug: string) {
@@ -1721,8 +1685,8 @@ function hasValidPasswordSession(request: Request, env: Bindings, slug: string) 
 	return expected === signature;
 }
 
-function consumePasswordAttempt(slug: string, clientIp: string) {
-	const key = `${slug}:${clientIp}`;
+async function consumePasswordAttempt(slug: string, clientIp: string | null) {
+	const key = await sha256Hex(`${slug}:${clientIp?.trim() || "unknown"}`);
 	const now = Date.now();
 	const current = passwordAttempts.get(key);
 	if (!current || current.resetAt <= now) {
@@ -1973,54 +1937,15 @@ function generateSlug() {
 	return Array.from(bytes, (byte) => SLUG_ALPHABET[byte % SLUG_ALPHABET.length]).join("");
 }
 
-async function recordClick(database: D1Database, request: Request, link: RedirectRow, ipHashSecret?: string) {
+async function recordClick(database: D1Database, linkId: number) {
 	try {
-		const clickedAt = isoNow();
-		const ipHash = await hashIp(request.headers.get("CF-Connecting-IP"), ipHashSecret);
-		const country = request.headers.get("CF-IPCountry");
-
-		await database.batch([
-			database
-				.prepare(
-					`INSERT INTO stats (link_id, slug_snapshot, clicked_at, ip_hash, country)
-					VALUES (?, ?, ?, ?, ?)`,
-				)
-				.bind(link.id, link.slug, clickedAt, ipHash, country),
-			database
-				.prepare(
-					`UPDATE links
-					SET clicks_total = clicks_total + 1, last_clicked_at = ?
-					WHERE id = ?`,
-				)
-				.bind(clickedAt, link.id),
-		]);
-
-		writesSinceLastPurge += 1;
-		if (writesSinceLastPurge >= 100) {
-			const cutoff = new Date(Date.now() - 90 * 86_400_000).toISOString();
-			await database.prepare("DELETE FROM stats WHERE clicked_at < ?").bind(cutoff).run();
-			writesSinceLastPurge = 0;
-		}
+		await database
+			.prepare("UPDATE links SET clicks_total = clicks_total + 1 WHERE id = ?")
+			.bind(linkId)
+			.run();
 	} catch (error) {
 		console.error("Failed to record click", error);
 	}
-}
-
-async function hashIp(ipAddress: string | null, ipHashSecret?: string) {
-	if (!ipAddress || !ipHashSecret?.trim()) {
-		return null;
-	}
-
-	const encoder = new TextEncoder();
-	const key = await crypto.subtle.importKey(
-		"raw",
-		encoder.encode(ipHashSecret.trim()),
-		{ name: "HMAC", hash: "SHA-256" },
-		false,
-		["sign"],
-	);
-	const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(ipAddress.trim()));
-	return Array.from(new Uint8Array(signature), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 
 async function parseJsonBody<T>(c: Context<AppContext>) {
@@ -2062,15 +1987,9 @@ function applySecurityHeaders(response: Response, path: string, requestUrl?: str
 	securedResponse.headers.set("X-Content-Type-Options", "nosniff");
 	securedResponse.headers.set("X-Frame-Options", "DENY");
 	
-	// Phase 2: Conditional Referrer-Policy
-	// For public redirects (301/302), allow origin-level referrer to destination
-	// For admin/API paths, use strict no-referrer policy
 	if (isRedirectResponse && !isSensitivePath) {
-		// Public redirect: allow strict-origin-when-cross-origin
-		// This sends the origin (not full path) to the destination on HTTPS→HTTPS
-		securedResponse.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+		securedResponse.headers.set("Referrer-Policy", "strict-origin");
 	} else {
-		// Admin/API/sensitive paths: strict no-referrer
 		securedResponse.headers.set("Referrer-Policy", "no-referrer");
 	}
 	
