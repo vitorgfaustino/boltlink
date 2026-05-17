@@ -138,7 +138,7 @@ const DEFAULT_APP_TIMEZONE = "America/Sao_Paulo";
 const PASSWORD_RATE_LIMIT_MAX_ATTEMPTS = 5;
 const PASSWORD_RATE_LIMIT_WINDOW_MS = 60_000;
 const PASSWORD_SESSION_MAX_AGE_SECONDS = 300;
-const passwordSessionFallbackSecret = crypto.randomUUID();
+let passwordSessionFallbackSecret: string | null = null;
 const passwordAttempts = new Map<string, { count: number; resetAt: number }>();
 
 const app = new Hono<AppContext>();
@@ -1674,7 +1674,16 @@ function passwordCookieName(slug: string) {
 }
 
 function getPasswordSessionSecret(env: Bindings) {
-	return env.PASSWORD_SESSION_SECRET?.trim() || env.API_KEY?.trim() || passwordSessionFallbackSecret;
+	const configuredSecret = env.PASSWORD_SESSION_SECRET?.trim() || env.API_KEY?.trim();
+	if (configuredSecret) {
+		return configuredSecret;
+	}
+
+	if (!passwordSessionFallbackSecret) {
+		passwordSessionFallbackSecret = crypto.randomUUID();
+	}
+
+	return passwordSessionFallbackSecret;
 }
 
 async function createPasswordSessionToken(env: Bindings, slug: string) {
