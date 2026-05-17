@@ -111,6 +111,18 @@ Se voce nao usa links protegidos por senha, pode deixar `PASSWORD_SESSION_SECRET
 Se voce usa GitHub auto-deploy ou o botao de deploy da Cloudflare, configure `PASSWORD_SESSION_SECRET` no painel da Cloudflare como `Secret`.
 Se voce publica com Wrangler local, use `.dev.vars` para desenvolvimento e `wrangler secret put PASSWORD_SESSION_SECRET` para o Worker implantado.
 
+Comandos simples para gerar secrets:
+
+```bash
+openssl rand -hex 32
+openssl rand -base64 32
+```
+
+Sugestao pratica:
+
+- use um dos comandos acima para gerar `PASSWORD_SESSION_SECRET`
+- use outro valor aleatorio independente para `API_KEY`
+
 ## Página pública de privacidade
 
 A instância publicada agora inclui uma página pública em `/privacidade`, servida a partir de `public/privacidade.html`.

@@ -14,6 +14,11 @@ Quando `password_hash` está configurado para um slug:
 - `PASSWORD_SESSION_SECRET` deve ser tratado como `Secret`, nao como `Text` em `vars`
 - Se ele nao existir, o Worker usa `API_KEY` ou fallback aleatorio em memoria
 - Rate limit de tentativa por slug com chave derivada de IP apenas em memória (5/min)
+- Geracao recomendada:
+
+```bash
+openssl rand -hex 32
+```
 
 ## Fluxo
 

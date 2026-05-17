@@ -88,6 +88,19 @@ Se voce nao usa links protegidos por senha, `PASSWORD_SESSION_SECRET` pode ficar
 Se voce usa GitHub auto-deploy ou o Deploy Button, configure `TEAM_DOMAIN` e `POLICY_AUD` como texto no dashboard e `PASSWORD_SESSION_SECRET` como `Secret`.
 Se voce publica com Wrangler local, `TEAM_DOMAIN` e `POLICY_AUD` podem existir no `wrangler.local.jsonc`, mas `PASSWORD_SESSION_SECRET` deve ficar em `.dev.vars` para desenvolvimento e em Cloudflare Secret para o Worker implantado.
 
+Comandos simples para gerar `PASSWORD_SESSION_SECRET` e `API_KEY`:
+
+```bash
+openssl rand -hex 32
+openssl rand -base64 32
+```
+
+Sugestao:
+
+- gere um valor para `PASSWORD_SESSION_SECRET`
+- gere outro valor diferente para `API_KEY`
+- nao reutilize o mesmo token para os dois bindings
+
 ## Upgrade one-click / GitHub auto-deploy
 
 Para quem já está em produção e recebe atualização por GitHub:
