@@ -1271,7 +1271,7 @@ function renderHomePage() {
 		}
 
 		.footnote {
-			margin-top: 18px;
+			margin-top: 34px;
 			font-size: 0.84rem;
 			color: rgba(148, 163, 184, 0.82);
 			max-width: 100%;
@@ -1309,7 +1309,7 @@ function renderHomePage() {
 			<div class="actions">
 				<a class="button" href="/admin">Acessar painel</a>
 			</div>
-			<p class="footnote">&copy; ${currentYear} &bull; v${APP_VERSION} &bull; <a href="/privacidade">Política de privacidade</a> &bull; <a href="https://github.com/vitorgfaustino/boltlink" target="_blank" rel="noopener">Código-fonte AGPL-3.0</a></p>
+			<p class="footnote">&copy; ${currentYear} &bull; v${APP_VERSION} &bull; <a href="/privacidade">Privacidade</a> &bull; Criado por: <a href="https://github.com/vitorgfaustino/boltlink" target="_blank" rel="noopener">Vitor Faustino</a></p>
 		</section>
 	</main>
 </body>
