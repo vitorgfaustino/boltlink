@@ -21,6 +21,8 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - consulte a documentação atual da Cloudflare
 - confira especialmente Workers, Wrangler, D1, Static Assets, Cloudflare Access e WAF Rate Limiting Rules
 - para limites e quotas, consulte a página oficial do produto correspondente
+- para instâncias no plano gratuito, priorize opções gratuitas ou incluídas no limite gratuito antes de sugerir recursos pagos
+- documente etapas operacionais fora da aplicação, como configurações no painel Cloudflare, no arquivo apropriado em `docs/`
 
 ## Configuração pública e local
 
@@ -120,5 +122,5 @@ Para mudanças de banco:
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

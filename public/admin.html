@@ -1741,6 +1741,7 @@
             ? cardActionMarkup("undo-delete", "secondary", "cancel", "Desfazer exclusão", link.slug)
             : `${cardActionMarkup("copy", "secondary", "copy", "Copiar link", link.slug)}
                   ${cardActionMarkup("qrcode", "secondary", "copy", "QR Code", link.slug)}
+                  ${cardActionMarkup("reset-clicks", "danger", "update", "Zerar cliques", link.slug)}
                   ${cardActionMarkup("duplicate", "secondary", "copy", "Duplicar", link.slug)}
                   ${cardActionMarkup("edit", "secondary", "edit", "Editar link", link.slug)}
                   ${cardActionMarkup("delete", "danger", "trash", "Excluir link", link.slug)}`;
@@ -2082,6 +2083,22 @@
         await markQrCodeGenerated(link.slug);
         await loadLinks(searchTermInput.value, searchGroupIdInput.value);
         setStatus(listStatus, `QR Code gerado para ${shortLink}`, "success");
+        return;
+      }
+
+      if (action === "reset-clicks") {
+        const confirmed = window.confirm(`Zerar os cliques de /${link.slug}? Esta ação não altera o destino, mas não pode ser desfeita pelo painel.`);
+        if (!confirmed) {
+          return;
+        }
+
+        try {
+          await request(`/api/links/${encodeURIComponent(link.slug)}/reset-clicks`, { method: "POST" });
+          await loadLinks(searchTermInput.value, searchGroupIdInput.value);
+          setStatus(listStatus, `Cliques zerados para /${link.slug}.`, "success");
+        } catch (error) {
+          setStatus(listStatus, error.message, "error");
+        }
         return;
       }
 

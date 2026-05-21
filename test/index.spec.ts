@@ -105,7 +105,7 @@ describe("URL shortener worker", () => {
 		expect(response.headers.get("content-type")).toContain("text/html");
 		expect(body).toContain('href="/admin"');
 		expect(body).toContain('BoltLink');
-		expect(body).toContain('v2.0.0');
+		expect(body).toContain('v2.0.1');
 	});
 
 	it("serves health data on the /healt alias", async () => {
@@ -121,7 +121,7 @@ describe("URL shortener worker", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toContain("application/json");
-		expect(await response.json()).toEqual({ version: "2.0.0", timezone: "America/Sao_Paulo" });
+		expect(await response.json()).toEqual({ version: "2.0.1", timezone: "America/Sao_Paulo" });
 	});
 
 	it("serves the admin UI for localhost requests", async () => {
@@ -444,6 +444,61 @@ describe("URL shortener worker", () => {
 		});
 	});
 
+	it("resets aggregate clicks for a single active link", async () => {
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				slug: "reset-me",
+				targetUrl: "https://destination.example.com/reset",
+			}),
+		});
+
+		await fetchWorker("https://example.com/reset-me", {
+			headers: {
+				"CF-Connecting-IP": "203.0.113.11",
+				"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0",
+			},
+		});
+
+		const resetResponse = await fetchWorker("http://localhost/api/links/reset-me/reset-clicks", {
+			method: "POST",
+		});
+
+		expect(resetResponse.status).toBe(200);
+		const resetPayload = (await resetResponse.json()) as { link: { slug: string; clicks_total: number } };
+		expect(resetPayload.link).toEqual({ slug: "reset-me", clicks_total: 0 });
+
+		const storedLink = await env.db_boltlink
+			.prepare("SELECT slug, target_url, clicks_total FROM links WHERE slug = ?")
+			.bind("reset-me")
+			.first<{ slug: string; target_url: string; clicks_total: number }>();
+		expect(storedLink).toMatchObject({
+			slug: "reset-me",
+			target_url: "https://destination.example.com/reset",
+			clicks_total: 0,
+		});
+	});
+
+	it("rejects invalid public slug probes before bootstrapping D1", async () => {
+		await dropDatabase();
+
+		const response = await fetchWorker("https://example.com/.env", {
+			headers: {
+				"user-agent": "Mozilla/5.0",
+			},
+		});
+
+		expect(response.status).toBe(404);
+
+		const linksTable = await env.db_boltlink
+			.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'links'")
+			.first<{ name: string }>();
+		expect(linksTable).toBeNull();
+	});
+
 	it("returns 404 for removed stats endpoint", async () => {
 		await fetchWorker("http://localhost/api/links", {
 			method: "POST",
@@ -594,6 +649,39 @@ describe("URL shortener worker", () => {
 		expect(limitedResponse.status).toBe(429);
 		const payload = (await limitedResponse.json()) as { error: string };
 		expect(payload.error).toBe("Rate limit exceeded");
+	});
+
+	it("rate limits public redirect lookups before they keep reading D1", async () => {
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				slug: "busy-link",
+				targetUrl: "https://destination.example.com/busy",
+			}),
+		});
+
+		for (let i = 0; i < 120; i++) {
+			const response = await fetchWorker("https://example.com/busy-link", {
+				headers: {
+					"CF-Connecting-IP": "203.0.113.120",
+					"user-agent": "Mozilla/5.0",
+				},
+			});
+			expect(response.status).toBe(302);
+		}
+
+		const limitedResponse = await fetchWorker("https://example.com/busy-link", {
+			headers: {
+				"CF-Connecting-IP": "203.0.113.120",
+				"user-agent": "Mozilla/5.0",
+			},
+		});
+
+		expect(limitedResponse.status).toBe(429);
+		expect(await limitedResponse.text()).toBe("Too many requests");
 	});
 
 	it("rejects JSON bodies larger than 10KB", async () => {

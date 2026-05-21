@@ -33,5 +33,5 @@ Sessão do gate é assinada localmente para duração curta. O fallback aleatór
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

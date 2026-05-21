@@ -1,6 +1,21 @@
 # Upgrading
 
-## Upgrade para v2.0.0
+## Upgrade para v2.0.1
+
+Esta release nao introduz migration nova nem bindings novos para instalacoes ja alinhadas com a baseline LGPD da linha `2.0.0`.
+
+Fluxo normal:
+
+1. Atualize o codigo:
+
+```bash
+git pull --ff-only
+npm install
+npm run wrangler:init
+npm test
+```
+
+## Upgrade legado para v2.0.0
 
 Esta versão é breaking change de produto e schema.
 
@@ -61,5 +76,5 @@ Se você atualiza pelo GitHub ou pelo botão:
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

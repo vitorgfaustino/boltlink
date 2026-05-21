@@ -28,25 +28,25 @@
 // src/rate-limit.ts
 
 /**
- * Rate limiting in-memory para endpoints /api/*.
+ * Rate limiting in-memory para endpoints /api/* e redirect publico.
  *
  * CONSTANTES (altere aqui para ajustar os limites):
  *   API_RATE_LIMIT      → requisições permitidas por janela
  *   API_RATE_WINDOW_MS  → duração da janela em milissegundos
+ *   PUBLIC_REDIRECT_RATE_LIMIT → leituras publicas por IP/janela antes do D1
  *
  * Para aumentar o limite, edite API_RATE_LIMIT e faça o deploy.
  * Não requer migration de banco nem alteração de schema.
  *
- * EVOLUÇÃO FUTURA:
- * Se o projeto crescer para múltiplos operadores simultâneos ou
- * múltiplas regiões, considere migrar para Cloudflare Rate Limiting
- * (WAF Rules) em vez de D1 — o D1 adicionaria latência de rede a
- * cada request e consumiria cota de leitura/escrita. As WAF Rules
- * são pagas, mas oferecem consistência global e zero latência de
- * aplicação.
+ * Observação: estes limites são locais ao isolate/colo e existem para
+ * poupar D1 em rajadas. Bloqueio antes do Worker depende de recursos
+ * gratuitos do painel Cloudflare, como Bot Fight Mode, ou de recursos
+ * pagos/por plano quando o operador optar por eles.
  */
 const API_RATE_LIMIT = 30;
 const API_RATE_WINDOW_MS = 60_000;
+const PUBLIC_REDIRECT_RATE_LIMIT = 120;
+const PUBLIC_REDIRECT_RATE_WINDOW_MS = 60_000;
 const CLEANUP_THRESHOLD = 500;
 
 type RateEntry = {
@@ -54,54 +54,83 @@ type RateEntry = {
 	windowStart: number;
 };
 
-const rateStore = new Map<string, RateEntry>();
+const apiRateStore = new Map<string, RateEntry>();
+const publicRedirectRateStore = new Map<string, RateEntry>();
 let requestCounter = 0;
+let rateLimitSalt: string | null = null;
 
-function getWindowStart(timestamp: number): number {
-	return Math.floor(timestamp / API_RATE_WINDOW_MS) * API_RATE_WINDOW_MS;
+function getRateLimitSalt(): string {
+	if (!rateLimitSalt) {
+		rateLimitSalt = crypto.randomUUID();
+	}
+	return rateLimitSalt;
 }
 
-function cleanupOldEntries(currentWindow: number): void {
-	const cutoff = currentWindow - API_RATE_WINDOW_MS * 2;
-	for (const [key, entry] of rateStore) {
+function getWindowStart(timestamp: number, windowMs: number): number {
+	return Math.floor(timestamp / windowMs) * windowMs;
+}
+
+function cleanupOldEntries(store: Map<string, RateEntry>, currentWindow: number, windowMs: number): void {
+	const cutoff = currentWindow - windowMs * 2;
+	for (const [key, entry] of store) {
 		if (entry.windowStart < cutoff) {
-			rateStore.delete(key);
+			store.delete(key);
 		}
 	}
 }
 
 async function hashIdentifier(identifier: string): Promise<string> {
-	const encoded = new TextEncoder().encode(identifier);
+	const encoded = new TextEncoder().encode(`${getRateLimitSalt()}:${identifier}`);
 	const digest = await crypto.subtle.digest("SHA-256", encoded);
 	return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 
-export async function rateLimitMiddleware(c: { req: { header: (name: string) => string | undefined; path: string }; json: (data: Record<string, unknown>, status?: number) => Response }, next: () => Promise<void>) {
-	const ip = c.req.header("CF-Connecting-IP") || "unknown";
-	const identifier = await hashIdentifier(ip + "/api");
+async function consumeRateLimit(store: Map<string, RateEntry>, identifier: string, limit: number, windowMs: number): Promise<boolean> {
+	const hashedIdentifier = await hashIdentifier(identifier);
 	const now = Date.now();
-	const currentWindow = getWindowStart(now);
+	const currentWindow = getWindowStart(now, windowMs);
 
-	// Lazy cleanup every 100 requests
 	requestCounter++;
-	if (requestCounter % 100 === 0 || rateStore.size > CLEANUP_THRESHOLD) {
-		cleanupOldEntries(currentWindow);
+	if (requestCounter % 100 === 0 || store.size > CLEANUP_THRESHOLD) {
+		cleanupOldEntries(store, currentWindow, windowMs);
 	}
 
-	const existing = rateStore.get(identifier);
+	const existing = store.get(hashedIdentifier);
 	if (existing && existing.windowStart === currentWindow) {
-		if (existing.count >= API_RATE_LIMIT) {
-			return c.json({ error: "Rate limit exceeded" }, 429);
+		if (existing.count >= limit) {
+			return false;
 		}
 		existing.count++;
 	} else {
-		rateStore.set(identifier, { count: 1, windowStart: currentWindow });
+		store.set(hashedIdentifier, { count: 1, windowStart: currentWindow });
+	}
+
+	return true;
+}
+
+export async function rateLimitMiddleware(c: { req: { header: (name: string) => string | undefined; path: string }; json: (data: Record<string, unknown>, status?: number) => Response }, next: () => Promise<void>) {
+	const ip = c.req.header("CF-Connecting-IP") || "unknown";
+	const allowed = await consumeRateLimit(apiRateStore, `${ip}/api`, API_RATE_LIMIT, API_RATE_WINDOW_MS);
+	if (!allowed) {
+		return c.json({ error: "Rate limit exceeded" }, 429);
 	}
 
 	await next();
 }
 
+export async function consumePublicRedirectBudget(request: Request): Promise<boolean> {
+	const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+	return consumeRateLimit(
+		publicRedirectRateStore,
+		`${ip}/public-redirect`,
+		PUBLIC_REDIRECT_RATE_LIMIT,
+		PUBLIC_REDIRECT_RATE_WINDOW_MS,
+	);
+}
+
 export function resetRateLimitStore(): void {
-	rateStore.clear();
+	apiRateStore.clear();
+	publicRedirectRateStore.clear();
 	requestCounter = 0;
+	rateLimitSalt = null;
 }

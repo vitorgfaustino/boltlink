@@ -1,3 +1,22 @@
+## BoltLink 2.0.1 - Free-first traffic hardening
+
+Esta atualização mantém a baseline LGPD iniciada na v2.0.0 e foca em reduzir desperdício operacional no plano gratuito da Cloudflare.
+
+### Destaques
+
+- novo botão no admin para zerar `clicks_total` de um link ativo
+- novo endpoint administrativo para reset individual de estatística agregada
+- rejeição de slugs públicos inválidos antes de consultar D1
+- rate limit em memória no redirect público para reduzir rajadas contra D1
+- documentação nova para operação free-first em `docs/free-plan-traffic.md`
+
+### O que não muda
+
+- não volta a existir tabela `stats`
+- não há histórico por data
+- não há IP, hash de IP, país, referrer ou user-agent persistido
+- excluir link continua sendo exclusão lógica com `disabled_at`
+
 ## BoltLink 2.0.0 - LGPD Baseline
 
 BoltLink 2.0.0 é a nova baseline de privacidade do projeto.
@@ -55,5 +74,5 @@ npm test
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

@@ -15,6 +15,7 @@ Levar o usuário do setup ao upgrade sem adivinhar dados e sem ultrapassar os ch
 - em deploy local via Wrangler, aceite `TEAM_DOMAIN` e `POLICY_AUD` no `wrangler.local.jsonc`, mas trate `API_KEY` e `PASSWORD_SESSION_SECRET` como secrets em `.dev.vars` ou no Worker
 - não automatize a criação final do Cloudflare Access
 - não reintroduza `stats`, `IP_HASH_SECRET`, `last_clicked_at` ou `notes`
+- para redução de tráfego, consulte `docs/free-plan-traffic.md` e priorize opções gratuitas antes de sugerir recursos pagos
 
 ## Protocolo padrão
 
@@ -39,7 +40,7 @@ Opções:
 - Ambos
 - Primeira publicação
 
-## Upgrade v2.0.0
+## Upgrade v2.0.1
 
 Quando o pedido for `Atualizar o Projeto`:
 
@@ -61,5 +62,5 @@ Se o usuário opera por one-click ou GitHub:
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

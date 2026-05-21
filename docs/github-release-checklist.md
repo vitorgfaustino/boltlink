@@ -1,6 +1,6 @@
 # GitHub Release Checklist
 
-- confirmar que `README.md`, `AI-START.md`, `docs/cloudflare-setup.md`, `docs/privacy.md` e `docs/upgrading.md` refletem a v2.0.0
+- confirmar que `README.md`, `AI-START.md`, `docs/cloudflare-setup.md`, `docs/privacy.md` e `docs/upgrading.md` refletem a v2.0.1
 - confirmar que `docs/privacy-template.md` está presente e coerente com a baseline LGPD
 - confirmar que nenhum valor real de `API_KEY`, `PASSWORD_SESSION_SECRET`, `TEAM_DOMAIN`, `POLICY_AUD`, `database_id` ou domínio privado aparece em arquivos versionados
 - confirmar que o template público não menciona mais `IP_HASH_SECRET`
@@ -11,5 +11,5 @@
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

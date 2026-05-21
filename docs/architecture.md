@@ -12,9 +12,11 @@ BoltLink é um gerenciador de links orientado a edge:
 ## Fluxo público
 
 1. A requisição chega em `/:slug`.
-2. O Worker valida slug reservado, janela de ativação, expiração e gate de senha.
-3. O Worker responde `301` ou `302`.
-4. Em paralelo, incrementa apenas `links.clicks_total` com `ctx.waitUntil()`.
+2. O Worker rejeita slugs reservados ou fora do padrão antes de consultar D1.
+3. O Worker aplica um rate limit em memória para poupar D1 em rajadas públicas.
+4. O Worker valida janela de ativação, expiração e gate de senha.
+5. O Worker responde `301` ou `302`.
+6. Em paralelo, incrementa apenas `links.clicks_total` com `ctx.waitUntil()`.
 
 Não existe mais persistência de evento por clique.
 
@@ -23,6 +25,7 @@ Não existe mais persistência de evento por clique.
 1. O acesso passa por `requireAdmin`.
 2. O token do Access é validado no próprio Worker.
 3. O painel consome `/api/links`, `/api/groups`, `/api/preview` e endpoints auxiliares.
+4. O painel permite zerar `clicks_total` de um link ativo sem apagar o link.
 
 ## Modelo de dados
 
@@ -54,6 +57,7 @@ Não existe mais persistência de evento por clique.
 - slug continua imutável após criação
 - redirect continua prioritário sobre contagem
 - links deletados continuam em exclusão lógica
+- zerar estatísticas é uma ação explícita e não acontece automaticamente na exclusão
 - nenhuma persistência de IP, hash de IP, país, referrer, user-agent, `stats`, `last_clicked_at` ou `notes`
 
 ## Operação Cloudflare
@@ -67,10 +71,11 @@ Não existe mais persistência de evento por clique.
 ## Rate limiting
 
 - `/api` e `/api/*` continuam com rate limit em memória
+- redirects públicos têm rate limit em memória antes da leitura D1
 - o gate de senha usa chave derivada de IP apenas em memória
-- para abuso público e produção real, a recomendação é Cloudflare WAF Rate Limiting Rules
+- para plano gratuito, consulte `docs/free-plan-traffic.md` antes de considerar recursos pagos
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

@@ -1,12 +1,12 @@
 # Setup na Cloudflare
 
-Este guia cobre as três formas de operar o BoltLink v2.0.0:
+Este guia cobre as três formas de operar o BoltLink v2.0.1:
 
 - `Wrangler local`
 - `AI-guided setup`
 - `Deploy to Cloudflare Workers`
 
-## Premissas da v2.0.0
+## Premissas da v2.0.1
 
 - `wrangler.jsonc` continua sendo o template público
 - `wrangler.local.jsonc` continua sendo a configuração privada local
@@ -61,7 +61,7 @@ Pedidos recomendados:
 - `Auditar estado operacional`
 - `Aplicar migrations`
 
-Na v2.0.0, o pedido de atualização deve:
+Na v2.0.1, o pedido de atualização deve:
 
 1. verificar `git status --short`
 2. preservar `wrangler.local.jsonc` e overlays do projeto
@@ -116,6 +116,19 @@ Para quem já está em produção e recebe atualização por GitHub:
 - `API_KEY` e `PASSWORD_SESSION_SECRET` sao `Secret`
 - `PASSWORD_SESSION_SECRET` nao e obrigatorio para a instancia inteira; ele so e recomendado quando houver links protegidos por senha em producao
 
+## Operacao no plano gratuito
+
+Para reduzir solicitacoes desnecessarias sem depender de WAF pago:
+
+- use dominio proprio em producao quando possivel
+- no `wrangler.local.jsonc` da instancia real, defina `workers_dev: false`
+- defina `preview_urls: false` para evitar URLs publicas de preview
+- avalie Bot Fight Mode no painel Cloudflare
+- mantenha admin e API atras de Cloudflare Access
+- acompanhe `Security > Events` antes de bloquear pais ou origem inteira
+
+Detalhes e fontes oficiais ficam em `docs/free-plan-traffic.md`.
+
 ## Observabilidade e logs
 
 Por padrão, o template público não persiste logs do Worker.
@@ -124,5 +137,5 @@ Se o operador reativar logs, Logpush, source maps ou outra telemetria externa, i
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

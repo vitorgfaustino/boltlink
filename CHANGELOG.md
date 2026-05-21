@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.1] - 2026-05-21
+
+### Adicionado
+
+- endpoint administrativo para zerar `clicks_total` de um link ativo
+- botão no painel para zerar estatísticas agregadas por link
+- guia `docs/free-plan-traffic.md` com medidas gratuitas para reduzir tráfego indesejado
+
+### Alterado
+
+- redirects públicos rejeitam slugs fora do padrão antes da leitura D1
+- redirects públicos aplicam rate limit em memória antes da leitura D1 para reduzir rajadas no banco
+- documentação explica que exclusão de link é lógica e não limpa eventos porque eventos não existem na v2.0.0
+
 ## [2.0.0] - 2026-05-17
 
 ### Breaking
@@ -32,5 +46,5 @@
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

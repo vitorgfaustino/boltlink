@@ -22,7 +22,7 @@
 | `configurar_dominio_customizado` | `Configurar domínio`, `usar domínio próprio` | revisar `wrangler.local.jsonc`, DNS e checklist | antes do dashboard |
 | `preparar_access` | `Preparar Access`, `proteger admin` | orientar Access e validar variáveis | sempre antes da criação final |
 
-## Notas da v2.0.0
+## Notas da v2.0.1
 
 - não existe mais `IP_HASH_SECRET`
 - o upgrade relevante é `0003_lgpd_minimization.sql`
@@ -32,5 +32,5 @@
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

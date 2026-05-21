@@ -39,5 +39,5 @@ Cloudflare Access continua sendo componente operacional do deploy. O operador do
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

@@ -21,9 +21,9 @@ Isso preserva apenas a origem quando o navegador decidir enviá-la. Path e query
 
 - perda de atribuição: valide UTMs
 - incompatibilidade de domínio: revise a política da plataforma de ads
-- clique inflado: revise tráfego automatizado e aplique Cloudflare WAF Rate Limiting Rules
+- clique inflado: revise tráfego automatizado, habilite Bot Fight Mode quando fizer sentido e consulte `docs/free-plan-traffic.md`
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

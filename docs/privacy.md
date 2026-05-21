@@ -1,4 +1,4 @@
-# Privacy (BoltLink v2.0.0)
+# Privacy (BoltLink v2.0.1)
 
 ## Princípio
 
@@ -32,6 +32,10 @@ Cada clique elegível incrementa apenas `links.clicks_total`.
 
 O redirecionamento continua respondendo antes da atualização do contador.
 
+O operador pode zerar manualmente `links.clicks_total` de um link ativo pelo admin. Isso remove apenas a métrica agregada daquele link; não existe histórico de eventos individuais para apagar.
+
+Excluir um link não remove fisicamente a linha do D1. O produto marca `disabled_at` para impedir novo redirect e preservar o slug como não reutilizável.
+
 ## Referrer
 
 Nos redirects públicos, BoltLink envia `Referrer-Policy: strict-origin`.
@@ -44,7 +48,8 @@ Admin, API, home, gate de senha e respostas não redirect usam `Referrer-Policy:
 
 - links protegidos armazenam apenas `password_hash`
 - tentativas de senha usam chave derivada de IP apenas em memória do isolate
-- a recomendação operacional para abuso público continua sendo Cloudflare WAF Rate Limiting Rules
+- redirects públicos usam rate limit em memória antes da leitura D1
+- para abuso público no plano gratuito, consulte `docs/free-plan-traffic.md`
 
 ## Responsabilidades
 
@@ -63,5 +68,5 @@ A instância pública padrão também expõe uma página em `/privacidade`, serv
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br

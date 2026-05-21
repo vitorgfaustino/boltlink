@@ -2,7 +2,7 @@
 
 BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel administrativo estático.
 
-**Versão 2.0.0 - AGPL-3.0**
+**Versão 2.0.1 - AGPL-3.0**
 
 Ele funciona como encurtador de URLs, mas o objetivo real do projeto é maior: manter links públicos estáveis, simples de operar e independentes de plataformas terceiras, com controle do redirect, proteção do painel e uma baseline de privacidade mais rígida do que a maioria das ferramentas desse tipo.
 
@@ -30,7 +30,7 @@ O foco do sistema é manter o caminho crítico do redirect enxuto e previsível,
 ## O que diferencia este projeto
 
 - **Controle do stack**: o redirect, o painel e o banco ficam no mesmo projeto, em Cloudflare Workers + D1.
-- **Privacidade por padrão**: a linha `2.0.0` remove analytics detalhado por evento e mantém apenas contagem agregada.
+- **Privacidade por padrão**: a linha `2.0.x` mantém analytics detalhado por evento fora do produto e conserva apenas contagem agregada.
 - **Admin protegido**: o painel continua pensado para operar com Cloudflare Access.
 - **Produto pequeno, mas operacional**: slug imutável, QR code, grupos, tags, expiração, ativação e links com senha já fazem parte do fluxo.
 - **Distribuição aberta com AGPL**: quem adaptar e operar em rede precisa manter o código derivado sob a mesma licença.
@@ -136,24 +136,37 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 - protege links opcionais com senha
 - permite grupos, tags, QR code, ativação e expiração
 - conta cliques de forma agregada sem eventos detalhados
+- permite zerar a estatística agregada de um link ativo
+- inclui orientações para reduzir tráfego desnecessário no plano gratuito da Cloudflare
 
-## Upgrade para v2.0.0
+## Upgrade para v2.0.1
 
 ```bash
 git pull --ff-only
 npm install
 npm run wrangler:init
-npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
 npm test
 ```
 
-Se houver ambiente remoto operado por CLI:
+Se a instância ainda estiver em uma linha anterior à baseline LGPD da `2.0.0`, aplique também:
 
 ```bash
+npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
 npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc
 ```
 
-O upgrade aplica a migration `0003_lgpd_minimization.sql`, que remove `stats` e reconstrói `links` sem `last_clicked_at` e sem `notes`.
+Para instalações já alinhadas com `2.0.0`, esta release não exige migration nova nem bindings novos.
+
+## Tráfego e estatísticas
+
+BoltLink não mantém eventos individuais de clique.
+
+- `clicks_total` é apenas um número agregado na linha do link
+- zerar estatísticas redefine esse número para `0`
+- excluir um link faz exclusão lógica com `disabled_at`, preservando o slug como já usado
+- não há ganho relevante de espaço no D1 ao zerar ou apagar estatística, porque não existe tabela de eventos
+
+Para reduzir tráfego automatizado sem depender de WAF pago, consulte `docs/free-plan-traffic.md`.
 
 ## Configuração segura
 
@@ -174,6 +187,7 @@ O upgrade aplica a migration `0003_lgpd_minimization.sql`, que remove `stats` e 
 - `docs/privacy.md`
 - `docs/privacy-template.md`
 - `docs/architecture.md`
+- `docs/free-plan-traffic.md`
 - `docs/upgrading.md`
 - `docs/local-development.md`
 - `AGENTS.md`

@@ -30,7 +30,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import QRCode from "qrcode";
 import packageJson from "../package.json";
-import { rateLimitMiddleware } from "./rate-limit";
+import { consumePublicRedirectBudget, rateLimitMiddleware } from "./rate-limit";
 import { isCountableClick, isCountablePasswordSubmission } from "./click-filter";
 import databaseSchema from "../schema.sql";
 
@@ -425,6 +425,30 @@ app.delete("/api/links/:slug", async (c) => {
 	return c.json({ ok: true, slug: deletedLink.slug });
 });
 
+app.post("/api/links/:slug/reset-clicks", async (c) => {
+	const slug = c.req.param("slug");
+	if (isReservedSlug(slug)) {
+		return c.json({ error: "Reserved slug cannot reset clicks" }, 400);
+	}
+
+	const now = isoNow();
+	const resetLink = await c.env.db_boltlink
+		.prepare(
+			`UPDATE links
+			SET clicks_total = 0, updated_at = ?, version = version + 1
+			WHERE slug = ? AND disabled_at IS NULL
+			RETURNING slug, clicks_total`,
+		)
+		.bind(now, slug)
+		.first<{ slug: string; clicks_total: number }>();
+
+	if (!resetLink) {
+		return c.json({ error: "Link not found" }, 404);
+	}
+
+	return c.json({ ok: true, link: resetLink });
+});
+
 app.post("/api/links/:slug/qrcode", async (c) => {
 	const slug = c.req.param("slug");
 	const now = isoNow();
@@ -645,8 +669,12 @@ app.get("/api/preview", async (c) => {
 
 app.get("/:slug", async (c) => {
 	const slug = c.req.param("slug");
-	if (isReservedSlug(slug)) {
+	if (!isPublicSlugCandidate(slug)) {
 		return c.notFound();
+	}
+
+	if (!(await consumePublicRedirectBudget(c.req.raw))) {
+		return c.text("Too many requests", 429);
 	}
 
 	await ensureDatabaseSchema(c.env.db_boltlink);
@@ -687,8 +715,12 @@ app.get("/:slug", async (c) => {
 
 app.post("/:slug", async (c) => {
 	const slug = c.req.param("slug");
-	if (isReservedSlug(slug)) {
+	if (!isPublicSlugCandidate(slug)) {
 		return c.notFound();
+	}
+
+	if (!(await consumePublicRedirectBudget(c.req.raw))) {
+		return c.text("Too many requests", 429);
 	}
 
 	await ensureDatabaseSchema(c.env.db_boltlink);
@@ -1891,6 +1923,10 @@ function validateSlug(slug: string) {
 
 function isReservedSlug(slug: string) {
 	return RESERVED_SLUGS.has(slug.toLowerCase());
+}
+
+function isPublicSlugCandidate(slug: string) {
+	return SLUG_PATTERN.test(slug) && !isReservedSlug(slug);
 }
 
 function normalizeTargetUrl(candidate?: string) {

@@ -1,6 +1,6 @@
 # AI-START
 
-Este arquivo é a entrada única para qualquer IA operar o BoltLink v2.0.0 com segurança.
+Este arquivo é a entrada única para qualquer IA operar o BoltLink v2.0.1 com segurança.
 
 O objetivo dele é permitir que a IA:
 
@@ -24,7 +24,7 @@ Leia nesta ordem antes de agir:
 
 ## Estado atual do produto
 
-BoltLink v2.0.0 é um gerenciador de links com:
+BoltLink v2.0.1 é um gerenciador de links com:
 
 - redirect público por slug
 - painel administrativo estático
@@ -53,6 +53,7 @@ O produto não mantém:
 - não automatizar a criação final do Cloudflare Access
 - não sobrescrever branding e overlays do usuário sem confirmação
 - não reintroduzir `stats`, `IP_HASH_SECRET`, `last_clicked_at` ou `notes`
+- para redução de tráfego no Worker, usar `docs/free-plan-traffic.md` e priorizar opções gratuitas
 - o slug continua imutável
 - o redirect público continua respondendo antes da contagem
 - redirects públicos usam `Referrer-Policy: strict-origin`
@@ -308,5 +309,5 @@ Se a IA seguir este arquivo corretamente, ela deve conseguir:
 
 ---
 
-Versão 2.0.0
+Versão 2.0.1
 Criado por Vitor Faustino - vitorfaustino.com.br
