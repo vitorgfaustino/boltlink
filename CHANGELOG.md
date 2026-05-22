@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.0] - 2026-05-22
+- Added: public/admin.css extracted from inline <style> block for independent caching
+- Added: public/admin.js extracted from inline <script> block for maintainability
+- Changed: admin.html loads CSS and JS as external files via <link> and <script src>
+- Added: admin.css and admin.js to reserved slug set
+
 ## [2.0.1] - 2026-05-21
 
 ### Adicionado
@@ -46,5 +52,5 @@
 
 ---
 
-Versão 2.0.1
+Versão 2.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

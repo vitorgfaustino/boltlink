@@ -42,5 +42,5 @@ Ao atualizar de versões anteriores, a migration `0003_lgpd_minimization.sql` re
 
 ---
 
-Versão 2.0.1
+Versão 2.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

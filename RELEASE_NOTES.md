@@ -1,3 +1,17 @@
+## BoltLink 2.1.0 - Estrutura do Admin Separável
+
+Esta versão reorganiza o painel administrativo extraindo CSS e JavaScript para arquivos separados, sem alterar comportamento de redirect, API ou autenticação.
+
+O `admin.html` deixa de ser um arquivo monolítico de 2158 linhas e passa a carregar:
+- `admin.css` — estilos com cache independente
+- `admin.js` — lógica do painel com cache independente
+
+A separação facilita manutenção, reduz o HTML para ~250 linhas e melhora a experiência de desenvolvimento sem introduzir build step, sem alterar o fluxo de deploy e sem impacto em instâncias já publicadas.
+
+`admin.css` e `admin.js` são arquivos estáticos servidos diretamente pela infraestrutura da Cloudflare (requisições gratuitas e ilimitadas).
+
+Os novos arquivos foram adicionados à lista de slugs reservados para evitar conflito com links criados pelo operador.
+
 ## BoltLink 2.0.1 - Free-first traffic hardening
 
 Esta atualização mantém a baseline LGPD iniciada na v2.0.0 e foca em reduzir desperdício operacional no plano gratuito da Cloudflare.
@@ -74,5 +88,5 @@ npm test
 
 ---
 
-Versão 2.0.1
+Versão 2.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

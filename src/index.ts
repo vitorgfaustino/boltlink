@@ -110,7 +110,9 @@ type LinkGroupRow = {
 
 const RESERVED_SLUGS = new Set([
 	"admin",
+	"admin.css",
 	"admin.html",
+	"admin.js",
 	"api",
 	"healt",
 	"favicon.ico",
@@ -2087,7 +2089,7 @@ function applySecurityHeaders(response: Response, path: string, requestUrl?: str
 	if (isAdminPath) {
 		securedResponse.headers.set(
 			"Content-Security-Policy",
-			"default-src 'none'; img-src 'self' data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; manifest-src 'self'",
+			"default-src 'none'; img-src 'self' data:; script-src 'unsafe-inline' 'self'; style-src 'unsafe-inline' 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; manifest-src 'self'",
 		);
 	}
 

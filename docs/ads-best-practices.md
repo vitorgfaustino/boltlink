@@ -25,5 +25,5 @@ Isso preserva apenas a origem quando o navegador decidir enviá-la. Path e query
 
 ---
 
-Versão 2.0.1
+Versão 2.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

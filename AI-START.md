@@ -1,6 +1,6 @@
 # AI-START
 
-Este arquivo é a entrada única para qualquer IA operar o BoltLink v2.0.1 com segurança.
+Este arquivo é a entrada única para qualquer IA operar o BoltLink v2.1.0 com segurança.
 
 O objetivo dele é permitir que a IA:
 
@@ -24,7 +24,7 @@ Leia nesta ordem antes de agir:
 
 ## Estado atual do produto
 
-BoltLink v2.0.1 é um gerenciador de links com:
+BoltLink v2.1.0 é um gerenciador de links com:
 
 - redirect público por slug
 - painel administrativo estático
@@ -309,5 +309,5 @@ Se a IA seguir este arquivo corretamente, ela deve conseguir:
 
 ---
 
-Versão 2.0.1
+Versão 2.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br
