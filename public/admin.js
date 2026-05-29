@@ -978,3 +978,12 @@ footerYear.textContent = String(new Date().getFullYear());
 loadLinks();
 loadGroups();
 loadVersion();
+
+// Close more actions dropdown when clicking outside
+document.addEventListener("click", (event) => {
+  document.querySelectorAll("details.more-actions-dropdown[open]").forEach((dropdown) => {
+    if (!dropdown.contains(event.target)) {
+      dropdown.removeAttribute("open");
+    }
+  });
+});

@@ -1125,18 +1125,18 @@ function renderHomePage() {
 		:root {
 			color-scheme: dark;
 			--bg: #09090b;
-			--bg-mesh-1: rgba(6, 182, 212, 0.12);
+			--bg-mesh-1: rgba(0, 161, 245, 0.12);
 			--bg-mesh-2: rgba(14, 165, 233, 0.08);
 			--surface: rgba(255, 255, 255, 0.03);
 			--surface-hover: rgba(255, 255, 255, 0.05);
 			--line: rgba(255, 255, 255, 0.08);
-			--line-hover: rgba(6, 182, 212, 0.3);
+			--line-hover: rgba(0, 161, 245, 0.3);
 			--text: #f4f4f5;
 			--muted: #a1a1aa;
-			--accent: #06b6d4;
-			--accent-hover: #0891b2;
-			--accent-soft: rgba(6, 182, 212, 0.1);
-			--accent-glow: rgba(6, 182, 212, 0.2);
+			--accent: #00A1F5;
+			--accent-hover: #008cd6;
+			--accent-soft: rgba(0, 161, 245, 0.1);
+			--accent-glow: rgba(0, 161, 245, 0.2);
 			--shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
 			--radius: 16px;
 			--radius-sm: 10px;
@@ -1164,7 +1164,7 @@ function renderHomePage() {
 		}
 
 		::selection {
-			background: rgba(6, 182, 212, 0.24);
+			background: rgba(0, 161, 245, 0.24);
 			color: #ffffff;
 		}
 
@@ -1209,7 +1209,7 @@ function renderHomePage() {
 		}
 
 		.shell {
-			width: min(580px, 100%);
+			width: min(680px, 100%);
 			padding: 40px;
 			border: 1px solid var(--line);
 			border-radius: var(--radius);
@@ -1253,7 +1253,7 @@ function renderHomePage() {
 			line-height: 1.1;
 			letter-spacing: -0.04em;
 			color: #ffffff;
-			text-shadow: 0 0 30px rgba(6, 182, 212, 0.15);
+			text-shadow: 0 0 30px rgba(0, 161, 245, 0.15);
 		}
 
 		.accent {
@@ -1262,7 +1262,7 @@ function renderHomePage() {
 
 		p {
 			margin: 18px auto 0;
-			max-width: 50ch;
+			max-width: 80ch;
 			color: var(--muted);
 			line-height: 1.6;
 			font-size: 0.975rem;
@@ -1356,10 +1356,8 @@ function renderHomePage() {
 			<p>
 				Um encurtador de links privado, 100% serverless, com redirecionamento instantâneo na borda e dashboard protegido por Zero Trust.
 			</p>
-			<div class="actions">
-				<a class="button" href="/admin">Acessar painel</a>
-			</div>
 			<p class="footnote">&copy; ${currentYear} &bull; v${APP_VERSION} &bull; <a href="/privacidade">Privacidade</a> &bull; Criado por: <a href="https://github.com/vitorgfaustino/boltlink" target="_blank" rel="noopener">Vitor Faustino</a></p>
+			<a href="/admin" style="display: none;" aria-hidden="true">Painel</a>
 		</section>
 	</main>
 </body>
@@ -1846,16 +1844,16 @@ function renderPasswordGate(slug: string, errorMessage = "") {
 		:root {
 			color-scheme: dark;
 			--bg: #09090b;
-			--bg-mesh: rgba(6, 182, 212, 0.12);
+			--bg-mesh: rgba(0, 161, 245, 0.12);
 			--surface: rgba(255, 255, 255, 0.03);
 			--surface-hover: rgba(255, 255, 255, 0.05);
 			--line: rgba(255, 255, 255, 0.08);
-			--line-hover: rgba(6, 182, 212, 0.3);
+			--line-hover: rgba(0, 161, 245, 0.3);
 			--text: #f4f4f5;
 			--muted: #a1a1aa;
-			--accent: #06b6d4;
-			--accent-hover: #0891b2;
-			--accent-soft: rgba(6, 182, 212, 0.15);
+			--accent: #00A1F5;
+			--accent-hover: #008cd6;
+			--accent-soft: rgba(0, 161, 245, 0.15);
 			--shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
 			--radius: 16px;
 			--radius-sm: 10px;
@@ -1898,7 +1896,7 @@ function renderPasswordGate(slug: string, errorMessage = "") {
 		}
 
 		.card:hover {
-			border-color: rgba(6, 182, 212, 0.2);
+			border-color: rgba(0, 161, 245, 0.2);
 			box-shadow:
 				inset 0 1px 0 rgba(255, 255, 255, 0.08),
 				0 24px 48px rgba(0, 0, 0, 0.45);
