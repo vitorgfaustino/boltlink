@@ -43,8 +43,25 @@ const ICONS = {
     </svg>`,
   copy: `
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+      <rect x="8" y="2" width="8" height="4" rx="1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></rect>
+    </svg>`,
+  duplicate: `
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke="currentColor" stroke-width="1.8"></rect>
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>`,
+  qrcode: `
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="3" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></rect>
+      <rect x="15" y="3" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></rect>
+      <rect x="3" y="15" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></rect>
+      <path d="M15 15h2v2h-2zm4 4h2v2h-2zm0-4h2v2h-2zm-4 4h2v2h-2z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>`,
+  reset: `
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+      <path d="M3 3v5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
     </svg>`,
   edit: `
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -56,6 +73,12 @@ const ICONS = {
       <path d="M3 6h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
       <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>`,
+  more: `
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
+      <circle cx="6" cy="12" r="1.5" fill="currentColor"></circle>
+      <circle cx="18" cy="12" r="1.5" fill="currentColor"></circle>
     </svg>`,
 };
 
@@ -524,13 +547,24 @@ function renderLinks() {
       const isPendingDelete = state.pendingDeletes.has(link.slug);
       const cardClass = isPendingDelete ? "card is-pending" : "card";
       const actionMarkup = isPendingDelete
-        ? cardActionMarkup("undo-delete", "secondary", "cancel", "Desfazer exclusão", link.slug)
-        : `${cardActionMarkup("copy", "secondary", "copy", "Copiar link", link.slug)}
-              ${cardActionMarkup("qrcode", "secondary", "copy", "QR Code", link.slug)}
-              ${cardActionMarkup("reset-clicks", "danger", "update", "Zerar cliques", link.slug)}
-              ${cardActionMarkup("duplicate", "secondary", "copy", "Duplicar", link.slug)}
-              ${cardActionMarkup("edit", "secondary", "edit", "Editar link", link.slug)}
-              ${cardActionMarkup("delete", "danger", "trash", "Excluir link", link.slug)}`;
+        ? cardActionMarkup("undo-delete", "secondary", "cancel", "Desfazer", link.slug)
+        : `
+          <div class="primary-actions">
+            ${cardActionMarkup("copy", "secondary", "copy", "Copiar", link.slug)}
+            ${cardActionMarkup("edit", "secondary", "edit", "Editar", link.slug)}
+          </div>
+          <details class="more-actions-dropdown">
+            <summary class="secondary compact icon-btn" aria-label="Mais opções" title="Mais opções">
+              ${ICONS.more}
+            </summary>
+            <div class="dropdown-menu">
+              ${cardActionMarkup("qrcode", "secondary", "qrcode", "QR Code", link.slug)}
+              ${cardActionMarkup("duplicate", "secondary", "duplicate", "Duplicar", link.slug)}
+              ${cardActionMarkup("reset-clicks", "danger", "reset", "Zerar cliques", link.slug)}
+              ${cardActionMarkup("delete", "danger", "trash", "Excluir", link.slug)}
+            </div>
+          </details>
+        `;
 
       const parsedTags = (() => {
         try {
@@ -835,6 +869,11 @@ linksList.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) {
     return;
+  }
+
+  const details = button.closest("details");
+  if (details) {
+    details.removeAttribute("open");
   }
 
   const slug = button.dataset.slug;

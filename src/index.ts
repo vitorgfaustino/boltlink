@@ -1119,31 +1119,30 @@ function renderHomePage() {
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<meta name="theme-color" content="#0a0a0a" />
+	<meta name="theme-color" content="#09090b" />
 	<title>BoltLink</title>
 	<style>
 		:root {
 			color-scheme: dark;
-			--bg: #0a0a0a;
-			--bg-mesh-1: rgba(68, 217, 255, 0.18);
-			--bg-mesh-2: rgba(14, 165, 233, 0.14);
-			--surface: rgba(255, 255, 255, 0.06);
-			--surface-hover: rgba(255, 255, 255, 0.075);
-			--surface-strong: rgba(0, 0, 0, 0.22);
-			--line: rgba(255, 255, 255, 0.1);
-			--line-hover: rgba(68, 217, 255, 0.34);
-			--text: #f1f5f9;
-			--muted: #94a3b8;
-			--accent: #44d9ff;
-			--accent-hover: #0ea5e9;
-			--accent-soft: rgba(68, 217, 255, 0.14);
-			--accent-glow: rgba(68, 217, 255, 0.28);
-			--shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
-			--radius: 18px;
-			--radius-sm: 12px;
-			--motion-fast: 140ms ease;
-			--motion-medium: 220ms ease;
-			--font: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+			--bg: #09090b;
+			--bg-mesh-1: rgba(6, 182, 212, 0.12);
+			--bg-mesh-2: rgba(14, 165, 233, 0.08);
+			--surface: rgba(255, 255, 255, 0.03);
+			--surface-hover: rgba(255, 255, 255, 0.05);
+			--line: rgba(255, 255, 255, 0.08);
+			--line-hover: rgba(6, 182, 212, 0.3);
+			--text: #f4f4f5;
+			--muted: #a1a1aa;
+			--accent: #06b6d4;
+			--accent-hover: #0891b2;
+			--accent-soft: rgba(6, 182, 212, 0.1);
+			--accent-glow: rgba(6, 182, 212, 0.2);
+			--shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+			--radius: 16px;
+			--radius-sm: 10px;
+			--motion-fast: 150ms ease;
+			--motion-medium: 250ms ease;
+			--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 		}
 
 		* { box-sizing: border-box; }
@@ -1153,21 +1152,20 @@ function renderHomePage() {
 		body {
 			margin: 0;
 			min-height: 100vh;
-			font-family: var(--font);
+			font-family: var(--font-sans);
 			color: var(--text);
 			background-color: var(--bg);
 			background-image:
-				radial-gradient(circle at top, var(--bg-mesh-1), transparent 28%),
-				radial-gradient(circle at 85% 15%, var(--bg-mesh-2), transparent 24%),
-				linear-gradient(180deg, #040608, var(--bg) 48%, #06080d);
+				radial-gradient(circle at top, var(--bg-mesh-1), transparent 32%),
+				radial-gradient(circle at 85% 15%, var(--bg-mesh-2), transparent 28%),
+				linear-gradient(180deg, #030406, var(--bg) 50%, #050608);
 			-webkit-font-smoothing: antialiased;
 			-moz-osx-font-smoothing: grayscale;
-			font-feature-settings: "liga" 1, "calt" 1;
 		}
 
 		::selection {
-			background: rgba(68, 217, 255, 0.24);
-			color: #f8fafc;
+			background: rgba(6, 182, 212, 0.24);
+			color: #ffffff;
 		}
 
 		.bg-glow {
@@ -1211,12 +1209,14 @@ function renderHomePage() {
 		}
 
 		.shell {
-			width: min(720px, 100%);
-			padding: 28px;
+			width: min(580px, 100%);
+			padding: 40px;
 			border: 1px solid var(--line);
 			border-radius: var(--radius);
 			background: var(--surface);
-			box-shadow: var(--shadow);
+			box-shadow:
+				inset 0 1px 0 rgba(255, 255, 255, 0.05),
+				var(--shadow);
 			backdrop-filter: blur(24px);
 			-webkit-backdrop-filter: blur(24px);
 			text-align: center;
@@ -1227,13 +1227,15 @@ function renderHomePage() {
 			transform: translateY(-2px);
 			border-color: var(--line-hover);
 			background: var(--surface-hover);
-			box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.03), var(--shadow);
+			box-shadow:
+				inset 0 1px 0 rgba(255, 255, 255, 0.08),
+				0 20px 48px rgba(0, 0, 0, 0.45);
 		}
 
 		.logo {
 			display: inline-flex;
 			justify-content: center;
-			margin-bottom: 24px;
+			margin-bottom: 28px;
 		}
 
 		.logo img {
@@ -1246,10 +1248,12 @@ function renderHomePage() {
 
 		h1 {
 			margin: 0;
-			font-size: clamp(2rem, 5vw, 3rem);
-			line-height: 1.04;
+			font-size: clamp(2rem, 5vw, 2.6rem);
+			font-weight: 800;
+			line-height: 1.1;
 			letter-spacing: -0.04em;
-			text-shadow: 0 0 16px var(--accent-glow);
+			color: #ffffff;
+			text-shadow: 0 0 30px rgba(6, 182, 212, 0.15);
 		}
 
 		.accent {
@@ -1258,14 +1262,14 @@ function renderHomePage() {
 
 		p {
 			margin: 18px auto 0;
-			max-width: 58ch;
+			max-width: 50ch;
 			color: var(--muted);
-			line-height: 1.7;
-			font-size: 1rem;
+			line-height: 1.6;
+			font-size: 0.975rem;
 		}
 
 		.actions {
-			margin-top: 28px;
+			margin-top: 32px;
 			display: flex;
 			justify-content: center;
 			gap: 12px;
@@ -1277,12 +1281,13 @@ function renderHomePage() {
 			align-items: center;
 			justify-content: center;
 			min-height: 48px;
-			padding: 12px 18px;
+			padding: 12px 24px;
 			border-radius: var(--radius-sm);
 			border: 1px solid transparent;
 			text-decoration: none;
 			font-weight: 700;
-			color: var(--bg);
+			font-size: 0.92rem;
+			color: #09090b;
 			background: var(--accent);
 			transition: transform var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast), border-color var(--motion-fast);
 			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -1301,14 +1306,25 @@ function renderHomePage() {
 		}
 
 		a.button:active {
-			transform: translateY(0);
+			transform: scale(0.98);
 		}
 
 		.footnote {
-			margin-top: 34px;
-			font-size: 0.84rem;
-			color: rgba(148, 163, 184, 0.82);
+			margin-top: 36px;
+			font-size: 0.82rem;
+			color: var(--muted);
 			max-width: 100%;
+		}
+		
+		.footnote a {
+			color: var(--muted);
+			text-decoration: underline;
+			text-underline-offset: 2px;
+			transition: color var(--motion-fast);
+		}
+		
+		.footnote a:hover {
+			color: var(--text);
 		}
 
 		@media (prefers-reduced-motion: reduce) {
@@ -1819,7 +1835,7 @@ function constantTimeEqual(left: string, right: string) {
 }
 
 function renderPasswordGate(slug: string, errorMessage = "") {
-	const message = errorMessage ? `<p style="color:#fda4af;">${escapeHtml(errorMessage)}</p>` : "";
+	const message = errorMessage ? `<p style="color:#fda4af;margin:4px 0 0;font-size:0.88rem;font-weight:600;">${escapeHtml(errorMessage)}</p>` : "";
 	return `<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -1827,72 +1843,154 @@ function renderPasswordGate(slug: string, errorMessage = "") {
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<title>Link protegido</title>
 	<style>
-		:root { color-scheme: dark; }
+		:root {
+			color-scheme: dark;
+			--bg: #09090b;
+			--bg-mesh: rgba(6, 182, 212, 0.12);
+			--surface: rgba(255, 255, 255, 0.03);
+			--surface-hover: rgba(255, 255, 255, 0.05);
+			--line: rgba(255, 255, 255, 0.08);
+			--line-hover: rgba(6, 182, 212, 0.3);
+			--text: #f4f4f5;
+			--muted: #a1a1aa;
+			--accent: #06b6d4;
+			--accent-hover: #0891b2;
+			--accent-soft: rgba(6, 182, 212, 0.15);
+			--shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+			--radius: 16px;
+			--radius-sm: 10px;
+			--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+		}
+
 		* { box-sizing: border-box; }
+
 		body {
 			margin: 0;
 			min-height: 100vh;
 			display: grid;
 			place-items: center;
 			padding: 24px;
-			background: radial-gradient(circle at top, rgba(68, 217, 255, 0.16), transparent 30%), linear-gradient(180deg, #040608, #0a0a0a 48%, #06080d);
-			color: #f1f5f9;
-			font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+			background-color: var(--bg);
+			background-image:
+				radial-gradient(circle at top, var(--bg-mesh), transparent 35%),
+				linear-gradient(180deg, #030406, var(--bg) 50%, #050608);
+			color: var(--text);
+			font-family: var(--font-sans);
+			-webkit-font-smoothing: antialiased;
+			-moz-osx-font-smoothing: grayscale;
 		}
+
 		.card {
-			width: min(420px, 100%);
+			width: min(400px, 100%);
 			display: grid;
-			gap: 14px;
-			padding: 24px;
-			border: 1px solid rgba(255,255,255,.12);
-			border-radius: 16px;
-			background: rgba(255,255,255,.05);
-			box-shadow: 0 18px 40px rgba(0,0,0,.28);
+			gap: 20px;
+			padding: 32px 28px;
+			border: 1px solid var(--line);
+			border-radius: var(--radius);
+			background: var(--surface);
+			box-shadow:
+				inset 0 1px 0 rgba(255, 255, 255, 0.05),
+				var(--shadow);
+			backdrop-filter: blur(20px);
+			-webkit-backdrop-filter: blur(20px);
 			text-align: center;
+			transition: border-color 200ms ease, box-shadow 200ms ease;
 		}
-		.card h1,
-		.card p {
+
+		.card:hover {
+			border-color: rgba(6, 182, 212, 0.2);
+			box-shadow:
+				inset 0 1px 0 rgba(255, 255, 255, 0.08),
+				0 24px 48px rgba(0, 0, 0, 0.45);
+		}
+
+		.card h1 {
 			margin: 0;
+			font-size: 1.25rem;
+			font-weight: 700;
+			letter-spacing: -0.02em;
+			line-height: 1.2;
+			color: #ffffff;
 		}
+
 		.card p {
-			color: #94a3b8;
-			line-height: 1.55;
+			margin: -10px 0 0;
+			color: var(--muted);
+			font-size: 0.92rem;
+			line-height: 1.5;
 		}
-		.card input,
+
+		.card input {
+			width: 100%;
+			min-height: 48px;
+			border-radius: var(--radius-sm);
+			border: 1px solid var(--line);
+			padding: 10px 16px;
+			font: inherit;
+			font-size: 0.94rem;
+			background: rgba(0, 0, 0, 0.25);
+			color: #ffffff;
+			text-align: center;
+			transition: border-color 150ms ease, box-shadow 150ms ease;
+		}
+
+		.card input::placeholder {
+			color: #52525b;
+		}
+
+		.card input:focus {
+			outline: none;
+			border-color: var(--accent);
+			box-shadow: 0 0 0 4px var(--accent-soft);
+		}
+
 		.card button {
 			width: 100%;
-			min-height: 46px;
-			border-radius: 12px;
-			border: 1px solid rgba(255,255,255,.15);
-			padding: 10px 12px;
+			min-height: 48px;
+			border-radius: var(--radius-sm);
+			border: 1px solid transparent;
+			padding: 10px 16px;
 			font: inherit;
-		}
-		.card input {
-			background: rgba(0,0,0,.24);
-			color: #f1f5f9;
-			text-align: center;
-		}
-		.card input::placeholder {
-			color: #64748b;
-		}
-		.card button {
-			background: #44d9ff;
-			color: #0a0a0a;
+			font-size: 0.94rem;
 			font-weight: 700;
+			background: var(--accent);
+			color: #09090b;
 			cursor: pointer;
-			transition: transform 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+			transition: transform 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
 		}
-		.card button:hover,
-		.card button:focus-visible {
-			background: #67e8f9;
-			box-shadow: 0 0 0 3px rgba(68, 217, 255, 0.18);
+
+		.card button:hover {
+			background: var(--accent-hover);
+			box-shadow: 0 0 16px var(--accent-soft);
 			transform: translateY(-1px);
+		}
+
+		.card button:focus-visible {
+			outline: none;
+			border-color: rgba(255, 255, 255, 0.2);
+			box-shadow: 0 0 0 4px var(--accent-soft);
+		}
+
+		.card button:active {
+			transform: scale(0.98);
+		}
+
+		@media (prefers-reduced-motion: reduce) {
+			*, *::before, *::after {
+				transition-duration: 0.01ms !important;
+				animation-duration: 0.01ms !important;
+				scroll-behavior: auto !important;
+			}
+			.card button:hover {
+				transform: none;
+			}
 		}
 	</style>
 </head>
 <body>
 	<form class="card" method="post" action="/${encodeURIComponent(slug)}">
-		<h1 style="margin:0; font-size:1.2rem; line-height:1.2;">Link protegido por senha</h1>
+		<h1>Link protegido por senha</h1>
 		<p>Digite a senha para continuar.</p>
 		${message}
 		<input type="password" name="password" autocomplete="current-password" placeholder="Senha de acesso" required />

@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- Copyright (c) 2026 Vitor Faustino -->
-<!-- AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink -->
+<!-- AGPL-3.0 License - https://github.com/vitorgfaustino/boltlink -->
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
@@ -10,19 +10,23 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #0a0a0a;
-      --bg-mesh-1: rgba(68, 217, 255, 0.18);
-      --bg-mesh-2: rgba(14, 165, 233, 0.14);
-      --surface: rgba(255, 255, 255, 0.06);
-      --line: rgba(255, 255, 255, 0.1);
-      --line-hover: rgba(68, 217, 255, 0.34);
-      --text: #f1f5f9;
-      --muted: #94a3b8;
-      --accent: #44d9ff;
-      --radius: 18px;
-      --radius-sm: 12px;
-      --shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
-      --font: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --bg: #09090b;
+      --bg-mesh-1: rgba(6, 182, 212, 0.12);
+      --bg-mesh-2: rgba(14, 165, 233, 0.08);
+      --surface: rgba(255, 255, 255, 0.03);
+      --line: rgba(255, 255, 255, 0.08);
+      --line-hover: rgba(6, 182, 212, 0.3);
+      --text: #f4f4f5;
+      --text-secondary: #e4e4e7;
+      --muted: #a1a1aa;
+      --accent: #06b6d4;
+      --accent-hover: #0891b2;
+      --accent-soft: rgba(6, 182, 212, 0.1);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     }
 
     * { box-sizing: border-box; }
@@ -30,86 +34,150 @@
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: var(--font);
+      font-family: var(--font-sans);
       color: var(--text);
       background-color: var(--bg);
       background-image:
-        radial-gradient(circle at top, var(--bg-mesh-1), transparent 28%),
-        radial-gradient(circle at 85% 15%, var(--bg-mesh-2), transparent 24%),
-        linear-gradient(180deg, #040608, var(--bg) 48%, #06080d);
+        radial-gradient(circle at top, var(--bg-mesh-1), transparent 32%),
+        radial-gradient(circle at 85% 15%, var(--bg-mesh-2), transparent 28%),
+        linear-gradient(180deg, #030406, var(--bg) 50%, #050608);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      line-height: 1.6;
     }
 
     main {
-      width: min(900px, 100%);
+      width: min(780px, 100%);
       margin: 0 auto;
-      padding: 32px 20px 56px;
+      padding: 48px 20px 72px;
     }
 
     .shell {
       border: 1px solid var(--line);
       border-radius: var(--radius);
       background: var(--surface);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      padding: 28px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        var(--shadow);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 40px;
     }
 
     .topbar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 24px;
+      gap: 16px;
+      margin-bottom: 32px;
       flex-wrap: wrap;
     }
 
     .topbar a {
       color: var(--accent);
       text-decoration: none;
-      font-weight: 700;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: color 150ms ease, transform 150ms ease;
+    }
+
+    .topbar a:hover {
+      color: var(--accent-hover);
+    }
+    
+    .topbar a:active {
+      transform: scale(0.98);
     }
 
     h1 {
-      margin: 0 0 10px;
-      font-size: clamp(2rem, 5vw, 3rem);
-      line-height: 1.05;
+      margin: 0 0 12px;
+      font-size: clamp(2.2rem, 5vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      color: #ffffff;
+      text-shadow: 0 0 30px rgba(6, 182, 212, 0.15);
     }
 
     h2 {
-      margin: 28px 0 10px;
-      font-size: 1rem;
+      margin: 36px 0 12px;
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+      border-left: 3px solid var(--accent);
+      padding-left: 12px;
     }
 
     p, li {
       color: var(--muted);
-      line-height: 1.75;
+      font-size: 0.975rem;
+      line-height: 1.7;
+    }
+
+    p strong {
+      color: var(--text-secondary);
     }
 
     ul {
-      margin: 10px 0 0;
+      margin: 12px 0 0;
       padding-left: 20px;
     }
 
+    li {
+      margin-bottom: 8px;
+    }
+
     code {
-      color: var(--text);
-      font-family: inherit;
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: var(--font-mono);
+      font-size: 0.85em;
     }
 
     .notice {
-      margin-top: 18px;
-      padding: 14px 16px;
-      border: 1px solid var(--line-hover);
+      margin-top: 24px;
+      padding: 16px 20px;
+      border: 1px solid rgba(6, 182, 212, 0.2);
       border-radius: var(--radius-sm);
-      background: rgba(68, 217, 255, 0.08);
+      background: var(--accent-soft);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .notice p {
+      margin: 0;
+      color: #e0f2fe;
+      font-size: 0.92rem;
+      line-height: 1.6;
     }
 
     .footnote {
-      margin-top: 28px;
-      font-size: 0.86rem;
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      font-size: 0.85rem;
       color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 640px) {
+      main {
+        padding: 24px 16px 48px;
+      }
+      .shell {
+        padding: 24px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
     }
   </style>
 </head>
