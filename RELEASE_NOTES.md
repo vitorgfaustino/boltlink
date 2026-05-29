@@ -1,5 +1,19 @@
-## BoltLink 2.1.0 - Estrutura do Admin Separável
+## BoltLink 2.2.0 - UI Redesign & Hardening
 
+Esta atualização traz um pacote significativo de melhorias visuais e uma auditoria de segurança direcionada ao core do sistema.
+
+### Destaques Visuais
+O painel administrativo (`admin.html`, `admin.css`, `admin.js`) e as páginas públicas (`privacidade.html`, `index.ts`) foram reescritos para adotar uma estética premium, moderna e limpa.
+- **Glassmorphism e Animações**: Interface aprimorada com sombras suaves, fundos em degradê e interações táteis (spring) nos botões.
+- **Limpeza no Layout Mobile**: As ações por link ("QR Code", "Duplicar", etc.) foram agrupadas em um menu suspenso (`<details>`) para que em resoluções de smartphone (ex: 320px) o painel continue perfeitamente organizado sem empurrar elementos.
+- **Typography e Cor**: Adoção de hierarquia sem serifas (system fonts) e substituição da antiga paleta ciano por um tom premium de azul (`#00A1F5`).
+
+### Destaques de Segurança
+A auditoria implementou um endurecimento na mecânica de autenticação de links isolados:
+- **Mitigação de Timing Attack**: A verificação de senha de visitantes passou a utilizar comparação de tempo constante (`constantTimeEqual`).
+- **Sessões Fail-Secure**: Removido o *fallback* de variável em memória para as sessões de senha. O operador é forçado a ter a variável `PASSWORD_SESSION_SECRET` configurada ao utilizar senha. Se não for informada, o worker lançará erro visando proteger a segurança global da sessão em um ambiente distribuído de datacenters.
+
+## BoltLink 2.1.0 - Estrutura do Admin Separável
 Esta versão reorganiza o painel administrativo extraindo CSS e JavaScript para arquivos separados, sem alterar comportamento de redirect, API ou autenticação.
 
 O `admin.html` deixa de ser um arquivo monolítico de 2158 linhas e passa a carregar:

@@ -70,10 +70,11 @@ Não existe mais persistência de evento por clique.
 
 ## Rate limiting
 
-- `/api` e `/api/*` continuam com rate limit em memória
-- redirects públicos têm rate limit em memória antes da leitura D1
-- o gate de senha usa chave derivada de IP apenas em memória
-- para plano gratuito, consulte `docs/free-plan-traffic.md` antes de considerar recursos pagos
+- `/api` e `/api/*` continuam com rate limit em memória.
+- redirects públicos têm rate limit em memória antes da leitura D1.
+- o gate de senha usa chave derivada de IP apenas em memória.
+- **Atenção (Escopo Edge):** Como a memória em Workers não é compartilhada globalmente, esses limites atuam apenas no nível de Isolate/Datacenter (Colo) para evitar rajadas localizadas (DoS acidental). Eles não mitigam ataques de negação de serviço distribuídos pelo mundo. Para ataques DDoS e Rate Limite global estrito, recomenda-se configurar regras nativas de WAF no painel da Cloudflare.
+- para plano gratuito, consulte `docs/free-plan-traffic.md` antes de considerar recursos pagos.
 
 ---
 

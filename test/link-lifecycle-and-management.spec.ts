@@ -59,7 +59,7 @@ const SCHEMA_STATEMENTS = [
 async function fetchWorker(url: string, init?: RequestInit) {
 	const request = new Request(url, init);
 	const ctx = createExecutionContext();
-	const response = await worker.fetch(request, env, ctx);
+	const response = await worker.fetch(request, { ...env, PASSWORD_SESSION_SECRET: "test-secret" }, ctx);
 	await waitOnExecutionContext(ctx);
 	return response;
 }

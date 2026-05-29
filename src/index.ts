@@ -140,7 +140,6 @@ const DEFAULT_APP_TIMEZONE = "America/Sao_Paulo";
 const PASSWORD_RATE_LIMIT_MAX_ATTEMPTS = 5;
 const PASSWORD_RATE_LIMIT_WINDOW_MS = 60_000;
 const PASSWORD_SESSION_MAX_AGE_SECONDS = 300;
-let passwordSessionFallbackSecret: string | null = null;
 const passwordAttempts = new Map<string, { count: number; resetAt: number }>();
 
 const app = new Hono<AppContext>();
@@ -1723,15 +1722,10 @@ function passwordCookieName(slug: string) {
 
 function getPasswordSessionSecret(env: Bindings) {
 	const configuredSecret = env.PASSWORD_SESSION_SECRET?.trim() || env.API_KEY?.trim();
-	if (configuredSecret) {
-		return configuredSecret;
+	if (!configuredSecret) {
+		throw new Error("PASSWORD_SESSION_SECRET is not configured. Password protection feature requires a static secret.");
 	}
-
-	if (!passwordSessionFallbackSecret) {
-		passwordSessionFallbackSecret = crypto.randomUUID();
-	}
-
-	return passwordSessionFallbackSecret;
+	return configuredSecret;
 }
 
 async function createPasswordSessionToken(env: Bindings, slug: string) {
@@ -1798,7 +1792,7 @@ async function verifyPassword(candidate: string, storedHash: string) {
 	}
 
 	const digest = await sha256Hex(`${salt}:${candidate ?? ""}`);
-	return digest === expected;
+	return constantTimeEqual(digest, expected);
 }
 
 async function sha256Hex(content: string) {

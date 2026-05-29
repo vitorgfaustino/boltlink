@@ -793,10 +793,13 @@ button.icon-btn {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   animation: card-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
   transition: border-color var(--motion-medium), transform var(--motion-medium), box-shadow var(--motion-medium), background-color var(--motion-medium), opacity var(--motion-medium);
-  overflow: hidden;
+  overflow: visible;
 }
 
+.card:has(details[open]),
+.card:focus-within,
 .card:hover {
+  z-index: 20;
   transform: translateY(-2px);
   border-color: var(--line-hover);
   background: var(--surface-hover);

@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.2.0] - 2026-05-29
+
+### Adicionado
+- Redesign visual premium (dark tech aesthetic) utilizando custom properties, glassmorphism e animações suaves.
+- Menu dropdown interativo (`<details>`) no painel administrativo mobile para agrupar ações secundárias de forma limpa.
+- Omitida a variável `passwordSessionFallbackSecret`. O sistema agora segue uma arquitetura fail-secure explícita e lançará um erro se o recurso de senha for ativado sem a correta configuração do segredo estático.
+
+### Alterado
+- Melhoria de Segurança: Mitigação de timing attacks em `verifyPassword` usando `constantTimeEqual` ao invés de comparação em tempo variável.
+- Otimização do design responsivo com reorganização de tabelas e botões no admin UI, prevenindo overflow de texto em telas médias.
+- Remoção de botão "Acessar Painel" público da página inicial (home) em prol de uma interface mais fluida para usuários finais.
+- Refino da paleta de cores globais com azul (#00A1F5) de maior contraste e estética premium.
+
 ## [2.1.0] - 2026-05-22
 - Added: public/admin.css extracted from inline <style> block for independent caching
 - Added: public/admin.js extracted from inline <script> block for maintainability

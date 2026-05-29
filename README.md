@@ -2,7 +2,7 @@
 
 BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel administrativo estático.
 
-**Versão 2.1.0 - AGPL-3.0**
+**Versão 2.2.0 - AGPL-3.0**
 
 Ele funciona como encurtador de URLs, mas o objetivo real do projeto é maior: manter links públicos estáveis, simples de operar e independentes de plataformas terceiras, com controle do redirect, proteção do painel e uma baseline de privacidade mais rígida do que a maioria das ferramentas desse tipo.
 
@@ -107,9 +107,9 @@ Depois do deploy:
 4. opcionalmente configurar `API_KEY` e `PASSWORD_SESSION_SECRET`
 5. opcionalmente trocar para domínio próprio
 
-Se voce nao usa links protegidos por senha, pode deixar `PASSWORD_SESSION_SECRET` sem configurar.
-Se voce usa GitHub auto-deploy ou o botao de deploy da Cloudflare, configure `PASSWORD_SESSION_SECRET` no painel da Cloudflare como `Secret`.
-Se voce publica com Wrangler local, use `.dev.vars` para desenvolvimento e `wrangler secret put PASSWORD_SESSION_SECRET` para o Worker implantado.
+Se você utiliza o recurso de links protegidos por senha, **deve obrigatoriamente** configurar o `PASSWORD_SESSION_SECRET`. Se não for configurado, a criação e o acesso aos links com senha falharão.
+Se você usa GitHub auto-deploy ou o botão de deploy da Cloudflare, configure `PASSWORD_SESSION_SECRET` no painel da Cloudflare como `Secret`.
+Se você publica com Wrangler local, use `.dev.vars` para desenvolvimento e `wrangler secret put PASSWORD_SESSION_SECRET` para o Worker implantado.
 
 Comandos simples para gerar secrets:
 
@@ -139,7 +139,7 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 - permite zerar a estatística agregada de um link ativo
 - inclui orientações para reduzir tráfego desnecessário no plano gratuito da Cloudflare
 
-## Upgrade para v2.1.0
+## Upgrade para v2.2.0
 
 ```bash
 git pull --ff-only
