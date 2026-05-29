@@ -86,8 +86,9 @@ Ao preparar uma nova versão do produto, a IA deve revisar e sincronizar pelo me
 - `public/` quando houver texto visível de versão, política pública ou comportamento alterado
 - `schema.sql` e `migrations/` quando houver mudança de banco
 - `wrangler.jsonc` e exemplos de ambiente quando houver mudança operacional
+- `test/` (Especialmente `test/index.spec.ts`, onde strings de versão podem estar hardcoded nas asserções de testes da API)
 
-Antes de concluir uma mudança de versão, a IA deve procurar referências antigas da versão anterior, recursos removidos e fluxos documentais desatualizados para não deixar material legal, operacional ou técnico para trás.
+Antes de concluir uma mudança de versão, a IA deve procurar referências antigas da versão anterior, recursos removidos e fluxos documentais desatualizados para não deixar material legal, operacional ou técnico para trás. Sempre rode `npm test` após um bump de versão para garantir que nenhum teste quebrou por esperar a versão antiga.
 
 ## Validação mínima
 

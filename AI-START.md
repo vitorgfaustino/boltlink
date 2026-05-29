@@ -58,6 +58,7 @@ O produto não mantém:
 - o redirect público continua respondendo antes da contagem
 - redirects públicos usam `Referrer-Policy: strict-origin`
 - admin, API, home, gate de senha e respostas não redirect usam `Referrer-Policy: no-referrer`
+- sempre que fizer um bump de versão (ex: editar `package.json`), procure por strings da versão antiga nos arquivos de teste (`test/index.spec.ts`) e atualize-as, rodando `npm test` para garantir que as asserções não quebrem.
 
 ## Como interpretar pedidos
 
