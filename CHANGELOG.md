@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.2.1] - 2026-06-12
+
+### Alterado
+- Side-stripe removido dos headings em `public/privacidade.html` (substituído por underline `::after` consistente com admin).
+- Tokens CSS de `privacidade.html` alinhados com `admin.css` (radius, accent-soft, blur, motion).
+- Empty state do painel reescrito para texto neutro (funciona em desktop e mobile).
+- Contador renomeado de "Links criados" para "Total de links" (reflete contagem incluindo desativados).
+- Accordion do formulário agora permite apenas uma seção aberta por vez (reduz carga cognitiva).
+
+### Adicionado
+- Atalhos de teclado no painel: `/` foca busca, `Ctrl+Enter` submete formulário, `Esc` cancela edição/fecha dropdowns.
+- Botão `×` para limpar busca rapidamente.
+- `text-wrap: balance` no heading principal.
+- `:focus-visible` no link da topbar da página de privacidade.
+- `prefers-reduced-motion` cobre `transform` na página de privacidade.
+
 ## [2.2.0] - 2026-05-29
 
 ### Adicionado

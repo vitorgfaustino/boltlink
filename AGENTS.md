@@ -123,5 +123,5 @@ Para mudanças de banco:
 
 ---
 
-Versão 2.2.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

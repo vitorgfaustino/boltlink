@@ -2,7 +2,7 @@
 
 BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel administrativo estático.
 
-**Versão 2.2.0 - AGPL-3.0**
+**Versão 2.2.1 - AGPL-3.0**
 
 Ele funciona como encurtador de URLs, mas o objetivo real do projeto é maior: manter links públicos estáveis, simples de operar e independentes de plataformas terceiras, com controle do redirect, proteção do painel e uma baseline de privacidade mais rígida do que a maioria das ferramentas desse tipo.
 
@@ -139,7 +139,7 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 - permite zerar a estatística agregada de um link ativo
 - inclui orientações para reduzir tráfego desnecessário no plano gratuito da Cloudflare
 
-## Upgrade para v2.2.0
+## Upgrade para v2.2.1
 
 ```bash
 git pull --ff-only
