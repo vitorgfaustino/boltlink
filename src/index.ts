@@ -1131,17 +1131,20 @@ function renderHomePage() {
 			--line: rgba(255, 255, 255, 0.08);
 			--line-hover: rgba(0, 161, 245, 0.3);
 			--text: #f4f4f5;
+			--text-secondary: #e4e4e7;
 			--muted: #a1a1aa;
 			--accent: #00A1F5;
 			--accent-hover: #008cd6;
-			--accent-soft: rgba(0, 161, 245, 0.1);
+			--accent-soft: rgba(0, 161, 245, 0.15);
 			--accent-glow: rgba(0, 161, 245, 0.2);
+			--danger: #ef4444;
 			--shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-			--radius: 16px;
-			--radius-sm: 10px;
-			--motion-fast: 150ms ease;
-			--motion-medium: 250ms ease;
-			--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+			--radius: 12px;
+			--radius-sm: 8px;
+			--radius-xs: 6px;
+			--motion-fast: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+			--motion-medium: 250ms cubic-bezier(0.16, 1, 0.3, 1);
+			--font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 		}
 
 		* { box-sizing: border-box; }
@@ -1151,7 +1154,7 @@ function renderHomePage() {
 		body {
 			margin: 0;
 			min-height: 100vh;
-			font-family: var(--font-sans);
+			font-family: var(--font);
 			color: var(--text);
 			background-color: var(--bg);
 			background-image:
@@ -1336,6 +1339,12 @@ function renderHomePage() {
 				animation-iteration-count: 1 !important;
 				scroll-behavior: auto !important;
 				transition-duration: 0.01ms !important;
+			}
+		}
+
+		@media (max-width: 480px) {
+			.shell {
+				padding: 28px 20px;
 			}
 		}
 	</style>
@@ -1844,14 +1853,18 @@ function renderPasswordGate(slug: string, errorMessage = "") {
 			--line: rgba(255, 255, 255, 0.08);
 			--line-hover: rgba(0, 161, 245, 0.3);
 			--text: #f4f4f5;
+			--text-secondary: #e4e4e7;
 			--muted: #a1a1aa;
 			--accent: #00A1F5;
 			--accent-hover: #008cd6;
 			--accent-soft: rgba(0, 161, 245, 0.15);
+			--danger: #ef4444;
 			--shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-			--radius: 16px;
-			--radius-sm: 10px;
-			--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+			--radius: 12px;
+			--radius-sm: 8px;
+			--radius-xs: 6px;
+			--motion-fast: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+			--font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 		}
 
 		* { box-sizing: border-box; }
@@ -1867,7 +1880,7 @@ function renderPasswordGate(slug: string, errorMessage = "") {
 				radial-gradient(circle at top, var(--bg-mesh), transparent 35%),
 				linear-gradient(180deg, #030406, var(--bg) 50%, #050608);
 			color: var(--text);
-			font-family: var(--font-sans);
+			font-family: var(--font);
 			-webkit-font-smoothing: antialiased;
 			-moz-osx-font-smoothing: grayscale;
 		}
@@ -1883,10 +1896,10 @@ function renderPasswordGate(slug: string, errorMessage = "") {
 			box-shadow:
 				inset 0 1px 0 rgba(255, 255, 255, 0.05),
 				var(--shadow);
-			backdrop-filter: blur(20px);
-			-webkit-backdrop-filter: blur(20px);
+			backdrop-filter: blur(24px);
+			-webkit-backdrop-filter: blur(24px);
 			text-align: center;
-			transition: border-color 200ms ease, box-shadow 200ms ease;
+			transition: border-color var(--motion-medium), box-shadow var(--motion-medium);
 		}
 
 		.card:hover {
@@ -1923,7 +1936,7 @@ function renderPasswordGate(slug: string, errorMessage = "") {
 			background: rgba(0, 0, 0, 0.25);
 			color: #ffffff;
 			text-align: center;
-			transition: border-color 150ms ease, box-shadow 150ms ease;
+			transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 		}
 
 		.card input::placeholder {
@@ -1948,7 +1961,7 @@ function renderPasswordGate(slug: string, errorMessage = "") {
 			background: var(--accent);
 			color: #09090b;
 			cursor: pointer;
-			transition: transform 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+			transition: transform var(--motion-fast), background-color var(--motion-fast), box-shadow var(--motion-fast);
 			box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
 		}
 
@@ -1976,6 +1989,12 @@ function renderPasswordGate(slug: string, errorMessage = "") {
 			}
 			.card button:hover {
 				transform: none;
+			}
+		}
+
+		@media (max-width: 480px) {
+			.card {
+				padding: 24px 20px;
 			}
 		}
 	</style>

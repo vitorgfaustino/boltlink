@@ -138,6 +138,7 @@ p {
   color: var(--muted);
   line-height: 1.6;
   font-size: 0.94rem;
+  text-wrap: pretty;
 }
 
 .text-glow {
@@ -469,7 +470,7 @@ input, select, textarea {
 }
 
 input::placeholder {
-  color: #52525b;
+  color: #71717a;
 }
 
 input:focus, select:focus, textarea:focus {
@@ -1204,18 +1205,22 @@ button.icon-btn {
     min-height: 46px;
   }
 
-  .card-actions button {
-    padding: 6px 10px;
-    font-size: 0.8rem;
-    min-height: 36px;
-  }
+   .card-actions button {
+     padding: 6px 10px;
+     font-size: 0.8rem;
+     min-height: 44px;
+   }
 
-  .more-actions-dropdown summary {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
-  }
+   .more-actions-dropdown summary {
+     width: 44px;
+     height: 44px;
+     min-width: 44px;
+     min-height: 44px;
+   }
+
+   button.compact {
+     min-height: 44px;
+   }
 
   .preview-box {
     max-height: 100px;

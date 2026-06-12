@@ -8,6 +8,11 @@
 - Empty state do painel reescrito para texto neutro (funciona em desktop e mobile).
 - Contador renomeado de "Links criados" para "Total de links" (reflete contagem incluindo desativados).
 - Accordion do formulário agora permite apenas uma seção aberta por vez (reduz carga cognitiva).
+- Tokens duplicados nos templates server-side (`renderHomePage`, `renderPasswordGate`) sincronizados com `admin.css`/DESIGN.md (radius 12px, cubic-bezier motion, `--font`, blur 24px, tokens faltantes adicionados).
+- Raw motion (`150ms ease`, `200ms ease`) substituído por `var(--motion-fast)`/`var(--motion-medium)` nos templates do Worker.
+- Touch targets em mobile ajustados para 44px (WCAG 2.5.5) nos botões compactos e dropdown trigger.
+- Contraste de placeholder melhorado (`#52525b` → `#71717a`) para atingir ~4.5:1.
+- `text-wrap: pretty` adicionado a parágrafos para reduzir órfãs tipográficas.
 
 ### Adicionado
 - Atalhos de teclado no painel: `/` foca busca, `Ctrl+Enter` submete formulário, `Esc` cancela edição/fecha dropdowns.
@@ -15,6 +20,7 @@
 - `text-wrap: balance` no heading principal.
 - `:focus-visible` no link da topbar da página de privacidade.
 - `prefers-reduced-motion` cobre `transform` na página de privacidade.
+- Breakpoints mobile (`max-width: 480px`) nos templates `renderHomePage()` e `renderPasswordGate()`.
 
 ## [2.2.0] - 2026-05-29
 
