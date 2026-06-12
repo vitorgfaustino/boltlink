@@ -536,7 +536,7 @@ function renderLinks() {
   linksCount.textContent = String(state.links.length);
 
   if (!state.links.length) {
-    linksList.innerHTML = '<div class="empty">Nenhum link ativo ainda. Crie o primeiro slug no painel ao lado.</div>';
+    linksList.innerHTML = '<div class="empty">Nenhum link ativo ainda. Preencha o formulário para criar o primeiro.</div>';
     return;
   }
 
@@ -986,4 +986,74 @@ document.addEventListener("click", (event) => {
       dropdown.removeAttribute("open");
     }
   });
+});
+
+// Clear search button
+const clearSearchButton = document.getElementById("clear-search-button");
+if (clearSearchButton) {
+  clearSearchButton.addEventListener("click", () => {
+    searchTermInput.value = "";
+    searchForm.dispatchEvent(new Event("submit", { cancelable: true }));
+    searchTermInput.focus();
+  });
+
+  const updateClearButton = () => {
+    clearSearchButton.hidden = !searchTermInput.value.trim();
+  };
+  searchTermInput.addEventListener("input", updateClearButton);
+  searchTermInput.addEventListener("search", () => setTimeout(updateClearButton, 0));
+  updateClearButton();
+}
+
+// Accordion exclusivity: only one form <details> open at a time
+linkForm.querySelectorAll(":scope > details:not(.more-actions-dropdown)").forEach((detail) => {
+  detail.addEventListener("toggle", () => {
+    if (!detail.open) return;
+    linkForm.querySelectorAll(":scope > details:not(.more-actions-dropdown)[open]").forEach((other) => {
+      if (other !== detail) other.removeAttribute("open");
+    });
+  });
+});
+
+// Keyboard shortcuts
+document.addEventListener("keydown", (event) => {
+  const target = event.target;
+  const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable;
+
+  // Ctrl/Cmd+Enter → submit form (when focus is on a form field)
+  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    if (target.closest("#link-form")) {
+      event.preventDefault();
+      linkForm.dispatchEvent(new Event("submit", { cancelable: true }));
+      return;
+    }
+    if (target.closest("#search-form")) {
+      event.preventDefault();
+      searchForm.dispatchEvent(new Event("submit", { cancelable: true }));
+      return;
+    }
+  }
+
+  // / → focus search (when not typing in an input)
+  if (event.key === "/" && !isInput) {
+    event.preventDefault();
+    searchTermInput.focus();
+    searchTermInput.select();
+    return;
+  }
+
+  // Escape → cancel edit or close dropdowns
+  if (event.key === "Escape") {
+    // Close all open more-actions dropdowns
+    const openDropdowns = document.querySelectorAll("details.more-actions-dropdown[open]");
+    if (openDropdowns.length > 0) {
+      openDropdowns.forEach((d) => d.removeAttribute("open"));
+      return;
+    }
+    // If in edit mode, cancel
+    if (state.editingSlug && cancelButton && !cancelButton.hidden) {
+      cancelButton.click();
+      return;
+    }
+  }
 });

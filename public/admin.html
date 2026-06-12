@@ -209,7 +209,7 @@
             <p class="search-help">Busca por: slug, URL de destino e tags.</p>
           </div>
           <div class="counter-pill" aria-live="polite">
-            Links criados: <strong id="links-count">0</strong>
+            Total de links: <strong id="links-count">0</strong>
           </div>
           <form id="search-form" class="search-form">
             <div class="search-main-row">
@@ -218,6 +218,12 @@
                   <path d="M21 21 16.65 16.65M10.5 18A7.5 7.5 0 1 1 18 10.5 7.5 7.5 0 0 1 10.5 18Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 <input id="search-term" name="search-term" type="search" placeholder="Buscar slug ou URL de destino" />
+                <button type="button" id="clear-search-button" class="clear-search-btn" aria-label="Limpar busca" title="Limpar busca" hidden>
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="m6 6 12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
               </div>
               <button type="submit" class="primary search-primary-btn" aria-label="Buscar" title="Buscar">
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -249,5 +255,8 @@
   </main>
 
   <script src="/admin.js"></script>
+<!-- impeccable-live-start -->
+<script src="http://localhost:8400/live.js"></script>
+<!-- impeccable-live-end -->
 </body>
 </html>

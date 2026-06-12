@@ -191,6 +191,11 @@ design-system/
 # Legacy or local-only Cloudflare config
 wrangler.toml
 
+# Impeccable design tooling
+.impeccable/
+PRODUCT.md
+DESIGN.md
+
 # Certificates / local secrets
 *.pem
 *.key

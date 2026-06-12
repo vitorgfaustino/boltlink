@@ -124,6 +124,7 @@ h1 {
   letter-spacing: -0.04em;
   line-height: 1.1;
   color: #ffffff;
+  text-wrap: balance;
 }
 
 h2 {
@@ -749,6 +750,44 @@ button.icon-btn {
   transform: translateY(-50%);
   color: var(--muted);
   pointer-events: none;
+}
+
+.clear-search-btn {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--motion-fast), background-color var(--motion-fast);
+}
+
+.clear-search-btn svg {
+  position: static;
+  transform: none;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+
+.clear-search-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.clear-search-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
 .search-form input {
