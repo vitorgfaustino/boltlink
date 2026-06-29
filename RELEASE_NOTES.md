@@ -1,3 +1,25 @@
+## BoltLink 2.2.1 - UX Refinement & Keyboard Shortcuts
+
+Esta atualização traz melhorias no controle por teclado, acessibilidade (WCAG), consistência visual nos templates de páginas públicas e de redirecionamento, e refinamentos de design para dispositivos móveis.
+
+### Atalhos de Teclado & Facilidade de Uso
+- **Atalhos no Painel**:
+  - `/` foca instantaneamente na barra de pesquisa.
+  - `Ctrl + Enter` submete o formulário de criação/edição.
+  - `Esc` cancela a edição ativa ou fecha dropdowns abertos.
+- **Busca Rápida**: Adicionado botão `×` para limpar a busca de forma instantânea.
+- **Fluxo do Formulário**: O accordion agora permite apenas uma seção aberta por vez, diminuindo a carga cognitiva ao preencher ou editar links.
+
+### Acessibilidade & Tipografia (WCAG)
+- **Touch Targets**: Botões e menus suspensos no mobile redimensionados para o mínimo de `44px` (em conformidade com WCAG 2.5.5).
+- **Contraste**: A cor de placeholders foi escurecida (`#52525b` → `#71717a`) para atender a taxa de contraste de ~4.5:1.
+- **Tipografia Fluida**: Uso de `text-wrap: pretty` para evitar palavras isoladas em parágrafos e `text-wrap: balance` nos títulos principais.
+
+### Alinhamento Estético e Responsivo
+- **Consistência nos Worker Templates**: As páginas de Home e Password Gate geradas pelo Worker foram atualizadas com os tokens visuais padrão (radius, blur, motion com curvas cubic-bezier).
+- **Responsividade no Mobile**: Adicionadas melhorias de espaçamento para telas de até 480px.
+- **Aprimoramentos em Privacidade**: Alinhamento de design tokens em `privacidade.html`, substituição da barra lateral de títulos por sublinhados consistentes e suporte expandido a `prefers-reduced-motion`.
+
 ## BoltLink 2.2.0 - UI Redesign & Hardening
 
 Esta atualização traz um pacote significativo de melhorias visuais e uma auditoria de segurança direcionada ao core do sistema.
@@ -102,5 +124,5 @@ npm test
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br
