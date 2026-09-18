@@ -1,6 +1,6 @@
 /**
  * Phase 1 Tests: Click Filter
- * BoltLink v2.0.1
+ * BoltLink v2.2.1
  * AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
  */
 
@@ -83,6 +83,68 @@ describe("Phase 1: Click Filter", () => {
 		expect(isCountableClick(request)).toBe(false);
 	});
 
+	// --- Compound Purpose values are tokenized, not literal
+	it("does not count Sec-Purpose: prefetch header", () => {
+		const request = new Request("https://example.com/test", {
+			method: "GET",
+			headers: {
+				"user-agent": "Mozilla/5.0",
+				"sec-purpose": "prefetch",
+			},
+		});
+
+		expect(isCountableClick(request)).toBe(false);
+	});
+
+	it("does not count compound Sec-Purpose: prefetch;prerender header", () => {
+		const request = new Request("https://example.com/test", {
+			method: "GET",
+			headers: {
+				"user-agent": "Mozilla/5.0",
+				"sec-purpose": "prefetch;prerender",
+			},
+		});
+
+		expect(isCountableClick(request)).toBe(false);
+	});
+
+	it("recognizes Sec-Purpose tokens that carry parameters", () => {
+		const request = new Request("https://example.com/test", {
+			method: "GET",
+			headers: {
+				"user-agent": "Mozilla/5.0",
+				"sec-purpose": "prefetch;prerender;prerender-until=1",
+			},
+		});
+
+		expect(isCountableClick(request)).toBe(false);
+	});
+
+	it("does not count compound Purpose: prefetch;prerender header", () => {
+		const request = new Request("https://example.com/test", {
+			method: "GET",
+			headers: {
+				"user-agent": "Mozilla/5.0",
+				"purpose": "prefetch;prerender",
+			},
+		});
+
+		expect(isCountableClick(request)).toBe(false);
+	});
+
+	it("still counts a real navigation that only mentions an unrelated purpose", () => {
+		const request = new Request("https://example.com/test", {
+			method: "GET",
+			headers: {
+				"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0",
+				"sec-purpose": "preview",
+				"sec-fetch-mode": "navigate",
+			},
+		});
+
+		expect(isCountableClick(request)).toBe(true);
+	});
+
 	// --- Test case 7: Sec-Fetch-Mode: navigate → should count
 	it("counts request with Sec-Fetch-Mode: navigate as legitimate click", () => {
 		const request = new Request("https://example.com/test", {
@@ -117,12 +179,13 @@ describe("Phase 1: Click Filter", () => {
 		expect(isCountableClick(request)).toBe(false);
 	});
 
-	// --- Test case 10: Googlebot → should NOT count
-	it("does not count Googlebot request", () => {
+	// --- Test case 10: Googlebot → should NOT count, even if it claims navigation
+	it("does not count Googlebot with Sec-Fetch-Mode navigate", () => {
 		const request = new Request("https://example.com/test", {
 			method: "GET",
 			headers: {
 				"user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+				"sec-fetch-mode": "navigate",
 			},
 		});
 
@@ -136,6 +199,15 @@ describe("Phase 1: Click Filter", () => {
 			headers: {
 				"user-agent": "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
 			},
+		});
+
+		expect(isCountableClick(request)).toBe(false);
+	});
+
+	it("does not count Discord social preview crawlers", () => {
+		const request = new Request("https://example.com/test", {
+			method: "GET",
+			headers: { "user-agent": "Discordbot/2.0" },
 		});
 
 		expect(isCountableClick(request)).toBe(false);

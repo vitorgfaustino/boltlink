@@ -27,7 +27,7 @@ Esta Política de Privacidade descreve como tratamos dados pessoais relacionados
 
 ## 3. Dados tratados pelo sistema
 
-No estado padrão do BoltLink v2.0.1, o produto foi configurado para minimizar coleta e persistência de dados.
+No estado padrão do BoltLink v2.2.1, o produto foi configurado para minimizar coleta e persistência de dados.
 
 O sistema pode persistir:
 
@@ -72,7 +72,7 @@ Liste aqui os subprocessadores e provedores efetivamente utilizados:
 
 ## 7. Retenção
 
-No estado padrão do BoltLink v2.0.1, não existe tabela de eventos de clique.
+No estado padrão do BoltLink v2.2.1, não existe tabela de eventos de clique.
 
 Ainda assim, o operador deve definir e documentar:
 
@@ -108,5 +108,5 @@ Toda responsabilidade pela operação concreta deste ambiente, pela configuraç�
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

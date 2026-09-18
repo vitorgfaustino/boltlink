@@ -1,4 +1,4 @@
-# Privacy (BoltLink v2.0.1)
+# Privacy (BoltLink v2.2.1)
 
 ## Princípio
 
@@ -42,6 +42,8 @@ Nos redirects públicos, BoltLink envia `Referrer-Policy: strict-origin`.
 
 Isso permite ao destino receber apenas a origem do tráfego quando o navegador decidir enviá-la, sem path nem query string.
 
+O BoltLink não substitui essa origem pelo domínio curto, não adiciona parâmetros artificiais e não tenta contornar decisões do cliente. O site de origem, o navegador ou o app podem usar `no-referrer` ou suprimir o header.
+
 Admin, API, home, gate de senha e respostas não redirect usam `Referrer-Policy: no-referrer`.
 
 ## Senhas e rate limit
@@ -68,5 +70,5 @@ A instância pública padrão também expõe uma página em `/privacidade`, serv
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

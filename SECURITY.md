@@ -3,7 +3,7 @@
 ## Regras mínimas
 
 - nunca versionar segredos, tokens, `.env`, `.dev.vars` ou `wrangler.local.jsonc`
-- nunca publicar valores reais de `API_KEY`, `TEAM_DOMAIN` ou `POLICY_AUD`
+- nunca publicar valores reais de `API_KEY`, `PASSWORD_SESSION_SECRET`, `TEAM_DOMAIN` ou `POLICY_AUD`
 - manter o painel administrativo protegido por Cloudflare Access em produção
 - usar `API_KEY` apenas para automações internas em `/api` e `/api/*`
 - não persistir IP, hash de IP, `Referer`, `User-Agent`, país, `stats`, `last_clicked_at` ou `notes`
@@ -25,6 +25,7 @@
 ## Segredos e configuração
 
 - use `wrangler secret put API_KEY` para segredos reais
+- use `wrangler secret put PASSWORD_SESSION_SECRET` antes de criar links protegidos por senha; `API_KEY` não é fallback desse segredo
 - use `.dev.vars` apenas localmente
 - trate `wrangler.jsonc` como template público
 - trate `wrangler.local.jsonc` como configuração privada
@@ -43,5 +44,5 @@
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

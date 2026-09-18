@@ -1,12 +1,12 @@
 # Setup na Cloudflare
 
-Este guia cobre as três formas de operar o BoltLink v2.0.1:
+Este guia cobre as três formas de operar o BoltLink v2.2.1:
 
 - `Wrangler local`
 - `AI-guided setup`
 - `Deploy to Cloudflare Workers`
 
-## Premissas da v2.0.1
+## Premissas da v2.2.1
 
 - `wrangler.jsonc` continua sendo o template público
 - `wrangler.local.jsonc` continua sendo a configuração privada local
@@ -61,7 +61,7 @@ Pedidos recomendados:
 - `Auditar estado operacional`
 - `Aplicar migrations`
 
-Na v2.0.1, o pedido de atualização deve:
+Na versão atual, o pedido de atualização deve:
 
 1. verificar `git status --short`
 2. preservar `wrangler.local.jsonc` e overlays do projeto
@@ -79,7 +79,7 @@ Depois do deploy:
 1. valide `workers.dev`
 2. configure Cloudflare Access para `/admin`, `/admin.html`, `/api` e `/api/*`
 3. preencha `TEAM_DOMAIN` e `POLICY_AUD`
-4. opcionalmente configure `API_KEY` e `PASSWORD_SESSION_SECRET`
+4. opcionalmente configure `API_KEY`; configure `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
 5. opcionalmente troque para domínio próprio
 
 Não existe mais etapa de publicar `IP_HASH_SECRET`.
@@ -114,7 +114,7 @@ Para quem já está em produção e recebe atualização por GitHub:
 
 - `TEAM_DOMAIN` e `POLICY_AUD` sao `Text`
 - `API_KEY` e `PASSWORD_SESSION_SECRET` sao `Secret`
-- `PASSWORD_SESSION_SECRET` nao e obrigatorio para a instancia inteira; ele so e recomendado quando houver links protegidos por senha em producao
+- `PASSWORD_SESSION_SECRET` não é obrigatório para a instância inteira, mas é obrigatório para criar, adicionar senha ou servir links protegidos; links legados sem esse secret respondem HTTP 503
 
 ## Operacao no plano gratuito
 
@@ -137,5 +137,5 @@ Se o operador reativar logs, Logpush, source maps ou outra telemetria externa, i
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

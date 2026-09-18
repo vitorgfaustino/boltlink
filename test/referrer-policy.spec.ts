@@ -1,6 +1,6 @@
 /**
  * Referrer Policy Tests
- * BoltLink v2.0.1
+ * BoltLink v2.2.1
  * AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
  */
 

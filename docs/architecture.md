@@ -78,5 +78,5 @@ Não existe mais persistência de evento por clique.
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

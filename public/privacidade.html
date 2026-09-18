@@ -256,6 +256,9 @@
       <p>
         Nos redirects públicos, esta instância utiliza <code>Referrer-Policy: strict-origin</code>. Isso permite que o destino receba apenas a origem do tráfego quando o navegador decidir enviá-la, sem encaminhar o caminho completo nem a query string como referrer.
       </p>
+      <p>
+        O BoltLink não substitui a origem pelo domínio curto, não adiciona parâmetros artificiais e não tenta contornar escolhas de privacidade do site de origem, navegador ou aplicativo, que podem suprimir o referrer.
+      </p>
 
       <h2>6. Segurança</h2>
       <p>
@@ -285,8 +288,5 @@
       </p>
     </section>
   </main>
-<!-- impeccable-live-start -->
-<script src="http://localhost:8400/live.js"></script>
-<!-- impeccable-live-end -->
 </body>
 </html>

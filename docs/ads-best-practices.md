@@ -17,6 +17,8 @@ Nos redirects públicos, BoltLink usa `Referrer-Policy: strict-origin`.
 
 Isso preserva apenas a origem quando o navegador decidir enviá-la. Path e query não são encaminhados como referrer.
 
+BoltLink não troca essa origem pelo domínio curto nem tenta reconstruí-la. O site de origem, navegador ou app podem suprimir o header por sua própria política de privacidade.
+
 ## Diagnóstico rápido
 
 - perda de atribuição: valide UTMs
@@ -25,5 +27,5 @@ Isso preserva apenas a origem quando o navegador decidir enviá-la. Path e query
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

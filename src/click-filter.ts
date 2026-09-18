@@ -16,8 +16,8 @@
  */
 
 /**
- * Comprehensive list of bot user agents and patterns to filter
- * Updated semi-frequently; consider making this externally configurable for future iterations
+ * Recognized automation only. This is a metric filter, never a redirect gate.
+ * Keep patterns specific: false positives would undercount legitimate visitors.
  */
 const BOT_PATTERNS = [
   // Search engine bots
@@ -41,9 +41,39 @@ const BOT_PATTERNS = [
   // Content monitoring and scraping
   /scrapy|mechanize|beautifulsoup|netscape|libwww-perl|w3m|elinks|links|lynx/i,
   
-  // Other suspicious patterns
-  /headless|phantom|zombie|capybara|selector|splitter|parser|spider|crawler|bot|monitoring/i,
+  // Known automation frameworks and generic crawler identifiers
+  /headlesschrome|phantomjs|zombie\.js|capybara|scraper|spider|crawler|\bbot\b|monitoring/i,
 ];
+
+/**
+ * Purpose headers are tokenized and may be composed, for example
+ * `Sec-Purpose: prefetch;prerender`. Match tokens instead of the raw literal
+ * so compound values are still recognized as non-navigational.
+ */
+const PREFETCH_PURPOSES = new Set(["prefetch", "prerender"]);
+
+function hasPrefetchPurpose(request: Request): boolean {
+  return (
+    hasPrefetchPurposeValue(request.headers.get('purpose')) ||
+    hasPrefetchPurposeValue(request.headers.get('sec-purpose')) ||
+    hasPrefetchPurposeValue(request.headers.get('x-purpose'))
+  );
+}
+
+function hasPrefetchPurposeValue(value: string | null): boolean {
+  if (!value) {
+    return false;
+  }
+
+  for (const directive of value.toLowerCase().split(/[;,]/)) {
+    const token = directive.split('=')[0]?.trim();
+    if (token && PREFETCH_PURPOSES.has(token)) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 /**
  * Checks if a request represents a legitimate user click
@@ -66,29 +96,12 @@ export function isCountableClick(request: Request): boolean {
 
     // 2. Check for explicit prefetch/prerender headers (short-circuit if present)
     // These indicate the browser/platform is not navigating, just prefetching
-    const purpose = request.headers.get('purpose');
-    if (purpose === 'prefetch' || purpose === 'prerender') {
+    if (hasPrefetchPurpose(request)) {
       return false;
     }
 
-    const secPurpose = request.headers.get('sec-purpose');
-    if (secPurpose === 'prefetch' || secPurpose === 'prerender') {
-      return false;
-    }
-
-    const xPurpose = request.headers.get('x-purpose');
-    if (xPurpose === 'prefetch' || xPurpose === 'prerender') {
-      return false;
-    }
-
-    // 3. Check Sec-Fetch-Mode: if it's a navigation, it's a real click
-    // "navigate" = user is actively navigating
-    const secFetchMode = request.headers.get('sec-fetch-mode');
-    if (secFetchMode === 'navigate') {
-      return true;
-    }
-
-    // 4. Get User-Agent for further analysis
+    // 3. Inspect the User-Agent before accepting navigation headers. Known
+    // crawlers can send Sec-Fetch-Mode: navigate and must not inflate metrics.
     const userAgent = request.headers.get('user-agent');
 
     // Empty User-Agent is suspicious (bots often omit this)
@@ -96,12 +109,19 @@ export function isCountableClick(request: Request): boolean {
       return false;
     }
 
-    // 5. Check against known bot patterns
+    // 4. Check against known bot patterns
     if (BOT_PATTERNS.some((pattern) => pattern.test(userAgent))) {
       return false;
     }
 
-    // 6. If Sec-Fetch-Mode is missing but User-Agent looks like a browser, likely legitimate
+    // 5. A browser navigation with a non-bot user agent is countable.
+    const secFetchMode = request.headers.get('sec-fetch-mode');
+    if (secFetchMode === 'navigate') {
+      return true;
+    }
+
+    // 6. If Sec-Fetch-Mode is missing but User-Agent passed the specific bot
+    // checks, keep the existing compatibility behavior for older browsers.
     // Most browsers send Sec-Fetch-Mode, but some clients/older browsers might not
     // If we have a UA and it's not a bot, assume it's legitimate
     if (!secFetchMode) {
@@ -134,10 +154,7 @@ export function isCountablePasswordSubmission(request: Request): boolean {
     return false;
   }
 
-  const purpose = request.headers.get('purpose');
-  const secPurpose = request.headers.get('sec-purpose');
-  const xPurpose = request.headers.get('x-purpose');
-  if (purpose === 'prefetch' || purpose === 'prerender' || secPurpose === 'prefetch' || secPurpose === 'prerender' || xPurpose === 'prefetch' || xPurpose === 'prerender') {
+  if (hasPrefetchPurpose(request)) {
     return false;
   }
 

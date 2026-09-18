@@ -108,15 +108,18 @@ type LinkGroupRow = {
 	created_at: string;
 };
 
+/**
+ * Dotless fixed routes that would otherwise be captured by `/:slug`.
+ * Keep this list next to route registration: a slug is never reusable after
+ * soft deletion, so accepting one of these names would consume it forever.
+ */
+const FIXED_ROUTE_SLUGS = ["admin", "api", "health", "healt", "privacidade", "version"] as const;
 const RESERVED_SLUGS = new Set([
-	"admin",
+	...FIXED_ROUTE_SLUGS,
 	"admin.css",
 	"admin.html",
 	"admin.js",
-	"api",
-	"healt",
 	"favicon.ico",
-	"health",
 	"robots.txt",
 ]);
 const SLUG_PATTERN = /^[A-Za-z0-9_-]{3,64}$/;
@@ -141,6 +144,7 @@ const PASSWORD_RATE_LIMIT_MAX_ATTEMPTS = 5;
 const PASSWORD_RATE_LIMIT_WINDOW_MS = 60_000;
 const PASSWORD_SESSION_MAX_AGE_SECONDS = 300;
 const passwordAttempts = new Map<string, { count: number; resetAt: number }>();
+let passwordRateLimitSalt: string | null = null;
 
 const app = new Hono<AppContext>();
 
@@ -325,7 +329,14 @@ app.post("/api/links", async (c) => {
 		return c.json({ error: "Group not found" }, 404);
 	}
 
-	const passwordHash = await hashPassword(payload.password);
+	const password = normalizePassword(payload.password);
+	if (password.kind === "invalid") {
+		return c.json({ error: "Invalid password. Provide a non-empty string or null" }, 400);
+	}
+	if (password.kind === "set" && !hasConfiguredPasswordSessionSecret(c.env)) {
+		return c.json({ error: "PASSWORD_SESSION_SECRET is required to create password-protected links" }, 400);
+	}
+	const passwordHash = password.kind === "set" ? await hashPassword(password.value) : null;
 
 	const requestedSlug = payload.slug?.trim();
 	let slug = requestedSlug ?? "";
@@ -701,8 +712,13 @@ app.get("/:slug", async (c) => {
 		return c.text("Link expired", 410);
 	}
 
-	if (link.password_hash && !(await hasValidPasswordSession(c.req.raw, c.env, link.slug))) {
-		return c.html(renderPasswordGate(link.slug));
+	if (link.password_hash) {
+		if (!hasConfiguredPasswordSessionSecret(c.env)) {
+			return c.text("Password protection is unavailable", 503);
+		}
+		if (!(await hasValidPasswordSession(c.req.raw, c.env, link.slug))) {
+			return c.html(renderPasswordGate(link.slug));
+		}
 	}
 
 	const response = c.redirect(link.target_url, Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302);
@@ -738,16 +754,20 @@ app.post("/:slug", async (c) => {
 		return c.notFound();
 	}
 
-	if (!link.password_hash) {
-		return c.redirect(link.target_url, Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302);
-	}
-
 	if (link.go_live_at && new Date(link.go_live_at).getTime() > Date.now()) {
 		return c.notFound();
 	}
 
 	if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
 		return c.text("Link expired", 410);
+	}
+
+	if (!link.password_hash) {
+		return c.redirect(link.target_url, Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302);
+	}
+
+	if (!hasConfiguredPasswordSessionSecret(c.env)) {
+		return c.text("Password protection is unavailable", 503);
 	}
 
 	if (!(await consumePasswordAttempt(slug, c.req.raw.headers.get("CF-Connecting-IP")))) {
@@ -792,6 +812,14 @@ async function updateLink(c: Context<AppContext>) {
 
 	if (payload.slug && payload.slug !== slug) {
 		return c.json({ error: "Slug is immutable after creation" }, 400);
+	}
+
+	const password = normalizePassword(payload.password);
+	if (password.kind === "invalid") {
+		return c.json({ error: "Invalid password. Provide a non-empty string or null" }, 400);
+	}
+	if (password.kind === "set" && !hasConfiguredPasswordSessionSecret(c.env)) {
+		return c.json({ error: "PASSWORD_SESSION_SECRET is required to add password protection" }, 400);
 	}
 
 	const targetUrlInput = payload.targetUrl ?? payload.url;
@@ -840,9 +868,11 @@ async function updateLink(c: Context<AppContext>) {
 		previousGroupId = currentLink.group_id;
 	}
 
-	const passwordHash = payload.password !== undefined
-		? await hashPassword(payload.password === null ? undefined : payload.password)
-		: undefined;
+	const passwordHash = password.kind === "absent"
+		? undefined
+		: password.kind === "remove"
+			? null
+			: await hashPassword(password.value);
 
 	if (
 		(expiresAt || payload.expiresAt === null || goLiveAt || payload.goLiveAt === null)
@@ -1730,11 +1760,15 @@ function passwordCookieName(slug: string) {
 }
 
 function getPasswordSessionSecret(env: Bindings) {
-	const configuredSecret = env.PASSWORD_SESSION_SECRET?.trim() || env.API_KEY?.trim();
+	const configuredSecret = env.PASSWORD_SESSION_SECRET?.trim();
 	if (!configuredSecret) {
 		throw new Error("PASSWORD_SESSION_SECRET is not configured. Password protection feature requires a static secret.");
 	}
 	return configuredSecret;
+}
+
+function hasConfiguredPasswordSessionSecret(env: Bindings) {
+	return Boolean(env.PASSWORD_SESSION_SECRET?.trim());
 }
 
 async function createPasswordSessionToken(env: Bindings, slug: string) {
@@ -1767,7 +1801,10 @@ async function hasValidPasswordSession(request: Request, env: Bindings, slug: st
 }
 
 async function consumePasswordAttempt(slug: string, clientIp: string | null) {
-	const key = await sha256Hex(`${slug}:${clientIp?.trim() || "unknown"}`);
+	if (!passwordRateLimitSalt) {
+		passwordRateLimitSalt = crypto.randomUUID();
+	}
+	const key = await sha256Hex(`${passwordRateLimitSalt}:${slug}:${clientIp?.trim() || "unknown"}`);
 	const now = Date.now();
 	const current = passwordAttempts.get(key);
 	if (!current || current.resetAt <= now) {
@@ -1784,14 +1821,47 @@ async function consumePasswordAttempt(slug: string, clientIp: string | null) {
 	return true;
 }
 
-async function hashPassword(password?: string) {
-	if (!password?.trim()) {
+async function hashPassword(password?: unknown) {
+	if (!hasPasswordValue(password)) {
 		return null;
 	}
 
 	const salt = Array.from(crypto.getRandomValues(new Uint8Array(12)), (value) => value.toString(16).padStart(2, "0")).join("");
 	const digest = await sha256Hex(`${salt}:${password.trim()}`);
 	return `${salt}:${digest}`;
+}
+
+function hasPasswordValue(password: unknown): password is string {
+	return typeof password === "string" && Boolean(password.trim());
+}
+
+type NormalizedPassword =
+	| { kind: "absent" }
+	| { kind: "remove" }
+	| { kind: "set"; value: string }
+	| { kind: "invalid" };
+
+/**
+ * Normalizes the `password` field before any mutation. Only a non-empty string
+ * adds or replaces a password. `null` (the documented representation) is the
+ * only way to remove it. Empty strings, whitespace-only strings and any other
+ * JSON type are rejected so an invalid value can never be mistaken for a
+ * removal request.
+ */
+function normalizePassword(value: unknown): NormalizedPassword {
+	if (value === undefined) {
+		return { kind: "absent" };
+	}
+
+	if (value === null) {
+		return { kind: "remove" };
+	}
+
+	if (typeof value === "string") {
+		return value.trim() ? { kind: "set", value } : { kind: "invalid" };
+	}
+
+	return { kind: "invalid" };
 }
 
 async function verifyPassword(candidate: string, storedHash: string) {

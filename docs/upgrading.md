@@ -1,8 +1,19 @@
 # Upgrading
 
-## Upgrade para v2.0.1
+## Upgrade para a versão atual
 
 Esta release nao introduz migration nova nem bindings novos para instalacoes ja alinhadas com a baseline LGPD da linha `2.0.0`.
+
+## PASSWORD_SESSION_SECRET e links protegidos por senha
+
+Esta versão passa a exigir `PASSWORD_SESSION_SECRET` para todo o recurso de links protegidos por senha. `API_KEY` deixou de ser fallback de sessão.
+
+- Instalações sem links protegidos por senha: nenhuma ação necessária.
+- Instalações com links protegidos por senha: configure `PASSWORD_SESSION_SECRET` como secret do Worker **antes** do upgrade/deploy desta versão.
+- `API_KEY` não é mais utilizado para assinar sessões de links protegidos por senha.
+- Links protegidos legados sem `PASSWORD_SESSION_SECRET` falham fechados com HTTP 503, tanto no `GET` quanto no `POST`, sem redirect e sem cookie de sessão.
+- HTTP 503 significa configuração pendente no servidor; não é senha incorreta nem link inexistente.
+- Não existe fallback inseguro: sem o secret, o recurso fica indisponível em vez de degradar.
 
 Fluxo normal:
 
@@ -76,5 +87,5 @@ Se você atualiza pelo GitHub ou pelo botão:
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

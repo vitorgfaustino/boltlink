@@ -1,4 +1,4 @@
-# Retention (BoltLink v2.0.1)
+# Retention (BoltLink v2.2.1)
 
 ## Estado atual
 
@@ -42,5 +42,5 @@ Ao atualizar de versões anteriores, a migration `0003_lgpd_minimization.sql` re
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

@@ -1,12 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Segurança e comportamento
+
+- lifecycle do `POST /:slug` agora valida agendamento e expiração antes de decidir se um link não possui senha
+- rotas fixas `version` e `privacidade` passam a fazer parte da fonte central de slugs reservados
+- filtros de métricas classificam User-Agents reconhecidos antes de aceitar `Sec-Fetch-Mode: navigate`; o redirect continua aberto para previews e crawlers
+- links protegidos só podem ser criados ou receber senha quando `PASSWORD_SESSION_SECRET` está configurado; `API_KEY` não é fallback
+- tipos inválidos no campo `password` passam a responder HTTP 400 sem qualquer mutação; somente string não vazia adiciona senha e somente `null` remove
+- filtros de métricas reconhecem `Purpose`/`Sec-Purpose`/`X-Purpose` tokenizados, incluindo valores compostos como `prefetch;prerender`
+- CI usa Node 22, compatível com o lockfile atual
+
+### Operação
+
+- removida injeção de desenvolvimento localhost do asset público do admin
+- rótulo do contador do admin agora informa que exibe links ativos retornados pela API
+- documentação de capacidade Free, política de cliques, segredo de sessão e referrer foi sincronizada
+
 ## [2.2.1] - 2026-06-12
 
 ### Alterado
 - Side-stripe removido dos headings em `public/privacidade.html` (substituído por underline `::after` consistente com admin).
 - Tokens CSS de `privacidade.html` alinhados com `admin.css` (radius, accent-soft, blur, motion).
 - Empty state do painel reescrito para texto neutro (funciona em desktop e mobile).
-- Contador renomeado de "Links criados" para "Total de links" (reflete contagem incluindo desativados).
+- Contador renomeado de "Links criados" para "Total de links".
 - Accordion do formulário agora permite apenas uma seção aberta por vez (reduz carga cognitiva).
 - Tokens duplicados nos templates server-side (`renderHomePage`, `renderPasswordGate`) sincronizados com `admin.css`/DESIGN.md (radius 12px, cubic-bezier motion, `--font`, blur 24px, tokens faltantes adicionados).
 - Raw motion (`150ms ease`, `200ms ease`) substituído por `var(--motion-fast)`/`var(--motion-medium)` nos templates do Worker.
@@ -87,5 +105,5 @@
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

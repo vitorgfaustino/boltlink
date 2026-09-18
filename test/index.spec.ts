@@ -161,6 +161,24 @@ describe("URL shortener worker", () => {
 		);
 	});
 
+	it("reserves fixed public routes without consuming normal slugs", async () => {
+		for (const slug of ["version", "privacidade", "admin", "api", "health"]) {
+			const response = await fetchWorker("http://localhost/api/links", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ slug, targetUrl: "https://destination.example.com/reserved" }),
+			});
+			expect(response.status).toBe(400);
+		}
+
+		const normalResponse = await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ slug: "normal-link", targetUrl: "https://destination.example.com/normal" }),
+		});
+		expect(normalResponse.status).toBe(201);
+	});
+
 	it("creates and lists active links", async () => {
 		const createResponse = await fetchWorker("http://localhost/api/links", {
 			method: "POST",
@@ -442,6 +460,55 @@ describe("URL shortener worker", () => {
 			target_url: "https://destination.example.com/updated",
 			clicks_total: 1,
 		});
+	});
+
+	it("redirects social and search crawlers without counting them", async () => {
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ slug: "preview-link", targetUrl: "https://destination.example.com/preview" }),
+		});
+
+		for (const userAgent of [
+			"Mozilla/5.0 (compatible; Googlebot/2.1)",
+			"facebookexternalhit/1.1",
+			"Discordbot/2.0",
+		]) {
+			const response = await fetchWorker("https://example.com/preview-link", {
+				headers: { "user-agent": userAgent, "sec-fetch-mode": "navigate" },
+			});
+			expect(response.status).toBe(302);
+			expect(response.headers.get("Location")).toBe("https://destination.example.com/preview");
+		}
+
+		const storedLink = await env.db_boltlink
+			.prepare("SELECT clicks_total FROM links WHERE slug = ?")
+			.bind("preview-link")
+			.first<{ clicks_total: number }>();
+		expect(storedLink?.clicks_total).toBe(0);
+	});
+
+	it("redirects prefetch/prerender requests without writing a click", async () => {
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ slug: "prefetch-link", targetUrl: "https://destination.example.com/prefetch" }),
+		});
+
+		const response = await fetchWorker("https://example.com/prefetch-link", {
+			headers: {
+				"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0",
+				"sec-purpose": "prefetch;prerender",
+			},
+		});
+		expect(response.status).toBe(302);
+		expect(response.headers.get("Location")).toBe("https://destination.example.com/prefetch");
+
+		const storedLink = await env.db_boltlink
+			.prepare("SELECT clicks_total FROM links WHERE slug = ?")
+			.bind("prefetch-link")
+			.first<{ clicks_total: number }>();
+		expect(storedLink?.clicks_total).toBe(0);
 	});
 
 	it("resets aggregate clicks for a single active link", async () => {

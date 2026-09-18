@@ -1,6 +1,6 @@
 # AI-START
 
-Este arquivo é a entrada única para qualquer IA operar o BoltLink v2.1.0 com segurança.
+Este arquivo é a entrada única para qualquer IA operar o BoltLink v2.2.1 com segurança.
 
 O objetivo dele é permitir que a IA:
 
@@ -24,7 +24,7 @@ Leia nesta ordem antes de agir:
 
 ## Estado atual do produto
 
-BoltLink v2.1.0 é um gerenciador de links com:
+BoltLink v2.2.1 é um gerenciador de links com:
 
 - redirect público por slug
 - painel administrativo estático
@@ -215,7 +215,7 @@ Depois do deploy:
 1. validar `workers.dev`
 2. configurar Access para `/admin`, `/admin.html`, `/api` e `/api/*`
 3. preencher `TEAM_DOMAIN` e `POLICY_AUD`
-4. opcionalmente configurar `API_KEY` e `PASSWORD_SESSION_SECRET`
+4. opcionalmente configurar `API_KEY`; configurar `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
 5. opcionalmente trocar para domínio próprio
 
 Não existe mais etapa de publicar `IP_HASH_SECRET`.
@@ -226,7 +226,7 @@ Regras para esses valores:
 - nesses fluxos, `TEAM_DOMAIN` e `POLICY_AUD` vivem como texto no dashboard e `API_KEY`/`PASSWORD_SESSION_SECRET` vivem como secrets no dashboard
 - se o projeto publica com Wrangler local, `TEAM_DOMAIN` e `POLICY_AUD` podem existir em `wrangler.local.jsonc`
 - em deploy local, `API_KEY` e `PASSWORD_SESSION_SECRET` devem viver em `.dev.vars` para desenvolvimento ou em secrets do Worker para o ambiente implantado
-- `PASSWORD_SESSION_SECRET` nao e obrigatorio quando a instancia nao usa links protegidos por senha
+- `PASSWORD_SESSION_SECRET` pode ficar ausente quando a instância não usa links protegidos; API e admin recusam criar ou adicionar senha sem esse secret
 
 ## Checkpoints manuais obrigatórios
 
@@ -310,5 +310,5 @@ Se a IA seguir este arquivo corretamente, ela deve conseguir:
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

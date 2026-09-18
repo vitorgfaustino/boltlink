@@ -21,6 +21,7 @@ import {
 	waitOnExecutionContext,
 } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { resetRateLimitStore } from "../src/rate-limit";
 import worker from "../src/index";
 
 const SCHEMA_STATEMENTS = [
@@ -56,10 +57,10 @@ const SCHEMA_STATEMENTS = [
 	"CREATE INDEX IF NOT EXISTS idx_link_groups_parent_id ON link_groups(parent_id)",
 ];
 
-async function fetchWorker(url: string, init?: RequestInit) {
+async function fetchWorker(url: string, init?: RequestInit, overrides?: Partial<Env>) {
 	const request = new Request(url, init);
 	const ctx = createExecutionContext();
-	const response = await worker.fetch(request, { ...env, PASSWORD_SESSION_SECRET: "test-secret" }, ctx);
+	const response = await worker.fetch(request, { ...env, PASSWORD_SESSION_SECRET: "test-secret", ...overrides }, ctx);
 	await waitOnExecutionContext(ctx);
 	return response;
 }
@@ -76,6 +77,7 @@ async function resetDatabase() {
 describe("Link lifecycle and management features", () => {
 	beforeEach(async () => {
 		await resetDatabase();
+		resetRateLimitStore();
 	});
 
 	it("returns 301 when redirect_type=301", async () => {
@@ -111,6 +113,12 @@ describe("Link lifecycle and management features", () => {
 			headers: { "user-agent": "Mozilla/5.0" },
 		});
 		expect(response.status).toBe(410);
+
+		const postResponse = await fetchWorker("https://example.com/expired-link", {
+			method: "POST",
+			headers: { "user-agent": "Mozilla/5.0" },
+		});
+		expect(postResponse.status).toBe(410);
 	});
 
 	it("returns 404 before go_live_at", async () => {
@@ -129,6 +137,89 @@ describe("Link lifecycle and management features", () => {
 			headers: { "user-agent": "Mozilla/5.0" },
 		});
 		expect(response.status).toBe(404);
+
+		const postResponse = await fetchWorker("https://example.com/future-link", {
+			method: "POST",
+			headers: { "user-agent": "Mozilla/5.0" },
+		});
+		expect(postResponse.status).toBe(404);
+	});
+
+	it("redirects an active public link after lifecycle validation", async () => {
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ slug: "active-post", targetUrl: "https://example.com/active" }),
+		});
+
+		const response = await fetchWorker("https://example.com/active-post", {
+			method: "POST",
+			headers: { "user-agent": "Mozilla/5.0" },
+		});
+		expect(response.status).toBe(302);
+		expect(response.headers.get("Location")).toBe("https://example.com/active");
+	});
+
+	it("rejects password protection when PASSWORD_SESSION_SECRET is unavailable", async () => {
+		const response = await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				slug: "missing-secret",
+				targetUrl: "https://example.com/locked",
+				password: "abc123",
+			}),
+		}, { PASSWORD_SESSION_SECRET: undefined });
+
+		expect(response.status).toBe(400);
+		expect((await response.json() as { error: string }).error).toContain("PASSWORD_SESSION_SECRET");
+
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ slug: "public-update", targetUrl: "https://example.com/public" }),
+		});
+		const updateResponse = await fetchWorker("http://localhost/api/links/public-update", {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ password: "abc123" }),
+		}, { PASSWORD_SESSION_SECRET: undefined });
+		expect(updateResponse.status).toBe(400);
+	});
+
+	it("fails closed for a legacy protected link without PASSWORD_SESSION_SECRET", async () => {
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				slug: "legacy-secret",
+				targetUrl: "https://example.com/locked",
+				password: "abc123",
+			}),
+		});
+
+		const legacyEnv = { PASSWORD_SESSION_SECRET: undefined, API_KEY: "legacy-api-key" };
+
+		const getResponse = await fetchWorker("https://example.com/legacy-secret", {
+			headers: { "user-agent": "Mozilla/5.0" },
+		}, legacyEnv);
+		expect(getResponse.status).toBe(503);
+		expect(getResponse.headers.get("Location")).toBeNull();
+		expect(getResponse.headers.get("Set-Cookie")).toBeNull();
+		expect(await getResponse.text()).not.toContain("https://example.com/locked");
+
+		const postResponse = await fetchWorker("https://example.com/legacy-secret", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				"user-agent": "Mozilla/5.0",
+			},
+			body: "password=abc123",
+		}, legacyEnv);
+		expect(postResponse.status).toBe(503);
+		expect(postResponse.headers.get("Location")).toBeNull();
+		expect(postResponse.headers.get("Set-Cookie")).toBeNull();
+		expect(await postResponse.text()).not.toContain("https://example.com/locked");
 	});
 
 	it("rejects expiresAt earlier than goLiveAt", async () => {
@@ -190,6 +281,180 @@ describe("Link lifecycle and management features", () => {
 		const listResponse = await fetchWorker("http://localhost/api/groups");
 		const payload = (await listResponse.json()) as { groups: Array<{ name: string }> };
 		expect(payload.groups.some((group) => group.name === "Campanhas 2026")).toBe(true);
+	});
+
+	it("rejects empty, whitespace and invalid password values on create without creating the link", async () => {
+		for (const password of ["", "   ", 123, true, { nested: true }, ["secret"]]) {
+			const response = await fetchWorker("http://localhost/api/links", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					slug: "invalid-create",
+					targetUrl: "https://example.com/locked",
+					password,
+				}),
+			});
+			expect(response.status).toBe(400);
+			expect((await response.json() as { error: string }).error).toContain("Invalid password");
+		}
+
+		const stored = await env.db_boltlink
+			.prepare("SELECT slug FROM links WHERE slug = ?")
+			.bind("invalid-create")
+			.first<{ slug: string }>();
+		expect(stored).toBeNull();
+	});
+
+	it("rejects empty, whitespace and invalid password values on PATCH without partial update", async () => {
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				slug: "guarded-patch",
+				targetUrl: "https://example.com/locked",
+				redirectType: "301",
+				tags: ["keep-me"],
+				password: "abc123",
+			}),
+		});
+
+		const readRow = () =>
+			env.db_boltlink
+				.prepare(
+					"SELECT target_url, redirect_type, tags, group_id, expires_at, go_live_at, password_hash, updated_at, version FROM links WHERE slug = ?",
+				)
+				.bind("guarded-patch")
+				.first<Record<string, unknown>>();
+
+		const before = await readRow();
+		expect(before?.password_hash).toBeTruthy();
+
+		for (const password of ["", "   ", 123, false, { admin: true }, ["x"]]) {
+			const response = await fetchWorker("http://localhost/api/links/guarded-patch", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ password }),
+			});
+			expect(response.status).toBe(400);
+		}
+
+		const atomicResponse = await fetchWorker("http://localhost/api/links/guarded-patch", {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ targetUrl: "https://example.com/hijacked", tags: ["changed"], password: "" }),
+		});
+		expect(atomicResponse.status).toBe(400);
+
+		const after = await readRow();
+		expect(after).toEqual(before);
+
+		const gateResponse = await fetchWorker("https://example.com/guarded-patch", {
+			headers: { "user-agent": "Mozilla/5.0" },
+		});
+		expect(gateResponse.status).toBe(200);
+		expect(gateResponse.headers.get("Location")).toBeNull();
+		expect(await gateResponse.text()).toContain("Link protegido por senha");
+	});
+
+	it("rejects empty, whitespace and invalid password values on PUT without partial update", async () => {
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				slug: "guarded-put",
+				targetUrl: "https://example.com/locked",
+				password: "abc123",
+			}),
+		});
+
+		const readRow = () =>
+			env.db_boltlink
+				.prepare("SELECT target_url, redirect_type, tags, password_hash, updated_at, version FROM links WHERE slug = ?")
+				.bind("guarded-put")
+				.first<Record<string, unknown>>();
+
+		const before = await readRow();
+		expect(before?.password_hash).toBeTruthy();
+
+		for (const password of ["", "   ", 123, true, { nested: true }, ["x"]]) {
+			const response = await fetchWorker("http://localhost/api/links/guarded-put", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ password }),
+			});
+			expect(response.status).toBe(400);
+		}
+
+		const atomicResponse = await fetchWorker("http://localhost/api/links/guarded-put", {
+			method: "PUT",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ targetUrl: "https://example.com/hijacked", password: "   " }),
+		});
+		expect(atomicResponse.status).toBe(400);
+
+		const after = await readRow();
+		expect(after).toEqual(before);
+
+		const gateResponse = await fetchWorker("https://example.com/guarded-put", {
+			headers: { "user-agent": "Mozilla/5.0" },
+		});
+		expect(gateResponse.status).toBe(200);
+		expect(gateResponse.headers.get("Location")).toBeNull();
+		expect(await gateResponse.text()).toContain("Link protegido por senha");
+	});
+
+	it("removes password only when password is explicitly null", async () => {
+		await fetchWorker("http://localhost/api/links", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				slug: "removable",
+				targetUrl: "https://example.com/removable",
+				password: "abc123",
+			}),
+		});
+
+		const readHash = () =>
+			env.db_boltlink
+				.prepare("SELECT password_hash FROM links WHERE slug = ?")
+				.bind("removable")
+				.first<{ password_hash: string | null }>();
+
+		const originalHash = (await readHash())?.password_hash;
+		expect(originalHash).toBeTruthy();
+
+		for (const password of ["", "   ", 123, false, { admin: true }, ["x"]]) {
+			const response = await fetchWorker("http://localhost/api/links/removable", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ password }),
+			});
+			expect(response.status).toBe(400);
+		}
+
+		expect((await readHash())?.password_hash).toBe(originalHash);
+
+		const stillProtected = await fetchWorker("https://example.com/removable", {
+			headers: { "user-agent": "Mozilla/5.0" },
+		});
+		expect(stillProtected.status).toBe(200);
+		expect(stillProtected.headers.get("Location")).toBeNull();
+		expect(await stillProtected.text()).toContain("Link protegido por senha");
+
+		const removeResponse = await fetchWorker("http://localhost/api/links/removable", {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ password: null }),
+		});
+		expect(removeResponse.status).toBe(200);
+
+		expect((await readHash())?.password_hash).toBeNull();
+
+		const anonymousResponse = await fetchWorker("https://example.com/removable", {
+			headers: { "user-agent": "Mozilla/5.0" },
+		});
+		expect(anonymousResponse.status).toBe(302);
+		expect(anonymousResponse.headers.get("Location")).toBe("https://example.com/removable");
 	});
 
 	it("gates password-protected links", async () => {

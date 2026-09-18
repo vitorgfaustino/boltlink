@@ -76,5 +76,5 @@ Quando o usuário pedir para iniciar o projeto localmente apenas para testes, a 
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

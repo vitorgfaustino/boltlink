@@ -40,7 +40,7 @@ Opções:
 - Ambos
 - Primeira publicação
 
-## Upgrade v2.0.1
+## Upgrade da versão atual
 
 Quando o pedido for `Atualizar o Projeto`:
 
@@ -62,5 +62,5 @@ Se o usuário opera por one-click ou GitHub:
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

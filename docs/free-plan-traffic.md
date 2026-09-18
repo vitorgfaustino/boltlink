@@ -4,9 +4,12 @@ Este guia documenta medidas para reduzir desperdicio de requisicoes e uso de D1 
 
 ## Limites que importam
 
-- Workers Free possui limite diario de requisicoes ao Worker.
-- Requisicoes para Static Assets sao gratuitas e ilimitadas, mas requisicoes que chegam ao script do Worker contam como uso do Worker.
-- D1 Free possui limites proprios de tamanho, leituras, escritas e quantidade de bancos.
+Os valores abaixo refletem a documentação oficial consultada em setembro de 2026; a Cloudflare pode alterá-los. Eles não são SLA do BoltLink.
+
+- Workers Free: 100.000 requests por dia ao Worker.
+- D1 Free: 5 milhões de rows read/dia e 100.000 rows written/dia.
+- Requisições de Static Assets são gratuitas e ilimitadas quando servidas como asset; requisições que invocam o script do Worker contam no uso de Workers.
+- D1 Free também tem limites próprios de storage e bancos, que devem ser consultados na documentação vigente antes de planejar uma operação maior.
 
 Fontes oficiais:
 
@@ -14,7 +17,34 @@ Fontes oficiais:
 - Static Assets billing: https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/
 - D1 limits: https://developers.cloudflare.com/d1/platform/limits/
 
-## O que o codigo faz
+## Capacidade operacional conservadora
+
+BoltLink é projetado para dezenas de milhares de acessos públicos por dia no Cloudflare Free. Um alvo operacional conservador é **aproximadamente 75.000 requisições públicas/dia** sob os limites atuais, preservando margem abaixo dos 100.000 requests/dia para previews sociais, crawlers, admin/API e outros overheads.
+
+Isso não significa “75.000 cliques garantidos por dia”. Requisições públicas não são cliques contabilizados:
+
+```text
+70.000 acessos humanos
++ 10.000 previews/crawlers
++ admin/API
+= invocações totais do Worker
+```
+
+Um crawler pode consumir uma invocação mesmo sem aumentar `clicks_total`. Previews sociais e bots conhecidos devem continuar recebendo redirect para que consigam buscar os metadados Open Graph do destino.
+
+## Custo do caminho crítico
+
+Um redirect público normal deve permanecer aproximadamente:
+
+```text
+1 invocação do Worker
++ 1 lookup principal no D1
++ no máximo 1 escrita agregada para clicks_total
+```
+
+A escrita é feita somente para uma requisição elegível e não atrasa a resposta de redirect. Links protegidos podem executar a verificação de sessão/gate, mas não adicionam consultas externas ou uma tabela de eventos. A contagem agregada não cria clickstream.
+
+## O que o código faz
 
 BoltLink aplica duas protecoes gratuitas dentro da aplicacao:
 
@@ -72,5 +102,5 @@ Antes de bloquear por pais:
 
 ---
 
-Versão 2.1.0
+Versão 2.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

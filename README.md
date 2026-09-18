@@ -104,7 +104,7 @@ Depois do deploy:
 1. validar `workers.dev`
 2. configurar Access para `/admin`, `/admin.html`, `/api` e `/api/*`
 3. preencher `TEAM_DOMAIN` e `POLICY_AUD`
-4. opcionalmente configurar `API_KEY` e `PASSWORD_SESSION_SECRET`
+4. opcionalmente configurar `API_KEY`; configurar `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
 5. opcionalmente trocar para domínio próprio
 
 Se você utiliza o recurso de links protegidos por senha, **deve obrigatoriamente** configurar o `PASSWORD_SESSION_SECRET`. Se não for configurado, a criação e o acesso aos links com senha falharão.
@@ -175,10 +175,14 @@ Para reduzir tráfego automatizado sem depender de WAF pago, consulte `docs/free
 - `observability` fica desligado por padrão
 - `upload_source_maps` fica desligado por padrão
 - `API_KEY` continua opcional para automações internas
-- `PASSWORD_SESSION_SECRET` é recomendado em produção para assinar sessões curtas de links protegidos por senha
+- links protegidos por senha só podem ser criados quando `PASSWORD_SESSION_SECRET` estiver configurado para assinar suas sessões curtas
 - `TEAM_DOMAIN` e `POLICY_AUD` são valores de texto
 - `API_KEY` e `PASSWORD_SESSION_SECRET` devem ser tratados como `Secret`
 - `wrangler.local.jsonc` só afeta deploys locais via Wrangler; GitHub auto-deploy e o Deploy Button usam o template público e os valores definidos no painel
+
+## Capacidade no Cloudflare Free
+
+Projetado para dezenas de milhares de acessos públicos por dia no Cloudflare Free. Um alvo operacional conservador é cerca de **75.000 requisições públicas/dia** sob os limites atuais, deixando margem para previews sociais, crawlers, tráfego de admin/API e outros overheads. Isso não é uma garantia de 75.000 cliques: requisições públicas e cliques contabilizados são métricas diferentes. Veja `docs/free-plan-traffic.md`.
 
 ## Referências
 
