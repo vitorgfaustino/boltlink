@@ -48,16 +48,20 @@ Quando o pedido for `Atualizar o Projeto`:
 2. `git pull --ff-only` quando estiver seguro
 3. `npm install`
 4. `npm run wrangler:init`
-5. `npm run wrangler -- d1 migrations apply <nome-ou-binding-real> --local`
-6. se houver produção remota gerida por CLI, repetir com `--remote -c wrangler.local.jsonc`
-7. `npm test`
+5. `npm run dev-prepare` (migrations no D1 local do Worker) ou `npm run wrangler -- d1 migrations apply <nome-ou-binding-real> --local`
+6. se houver produção remota gerida por CLI: aplicar as migrations remotas (`--remote -c wrangler.local.jsonc`) e só então publicar com `npm run deploy`
+7. se o deploy for one-click/GitHub: provisionar/deploy inicial → migrations remotas → validar; deploy sozinho não prepara o schema (`503 Database schema is not initialized`)
+8. `npm test`
 
 ## One-click e GitHub auto-deploy
 
 Se o usuário opera por one-click ou GitHub:
 
-- o código novo já reconcilia schema legado em runtime
-- ainda assim, a migration `0003_lgpd_minimization.sql` continua sendo o caminho recomendado
+- o runtime não executa reconciliação de schema: tabelas e colunas são responsabilidade exclusiva das migrations
+- ordem suportada no provisionamento inicial: provisionar/deploy inicial → aplicar migrations no D1 remoto → validar/uso
+- ordem suportada em ambiente já existente: migrations remotas → deploy → validar
+- deploy sozinho não deixa a instalação operacional: até as migrations, `/api/*` e redirects respondem `503 Database schema is not initialized`
+- aplique as migrations pendentes no D1 remoto (a `0004_ab_testing.sql` habilita A/B; a `0003_lgpd_minimization.sql` remove `stats`, `last_clicked_at` e `notes`)
 - o handoff obrigatório continua sendo Access
 
 ---

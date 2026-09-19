@@ -25,6 +25,17 @@
  * danos, perdas ou resultados imprecisos decorrentes do uso deste software.
  */
 
+/*
+ * Baseline snapshot of migration 0000_initial_schema.sql.
+ *
+ * This file is a reference for manual tooling. It is NOT executed by the
+ * runtime: versioned migrations are the only authority for schema evolution.
+ * Applying this baseline and then the full migration chain is supported and
+ * duplicate-free, because the migrations only add what is still missing.
+ * Do not add feature columns (A/B or otherwise) to this file; create a new
+ * migration instead.
+ */
+
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS links (
@@ -35,28 +46,8 @@ CREATE TABLE IF NOT EXISTS links (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   disabled_at TEXT,
-  expires_at TEXT,
-  go_live_at TEXT,
-  redirect_type TEXT NOT NULL DEFAULT '302',
-  tags TEXT,
-  has_qrcode INTEGER NOT NULL DEFAULT 0,
-  group_id INTEGER,
-  password_hash TEXT,
   version INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE INDEX IF NOT EXISTS idx_links_slug ON links(slug);
 CREATE INDEX IF NOT EXISTS idx_links_created_at ON links(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_links_has_qrcode ON links(has_qrcode);
-CREATE INDEX IF NOT EXISTS idx_links_tags ON links(tags);
-CREATE INDEX IF NOT EXISTS idx_links_group_id ON links(group_id);
-
-CREATE TABLE IF NOT EXISTS link_groups (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  parent_id INTEGER,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  FOREIGN KEY (parent_id) REFERENCES link_groups(id) ON DELETE SET NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_link_groups_parent_id ON link_groups(parent_id);

@@ -119,17 +119,26 @@ Fluxo para `Iniciar o Projeto`:
 4. rodar `npm install`
 5. rodar `npm run setup`
 6. se o usuário quiser banco explícito, criar D1 com `npm run wrangler -- d1 create ... --update-config`
-7. aplicar migrations locais
-8. rodar `npm test`
-9. parar antes da criação final do Access
+7. aplicar migrations locais (`npm run dev-prepare`)
+8. se o destino for remoto, aplicar as migrations no D1 (`--remote -c wrangler.local.jsonc`) antes de publicar/validar; no Deploy Button, o provisionamento inicial **não** substitui esse passo
+9. rodar `npm test`
+10. parar antes da criação final do Access
 
-Se o pedido for iniciar o projeto apenas localmente para testes manuais, a IA deve incluir:
+Se o pedido for iniciar o projeto apenas localmente para testes manuais, a IA deve preparar o D1 local do Worker **antes** de `npm run dev`:
+
+```bash
+npm run dev-prepare
+```
+
+`npm run dev-prepare` aplica as migrations no D1 local usado pelo `wrangler dev` (`.wrangler/state/v3/d1`). Sem isso o Worker responde `503 Database schema is not initialized`.
+
+Opcionalmente, para navegação/experimentação com um SQLite auxiliar:
 
 ```bash
 npm run dev-init
 ```
 
-Esse comando cria `.dev-env/db.sqlite3` localmente para navegação e experimentação. O diretório `.dev-env/` é ignorado pelo Git e não deve ser tratado como artefato versionado.
+Esse comando cria `.dev-env/db.sqlite3` (migrations + seed) e **não** é o banco do Worker. O diretório `.dev-env/` é ignorado pelo Git e não deve ser tratado como artefato versionado.
 
 ## Fluxo para atualizar instalações existentes
 
@@ -149,9 +158,10 @@ Quando o pedido for `Atualizar o Projeto`, a IA deve:
 5. se estiver seguro, rodar `git pull --ff-only`
 6. rodar `npm install`
 7. rodar `npm run wrangler:init`
-8. aplicar migrations locais
-9. se o deploy remoto for operado por CLI, aplicar migrations remotas com `-c wrangler.local.jsonc`
-10. rodar `npm test`
+8. aplicar migrations locais (`npm run dev-prepare`)
+9. se o deploy remoto for operado por CLI: aplicar as migrations remotas (`--remote -c wrangler.local.jsonc`) e só então publicar com `npm run deploy`
+10. se o deploy for GitHub auto-deploy ou Deploy Button: após o provisionamento/deploy inicial, aplicar as migrations remotas antes de validar; deploy sozinho não deixa a instalação operacional (`503 Database schema is not initialized`)
+11. rodar `npm test`
 
 ## Upgrade específico para legados anteriores à v2.0.0
 
@@ -164,8 +174,8 @@ Projetos antigos podem ainda conter:
 Nesses casos:
 
 - a migration relevante é `migrations/0003_lgpd_minimization.sql`
-- o código atual também reconcilia schema legado em runtime
-- mesmo assim, a migration continua sendo o caminho recomendado
+- o runtime não executa reconciliação de schema; colunas legadas extras são ignoradas e permanecem até uma migration explícita
+- a migration `0003_lgpd_minimization.sql` continua sendo o caminho suportado
 
 Comandos:
 
@@ -210,13 +220,16 @@ A IA deve:
 
 O botão e o auto-deploy continuam usando `wrangler.jsonc`.
 
-Depois do deploy:
+O provisionamento/deploy inicial **não** prepara o schema D1. Até as migrations serem aplicadas, `/api/*` e os redirects respondem `503 Database schema is not initialized`.
 
-1. validar `workers.dev`
-2. configurar Access para `/admin`, `/admin.html`, `/api` e `/api/*`
-3. preencher `TEAM_DOMAIN` e `POLICY_AUD`
-4. opcionalmente configurar `API_KEY`; configurar `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
-5. opcionalmente trocar para domínio próprio
+Depois do deploy/provisionamento:
+
+1. aplicar as migrations no D1 remoto: `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`
+2. validar `workers.dev` (API e redirect)
+3. configurar Access para `/admin`, `/admin.html`, `/api` e `/api/*`
+4. preencher `TEAM_DOMAIN` e `POLICY_AUD`
+5. opcionalmente configurar `API_KEY`; configurar `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
+6. opcionalmente trocar para domínio próprio
 
 Não existe mais etapa de publicar `IP_HASH_SECRET`.
 
@@ -246,8 +259,8 @@ A IA deve parar e entregar handoff quando a tarefa depender de:
 - `docs/cloudflare-setup.md`
 - `docs/admin-auth.md`
 - `docs/privacy.md`
-- `schema.sql`
-- `migrations/`
+- `migrations/` (autoridade do schema)
+- `schema.sql` (baseline da `0000`, não executado pelo runtime)
 - `wrangler.jsonc`
 
 ## Comandos de referência
@@ -264,7 +277,8 @@ Setup local com banco SQLite de apoio:
 ```bash
 npm install
 npm run setup
-npm run dev-init
+npm run dev-prepare   # migrations no D1 local usado pelo Worker
+npm run dev-init      # opcional: SQLite auxiliar em .dev-env/
 npm run dev
 ```
 

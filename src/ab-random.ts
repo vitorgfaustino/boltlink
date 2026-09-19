@@ -15,31 +15,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
-import { defineConfig } from "vitest/config";
-
-export default defineConfig({
-	test: {
-		projects: [
-			{
-				plugins: [
-					cloudflareTest({
-						wrangler: { configPath: "./wrangler.jsonc" },
-					}),
-				],
-				test: {
-					name: "workers",
-					include: ["test/**/*.spec.ts"],
-					exclude: ["test/ab-display.spec.ts"],
-				},
-			},
-			{
-				test: {
-					name: "node",
-					environment: "node",
-					include: ["test/ab-display.spec.ts"],
-				},
-			},
-		],
-	},
-});
+/**
+ * Uniform random integer in [0, 100) used only by the stateless A/B split.
+ * Rejection sampling removes the modulo bias of a single byte.
+ */
+export function randomPercent(): number {
+	const bytes = new Uint8Array(1);
+	do {
+		crypto.getRandomValues(bytes);
+	} while (bytes[0] >= 200);
+	return bytes[0] % 100;
+}

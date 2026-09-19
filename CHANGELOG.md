@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Adicionado
+
+- Split Test A/B por link com Control A (`target_url`) e Variant B (`ab_target_url`), distribuição stateless por requisição e contadores agregados `ab_clicks_a`/`ab_clicks_b`
+- migration `0004_ab_testing.sql` como fonte autoritativa das colunas A/B; o runtime não pré-aplica a migration e mantém links normais funcionando em banco pré-0004
+- migrations como única autoridade do schema: instalação limpa = aplicar `0000` a `0004`; `schema.sql` passa a ser apenas o baseline da `0000` para ferramentas manuais
+- UI de Split Test A/B no admin (toggle, Variant B, presets de Traffic Allocation) e exibição de Cliques A/B e Distribuição observada, inclusive após o teste ser encerrado
+- validação fail-fast de `abEnabled`/`abTargetUrl`/`abWeightB` (1 a 99) sem partial mutation
+- `ab_generation`/`metric_epoch` para fencing de métricas atrasadas e concorrência otimista (`version`) nos updates administrativos
+- testes determinísticos de split (RNG injetado), geração, late write, reset, concorrência, cache, senha + A/B, duplicação, instalação limpa e upgrade
+
+### Corrigido
+
+- escrita de métrica atrasada não contamina mais a nova geração A/B nem ressuscita um reset manual
+- `PATCH`/`PUT` concorrentes retornam `409` em vez de persistir configuração A/B inválida
+- runtime não cria nenhuma coluna (A/B ou de features) e não executa `schema.sql`: banco vazio falha fechado com `503 Database schema is not initialized` até as migrations serem aplicadas, então a cadeia `0000`→`0004` aplica sem `duplicate column` (`BL-AB-003-R1`)
+- A/B nunca emite `301` cacheável: sempre `302` com `Cache-Control: no-store`, e a API rejeita A/B + `301`
+- RNG do split só é executado quando existe A/B ativo e acesso humano elegível
+- runtime não executa mais rebuild destrutivo de tabela: colunas legadas extras (`last_clicked_at`, `notes`, `stats`) são ignoradas e permanecem até uma migration explícita, eliminando a corrida entre rebuild e migration (`BL-AB-015`)
+- capability negativa não fica cacheada: um isolate iniciado antes da `0004` passa a usar fencing assim que a migration é aplicada
+- results de um teste encerrado continuam visíveis no admin sem associar alocação/Variant B atuais aos counters históricos; configuração futura aparece separada como "Próximo teste"
+- clique capturado antes da migration `0004` usa fence execution-time (`boltlink_metric_fence`): não ressuscita reset mesmo quando a migration e o reset chegam depois do SQL legado já ter sido escolhido, e um bootstrap iniciado pré-`0004` não consegue rebaixar a view real promovida pela migration (promoção `SHIM → REAL` é exclusiva da migration; runtime só faz `CREATE VIEW IF NOT EXISTS`)
+- `GET /api/capabilities` informa `abTesting` ao Admin; antes da `0004` o painel oculta A/B e mantém create/edit normais sem campos A/B
+- README deixa explícito que migrations são autoritativas e que o runtime não cria colunas A/B
+- scripts `dev-validate-phase-*` usam `--testNamePattern` (Vitest 4) com `--passWithNoTests`
+- fluxo local deixa explícito que `npm run dev-init` prepara apenas o SQLite auxiliar `.dev-env/db.sqlite3`; o Worker usa o D1 local do Wrangler, preparado por `npm run dev-prepare` antes de `npm run dev`; mensagem final do `dev-init` e fluxos one-click/remotos sincronizados (provisionar/deploy inicial não substitui migrations remotas) (`BL-AB-016`)
+
 ### Segurança e comportamento
 
 - lifecycle do `POST /:slug` agora valida agendamento e expiração antes de decidir se um link não possui senha

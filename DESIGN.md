@@ -194,6 +194,13 @@ O sistema usa camadas com transparência e blur, não sombras pesadas. A profund
 - **Open:** Fundo `rgba(255,255,255,0.03)`, borda `rgba(0,161,245,0.2)`. Chevron rotaciona -135deg.
 - **Content:** Gap 14px entre fields internos.
 
+### Split Test A/B
+- **Container:** Accordion `Split Test A/B` dentro do formulário, com toggle (`checkbox-row`), input de URL para Variant B e um `select` de Traffic Allocation com presets (90/10, 75/25, 50/50, 25/75, 10/90). Quando a capability `abTesting` é falsa (instalação pré-`0004`), a seção fica oculta com uma nota curta e o formulário volta ao payload normal da Fase 1.
+- **Redirect:** ativar A/B força `302` no select e desabilita `301` enquanto o toggle estiver ligado; o backend é a autoridade final e rejeita A/B + `301` com `400`.
+- **Copy:** usa apenas `Control A`, `Variant B`, `Traffic Allocation`, `Cliques A`, `Cliques B` e `Distribuição observada`. Nunca `conversion`, `winner` ou `significância estatística`.
+- **Results:** métricas no card do link (pills `--metric`) quando o teste está ativo e também quando encerrado com histórico (`Split A/B Encerrado`, `Resultados do último teste`), no mesmo estilo dos demais metadados. Por não existir snapshot da configuração antiga, alocação e Variant B atuais nunca são exibidos como parte dos resultados históricos; quando configurados, aparecem separados como `Próximo teste`. Sem gráficos, sem segunda cor, sem destaque visual de "vencedor".
+- **Restraint:** um único toggle e um único percentual. A/B/C/D, sticky sessions e seleção automática de vencedor ficam fora de escopo.
+
 ## 6. Do's and Don'ts
 
 ### Do:

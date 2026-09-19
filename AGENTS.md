@@ -30,7 +30,9 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - `wrangler.local.jsonc` é a configuração privada local e não deve ser versionada
 - não introduza `wrangler.toml`
 - se bindings mudarem, rode `npm run cf-typegen`
-- se schema mudar, atualize `schema.sql` e a migration correspondente
+- se schema mudar, crie uma nova migration; `schema.sql` é apenas o baseline da `0000_initial_schema.sql` e não deve receber colunas de features
+- o runtime não pode executar `schema.sql`, criar/alterar colunas, aplicar migrations implicitamente nem reconstruir tabelas durante requests; banco não preparado deve falhar fechado com `503`
+- desenvolvimento local do Worker exige migrations no D1 do Wrangler (`npm run dev-prepare`); `npm run dev-init` prepara apenas o SQLite auxiliar `.dev-env/db.sqlite3`, que o Worker não usa
 
 ## Restrições funcionais que devem ser preservadas
 
@@ -48,7 +50,7 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - UI: `public/admin.html`
 - API ou auth: `src/index.ts`
 - rate limiting: `src/rate-limit.ts`
-- banco: `schema.sql` e `migrations/`
+- banco: `migrations/` (autoridade); `schema.sql` (baseline da `0000` para ferramentas manuais)
 - operação: `docs/`
 - regras para IA: este arquivo e `AI-START.md`
 
@@ -84,7 +86,7 @@ Ao preparar uma nova versão do produto, a IA deve revisar e sincronizar pelo me
 - `RELEASE_NOTES.md`
 - `docs/`
 - `public/` quando houver texto visível de versão, política pública ou comportamento alterado
-- `schema.sql` e `migrations/` quando houver mudança de banco
+- `migrations/` quando houver mudança de banco; não adicione colunas a `schema.sql`
 - `wrangler.jsonc` e exemplos de ambiente quando houver mudança operacional
 - `test/` (Especialmente `test/index.spec.ts`, onde strings de versão podem estar hardcoded nas asserções de testes da API)
 

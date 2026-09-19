@@ -181,6 +181,40 @@
             </div>
           </details>
 
+          <p class="field-help" id="ab-testing-unavailable" hidden>Split Test A/B requer a migration 0004_ab_testing.sql aplicada nesta instalação.</p>
+          <details id="ab-testing-section">
+            <summary>Split Test A/B</summary>
+            <div class="form-section">
+              <label class="checkbox-row">
+                <input id="ab-enabled" type="checkbox" />
+                Ativar Split Test A/B
+              </label>
+              <p class="field-help">Control A usa sempre o destino principal do link. Split Test A/B exige redirect temporário (302) e a decisão da variante não é cacheada. A distribuição é feita por requisição, sem cookies, sem visitor ID e sem fingerprint.</p>
+
+              <label>
+                <span class="field-label">
+                  Variant B (URL alternativa)
+                  <span class="help-tip">
+                    <button type="button" class="help-tip-btn" aria-label="Ajuda sobre Variant B">i</button>
+                    <span class="help-tip-text">Destino usado quando o acesso cai na Variant B. Precisa ser uma URL http ou https válida.</span>
+                  </span>
+                </span>
+                <input id="ab-target-url" type="url" placeholder="https://exemplo.com/landing-b" />
+              </label>
+
+              <label>
+                Traffic Allocation
+                <select id="ab-weight-b">
+                  <option value="10">A 90% / B 10%</option>
+                  <option value="25">A 75% / B 25%</option>
+                  <option value="50" selected>A 50% / B 50%</option>
+                  <option value="75">A 25% / B 75%</option>
+                  <option value="90">A 10% / B 90%</option>
+                </select>
+              </label>
+            </div>
+          </details>
+
           <div class="actions">
             <button type="submit" id="submit-button" class="primary">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -254,6 +288,7 @@
     </footer>
   </main>
 
+  <script src="/ab-display.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>

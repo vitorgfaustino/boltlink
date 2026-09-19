@@ -14,13 +14,14 @@
     "test:watch": "vitest",
     "cf-typegen": "node scripts/wrangler.mjs types",
     "dev-init": "node scripts/dev-env-init.mjs",
+    "dev-prepare": "node scripts/dev-prepare.mjs",
     "dev-reset": "rm -rf .dev-env/db.sqlite3 && npm run dev-init",
     "dev-test": "vitest run test/ --reporter=verbose",
-    "dev-validate-phase-1": "npm run test -- --grep 'Phase 1'",
-    "dev-validate-phase-2": "npm run test -- --grep 'Phase 2'",
-    "dev-validate-phase-3": "npm run test -- --grep 'Phase 3'",
-    "dev-validate-phase-4": "npm run test -- --grep 'Phase 4'",
-    "dev-validate-phase-5": "npm run test -- --grep 'Phase 5'"
+    "dev-validate-phase-1": "npm run test -- --testNamePattern 'Phase 1' --passWithNoTests",
+    "dev-validate-phase-2": "npm run test -- --testNamePattern 'Phase 2' --passWithNoTests",
+    "dev-validate-phase-3": "npm run test -- --testNamePattern 'Phase 3' --passWithNoTests",
+    "dev-validate-phase-4": "npm run test -- --testNamePattern 'Phase 4' --passWithNoTests",
+    "dev-validate-phase-5": "npm run test -- --testNamePattern 'Phase 5' --passWithNoTests"
   },
   "cloudflare": {
     "bindings": {

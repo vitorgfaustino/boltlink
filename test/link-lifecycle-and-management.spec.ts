@@ -40,6 +40,16 @@ const SCHEMA_STATEMENTS = [
 	  has_qrcode INTEGER NOT NULL DEFAULT 0,
 	  group_id INTEGER,
 	  password_hash TEXT,
+	  ab_enabled INTEGER NOT NULL DEFAULT 0,
+	  ab_target_url TEXT,
+	  ab_weight_b INTEGER NOT NULL DEFAULT 50,
+
+	  ab_generation INTEGER NOT NULL DEFAULT 0,
+
+	  metric_epoch INTEGER NOT NULL DEFAULT 0,
+	  ab_clicks_a INTEGER NOT NULL DEFAULT 0,
+	  ab_clicks_b INTEGER NOT NULL DEFAULT 0,
+	  ab_started_at TEXT,
 	  version INTEGER NOT NULL DEFAULT 1
 	)`,
 	"CREATE INDEX IF NOT EXISTS idx_links_slug ON links(slug)",

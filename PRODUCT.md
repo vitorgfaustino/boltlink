@@ -14,6 +14,12 @@ Self-hosted link management com privacy-by-default. O BoltLink existe para mante
 
 Sucesso é: redirect rápido e previsível, painel operacional suficiente, zero coleta desnecessária de dados.
 
+## Split Test A/B
+
+Um link pode dividir tráfego entre Control A (o destino principal) e Variant B (destino alternativo) por um percentual definido pelo operador. A escolha é **stateless**: cada requisição humana elegível sorteia a variante de forma independente, sem cookie de experimento, visitor ID ou fingerprint. Bots, crawlers e previews sociais recebem sempre o Control A.
+
+O produto mede apenas **distribuição de cliques** (`Cliques A`, `Cliques B`, `Distribuição observada`, `Traffic Allocation`). Não há taxa de conversão, vencedor, significância estatística, sessões ou receita — conversão continua sendo responsabilidade de ferramentas externas como Google Ads, GA4 e Meta.
+
 ## Brand Personality
 
 **privacy-first, preciso, confiável**

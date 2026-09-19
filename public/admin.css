@@ -374,6 +374,19 @@ label small {
   font-weight: 400;
 }
 
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.checkbox-row input[type="checkbox"] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+
 .help-tip {
   position: relative;
   display: inline-flex;

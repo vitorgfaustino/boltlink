@@ -28,7 +28,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEV_ENV_PATH = path.join(__dirname, '..', '.dev-env');
 const DB_PATH = path.join(DEV_ENV_PATH, 'db.sqlite3');
-const SCHEMA_PATH = path.join(__dirname, '..', 'schema.sql');
+const MIGRATIONS_PATH = path.join(__dirname, '..', 'migrations');
 
 console.log('BoltLink DEV Environment Initialization\n');
 
@@ -44,43 +44,25 @@ if (fs.existsSync(DB_PATH)) {
   console.log(`Removed existing database`);
 }
 
-// Create new SQLite database with schema
+// Create new SQLite database by replaying the versioned migrations
 console.log(`Initializing SQLite database at ${DB_PATH}`);
 
 try {
-  // Read the schema
-  const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
-  
-  // Use sqlite3 CLI to create the database and apply schema
-  // First, create the database file
   fs.writeFileSync(DB_PATH, '');
-  
-  // Apply schema using Node's built-in SQLite if available, or fall back to CLI
+
   try {
-    // Try using better-sqlite3 if installed via wrangler
-    const sqlite3Cmd = `sqlite3 "${DB_PATH}"`;
-    
-    // Split schema into individual statements and execute each
-    const statements = schema
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-    
-    const sqlContent = statements.map(s => s + ';').join('\n');
-    
-    // Create a temp SQL file
-    const tempSqlPath = path.join(DEV_ENV_PATH, 'init.sql');
-    fs.writeFileSync(tempSqlPath, sqlContent);
-    
-    // Execute using sqlite3 CLI
-    execSync(`sqlite3 "${DB_PATH}" < "${tempSqlPath}"`, { stdio: 'inherit' });
-    
-    // Clean up temp file
-    fs.unlinkSync(tempSqlPath);
-    
-    console.log(`Applied schema to database`);
+    const migrationFiles = fs
+      .readdirSync(MIGRATIONS_PATH)
+      .filter((name) => name.endsWith('.sql'))
+      .sort();
+
+    for (const migrationFile of migrationFiles) {
+      execSync(`sqlite3 "${DB_PATH}" < "${path.join(MIGRATIONS_PATH, migrationFile)}"`, { stdio: 'inherit' });
+    }
+
+    console.log(`Applied ${migrationFiles.length} migrations to database`);
   } catch (err) {
-    console.error(`Could not apply schema: ${err.message}`);
+    console.error(`Could not apply migrations: ${err.message}`);
     console.log(`Try installing sqlite3: brew install sqlite3`);
     process.exit(1);
   }
@@ -136,10 +118,13 @@ try {
   process.exit(1);
 }
 
-console.log(`\nDEV environment ready.\n`);
+console.log(`\nDEV auxiliary SQLite ready.\n`);
 console.log(`Database location: ${DB_PATH}`);
-console.log(`\nNext steps:`);
-console.log(`  npm run dev          # Start local worker`);
+console.log(`This file is an auxiliary SQLite database. It is NOT the D1 used by \`wrangler dev\` (.wrangler/state/v3/d1).`);
+console.log(`\nNext steps for the Worker:`);
+console.log(`  npm run dev-prepare  # Apply migrations to the local D1 used by the Worker`);
+console.log(`  npm run dev          # Start the local Worker`);
+console.log(`\nOther commands:`);
 console.log(`  npm test             # Run all tests`);
-console.log(`  npm run dev-reset    # Reset database to initial state`);
+console.log(`  npm run dev-reset    # Reset the auxiliary SQLite and recreate it`);
 console.log(``);

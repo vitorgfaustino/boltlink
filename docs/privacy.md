@@ -12,6 +12,7 @@ Redirecionar, contar de forma agregada e evitar coleta desnecessária.
 - `links.created_at`
 - `links.updated_at`
 - campos operacionais do link: `redirect_type`, `expires_at`, `go_live_at`, `tags`, `has_qrcode`, `group_id`, `password_hash`, `disabled_at`, `version`
+- quando o Split Test A/B está ativo: `ab_target_url`, `ab_weight_b`, `ab_enabled`, `ab_started_at`, a geração/epóque do experimento e os contadores agregados `ab_clicks_a` e `ab_clicks_b`
 - nomes de grupos em `link_groups`
 
 ## O que o produto não persiste
@@ -25,6 +26,9 @@ Redirecionar, contar de forma agregada e evitar coleta desnecessária.
 - `last_clicked_at`
 - notas internas livres
 - cookies de rastreamento
+- cookie de experimento A/B
+- registro de qual variante (A ou B) um visitante recebeu
+- visitor ID, fingerprint ou qualquer identidade estável de visitante
 
 ## Contagem
 
@@ -33,6 +37,8 @@ Cada clique elegível incrementa apenas `links.clicks_total`.
 O redirecionamento continua respondendo antes da atualização do contador.
 
 O operador pode zerar manualmente `links.clicks_total` de um link ativo pelo admin. Isso remove apenas a métrica agregada daquele link; não existe histórico de eventos individuais para apagar.
+
+Privacy-first stateless A/B testing distributes each eligible request independently without building visitor profiles. Em links com Split Test A/B, a variante é sorteada por requisição e apenas os contadores agregados (`ab_clicks_a`, `ab_clicks_b`) são persistidos.
 
 Excluir um link não remove fisicamente a linha do D1. O produto marca `disabled_at` para impedir novo redirect e preservar o slug como não reutilizável.
 

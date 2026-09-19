@@ -32,7 +32,7 @@ import QRCode from "qrcode";
 import packageJson from "../package.json";
 import { consumePublicRedirectBudget, rateLimitMiddleware } from "./rate-limit";
 import { isCountableClick, isCountablePasswordSubmission } from "./click-filter";
-import databaseSchema from "../schema.sql";
+import { randomPercent } from "./ab-random";
 
 type Bindings = {
 	db_boltlink: D1Database;
@@ -64,6 +64,14 @@ type LinkRow = {
 	group_id: number | null;
 	group_name?: string | null;
 	has_password: number;
+	ab_enabled: number;
+	ab_target_url: string | null;
+	ab_weight_b: number;
+	ab_generation: number;
+	metric_epoch: number;
+	ab_clicks_a: number;
+	ab_clicks_b: number;
+	ab_started_at: string | null;
 	version: number;
 };
 
@@ -75,6 +83,11 @@ type RedirectRow = {
 	go_live_at: string | null;
 	redirect_type: "301" | "302";
 	password_hash: string | null;
+	ab_enabled?: number;
+	ab_target_url?: string | null;
+	ab_weight_b?: number;
+	ab_generation?: number;
+	metric_epoch?: number;
 };
 
 type CreateLinkPayload = {
@@ -87,6 +100,9 @@ type CreateLinkPayload = {
 	goLiveAt?: string;
 	groupId?: number | null;
 	password?: string;
+	abEnabled?: boolean;
+	abTargetUrl?: string | null;
+	abWeightB?: number;
 };
 
 type UpdateLinkPayload = {
@@ -99,6 +115,9 @@ type UpdateLinkPayload = {
 	goLiveAt?: string | null;
 	groupId?: number | null;
 	password?: string | null;
+	abEnabled?: boolean;
+	abTargetUrl?: string | null;
+	abWeightB?: number;
 };
 
 type LinkGroupRow = {
@@ -125,30 +144,71 @@ const RESERVED_SLUGS = new Set([
 const SLUG_PATTERN = /^[A-Za-z0-9_-]{3,64}$/;
 const SLUG_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const accessJwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
-const databaseSchemaStatements = databaseSchema
-	.replace(/\/\*[\s\S]*?\*\//g, '')
-	.split(";")
-	.map((statement) => statement.trim())
-	.filter(Boolean);
 const databaseSchemaBootstrap = new WeakMap<D1Database, Promise<void>>();
-const LINK_INDEX_STATEMENTS = [
-	"CREATE INDEX IF NOT EXISTS idx_links_slug ON links(slug)",
-	"CREATE INDEX IF NOT EXISTS idx_links_created_at ON links(created_at DESC)",
-	"CREATE INDEX IF NOT EXISTS idx_links_has_qrcode ON links(has_qrcode)",
-	"CREATE INDEX IF NOT EXISTS idx_links_tags ON links(tags)",
-	"CREATE INDEX IF NOT EXISTS idx_links_group_id ON links(group_id)",
-];
+const databaseAbReady = new WeakMap<D1Database, boolean>();
+const AB_SCHEMA_COLUMNS = [
+	"ab_enabled",
+	"ab_target_url",
+	"ab_weight_b",
+	"ab_generation",
+	"metric_epoch",
+	"ab_clicks_a",
+	"ab_clicks_b",
+	"ab_started_at",
+] as const;
+/**
+ * Columns the runtime needs to operate. They are created exclusively by the
+ * versioned migrations; the runtime validates their presence and fails closed
+ * when the database was never prepared instead of evolving the schema itself.
+ */
+const REQUIRED_LINK_COLUMNS = [
+	"id",
+	"slug",
+	"target_url",
+	"clicks_total",
+	"created_at",
+	"updated_at",
+	"disabled_at",
+	"expires_at",
+	"go_live_at",
+	"redirect_type",
+	"tags",
+	"has_qrcode",
+	"group_id",
+	"password_hash",
+	"version",
+] as const;
+const DATABASE_SCHEMA_NOT_INITIALIZED_MESSAGE = "Database schema is not initialized";
+let databaseSchemaWarningLogged = false;
+const METRIC_FENCE_VIEW = "boltlink_metric_fence";
+const METRIC_FENCE_VIEW_REAL_SQL = `CREATE VIEW IF NOT EXISTS ${METRIC_FENCE_VIEW} AS SELECT id, metric_epoch FROM links`;
+const METRIC_FENCE_VIEW_LEGACY_SQL = `CREATE VIEW IF NOT EXISTS ${METRIC_FENCE_VIEW} AS SELECT id, 0 AS metric_epoch FROM links`;
 const APP_VERSION = packageJson.version;
 const DEFAULT_APP_TIMEZONE = "America/Sao_Paulo";
 const PASSWORD_RATE_LIMIT_MAX_ATTEMPTS = 5;
 const PASSWORD_RATE_LIMIT_WINDOW_MS = 60_000;
 const PASSWORD_SESSION_MAX_AGE_SECONDS = 300;
+const DEFAULT_AB_WEIGHT_B = 50;
+const AB_WEIGHT_MIN = 1;
+const AB_WEIGHT_MAX = 99;
 const passwordAttempts = new Map<string, { count: number; resetAt: number }>();
 let passwordRateLimitSalt: string | null = null;
 
 const app = new Hono<AppContext>();
 
 app.onError((error, c) => {
+	if (error instanceof DatabaseSchemaNotInitializedError) {
+		if (!databaseSchemaWarningLogged) {
+			databaseSchemaWarningLogged = true;
+			console.error(`${DATABASE_SCHEMA_NOT_INITIALIZED_MESSAGE}. Apply the versioned migrations before serving requests.`);
+		}
+		if (isApiPath(c.req.path)) {
+			return applySecurityHeaders(c.json({ error: DATABASE_SCHEMA_NOT_INITIALIZED_MESSAGE }, 503), c.req.path, c.req.url);
+		}
+
+		return applySecurityHeaders(c.text(DATABASE_SCHEMA_NOT_INITIALIZED_MESSAGE, 503), c.req.path, c.req.url);
+	}
+
 	console.error("Unhandled application error", error);
 	if (isApiPath(c.req.path)) {
 		return applySecurityHeaders(c.json({ error: "Internal server error" }, 500), c.req.path, c.req.url);
@@ -220,6 +280,11 @@ app.get("/admin/", serveAdminAsset);
 app.get("/admin.html", serveAdminAsset);
 app.get("/privacidade", servePrivacyAsset);
 
+app.get("/api/capabilities", async (c) => {
+	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
+	return c.json({ abTesting: schema.abReady });
+});
+
 app.get("/api/links", async (c) => {
 	const search = c.req.query("search")?.trim() ?? "";
 	const searchPattern = search ? `%${escapeLikePattern(search)}%` : null;
@@ -258,6 +323,19 @@ app.get("/api/links", async (c) => {
 		}
 	}
 
+	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
+	const abColumns = schema.abReady
+		? `,
+				links.ab_enabled,
+				links.ab_target_url,
+				links.ab_weight_b,
+				links.ab_generation,
+				links.metric_epoch,
+				links.ab_clicks_a,
+				links.ab_clicks_b,
+				links.ab_started_at`
+		: "";
+
 	const baseSql = `SELECT
 				links.id,
 				links.slug,
@@ -273,7 +351,7 @@ app.get("/api/links", async (c) => {
 				links.has_qrcode,
 				links.group_id,
 				link_groups.name AS group_name,
-				CASE WHEN links.password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
+				CASE WHEN links.password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${abColumns},
 				links.version
 			FROM links
 			LEFT JOIN link_groups ON link_groups.id = links.group_id
@@ -338,6 +416,19 @@ app.post("/api/links", async (c) => {
 	}
 	const passwordHash = password.kind === "set" ? await hashPassword(password.value) : null;
 
+	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
+	if (!schema.abReady && (payload.abEnabled !== undefined || payload.abTargetUrl !== undefined || payload.abWeightB !== undefined)) {
+		return c.json({ error: "A/B testing requires migration 0004_ab_testing.sql to be applied" }, 400);
+	}
+
+	const abConfig = resolveAbConfig(payload, null);
+	if (!abConfig.ok) {
+		return c.json({ error: abConfig.error }, 400);
+	}
+	if (abConfig.enabled && redirectType === "301") {
+		return c.json({ error: "A/B testing requires a temporary redirect (302)" }, 400);
+	}
+
 	const requestedSlug = payload.slug?.trim();
 	let slug = requestedSlug ?? "";
 
@@ -356,47 +447,108 @@ app.post("/api/links", async (c) => {
 		slug = await generateUniqueSlug(c.env.db_boltlink);
 	}
 
-	const createdLink = await c.env.db_boltlink
-		.prepare(
-			`INSERT INTO links (
-				slug,
-				target_url,
-				expires_at,
-				go_live_at,
-				redirect_type,
-				tags,
-				group_id,
-				password_hash
+	const abStartedAt = abConfig.enabled ? isoNow() : null;
+	const createdLink = schema.abReady
+		? await c.env.db_boltlink
+			.prepare(
+				`INSERT INTO links (
+					slug,
+					target_url,
+					expires_at,
+					go_live_at,
+					redirect_type,
+					tags,
+					group_id,
+					password_hash,
+					ab_enabled,
+					ab_target_url,
+					ab_weight_b,
+					ab_generation,
+					ab_started_at
+				)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				RETURNING
+					id,
+					slug,
+					target_url,
+					clicks_total,
+					created_at,
+					updated_at,
+					disabled_at,
+					expires_at,
+					go_live_at,
+					redirect_type,
+					tags,
+					has_qrcode,
+					group_id,
+					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
+					ab_enabled,
+					ab_target_url,
+					ab_weight_b,
+					ab_generation,
+					metric_epoch,
+					ab_clicks_a,
+					ab_clicks_b,
+					ab_started_at,
+					version`,
 			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			RETURNING
-				id,
+			.bind(
 				slug,
-				target_url,
-				clicks_total,
-				created_at,
-				updated_at,
-				disabled_at,
-				expires_at,
-				go_live_at,
-				redirect_type,
+				targetUrl,
+				expiresAt,
+				goLiveAt,
+				redirectType,
 				tags,
-				has_qrcode,
-				group_id,
-				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
-				version`,
-		)
-		.bind(
-			slug,
-			targetUrl,
-			expiresAt,
-			goLiveAt,
-			redirectType,
-			tags,
-			groupId ?? null,
-			passwordHash,
-		)
-		.first<LinkRow>();
+				groupId ?? null,
+				passwordHash,
+				abConfig.enabled ? 1 : 0,
+				abConfig.targetUrl,
+				abConfig.weightB,
+				abConfig.enabled ? 1 : 0,
+				abStartedAt,
+			)
+			.first<LinkRow>()
+		: await c.env.db_boltlink
+			.prepare(
+				`INSERT INTO links (
+					slug,
+					target_url,
+					expires_at,
+					go_live_at,
+					redirect_type,
+					tags,
+					group_id,
+					password_hash
+				)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				RETURNING
+					id,
+					slug,
+					target_url,
+					clicks_total,
+					created_at,
+					updated_at,
+					disabled_at,
+					expires_at,
+					go_live_at,
+					redirect_type,
+					tags,
+					has_qrcode,
+					group_id,
+					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
+					version`,
+			)
+			.bind(
+				slug,
+				targetUrl,
+				expiresAt,
+				goLiveAt,
+				redirectType,
+				tags,
+				groupId ?? null,
+				passwordHash,
+			)
+			.first<LinkRow>();
 
 	return c.json({ link: createdLink }, 201);
 });
@@ -443,16 +595,34 @@ app.post("/api/links/:slug/reset-clicks", async (c) => {
 		return c.json({ error: "Reserved slug cannot reset clicks" }, 400);
 	}
 
+	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
 	const now = isoNow();
-	const resetLink = await c.env.db_boltlink
-		.prepare(
-			`UPDATE links
-			SET clicks_total = 0, updated_at = ?, version = version + 1
-			WHERE slug = ? AND disabled_at IS NULL
-			RETURNING slug, clicks_total`,
-		)
-		.bind(now, slug)
-		.first<{ slug: string; clicks_total: number }>();
+	const resetLink = schema.abReady
+		? await c.env.db_boltlink
+			.prepare(
+				`UPDATE links
+				SET clicks_total = 0,
+					ab_clicks_a = 0,
+					ab_clicks_b = 0,
+					ab_started_at = CASE WHEN ab_enabled = 1 THEN ? ELSE ab_started_at END,
+					metric_epoch = metric_epoch + 1,
+					ab_generation = ab_generation + 1,
+					updated_at = ?,
+					version = version + 1
+				WHERE slug = ? AND disabled_at IS NULL
+				RETURNING slug, clicks_total, ab_clicks_a, ab_clicks_b, ab_started_at`,
+			)
+			.bind(now, now, slug)
+			.first<{ slug: string; clicks_total: number; ab_clicks_a: number; ab_clicks_b: number; ab_started_at: string | null }>()
+		: await c.env.db_boltlink
+			.prepare(
+				`UPDATE links
+				SET clicks_total = 0, updated_at = ?, version = version + 1
+				WHERE slug = ? AND disabled_at IS NULL
+				RETURNING slug, clicks_total`,
+			)
+			.bind(now, slug)
+			.first<{ slug: string; clicks_total: number }>();
 
 	if (!resetLink) {
 		return c.json({ error: "Link not found" }, 404);
@@ -510,30 +680,65 @@ app.get("/api/links/:slug/qrcode", async (c) => {
 
 app.post("/api/links/:slug/duplicate", async (c) => {
 	const slug = c.req.param("slug");
+	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
+	const abSelect = schema.abReady ? ", ab_enabled, ab_target_url, ab_weight_b" : "";
 	const source = await c.env.db_boltlink
 		.prepare(
-			`SELECT target_url, redirect_type, tags, group_id
+			`SELECT target_url, redirect_type, tags, group_id${abSelect}
 			FROM links
 			WHERE slug = ? AND disabled_at IS NULL`,
 		)
 		.bind(slug)
-		.first<{ target_url: string; redirect_type: "301" | "302"; tags: string | null; group_id: number | null }>();
+		.first<{
+			target_url: string;
+			redirect_type: "301" | "302";
+			tags: string | null;
+			group_id: number | null;
+			ab_enabled?: number;
+			ab_target_url?: string | null;
+			ab_weight_b?: number;
+		}>();
 
 	if (!source) {
 		return c.json({ error: "Link not found" }, 404);
 	}
 
+	const abEnabled = schema.abReady && source.ab_enabled === 1 && Boolean(source.ab_target_url);
+	const redirectType = abEnabled ? "302" : source.redirect_type;
 	const duplicateSlug = await suggestDuplicateSlug(c.env.db_boltlink, slug);
-	const created = await c.env.db_boltlink
-		.prepare(
-			`INSERT INTO links (slug, target_url, redirect_type, tags, group_id)
-			VALUES (?, ?, ?, ?, ?)
-			RETURNING id, slug, target_url, clicks_total, created_at, updated_at, disabled_at,
-				expires_at, go_live_at, redirect_type, tags, has_qrcode, group_id,
-				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password, version`,
-		)
-		.bind(duplicateSlug, source.target_url, source.redirect_type, source.tags, source.group_id)
-		.first<LinkRow>();
+	const created = schema.abReady
+		? await c.env.db_boltlink
+			.prepare(
+				`INSERT INTO links (slug, target_url, redirect_type, tags, group_id, ab_enabled, ab_target_url, ab_weight_b, ab_generation, ab_started_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				RETURNING id, slug, target_url, clicks_total, created_at, updated_at, disabled_at,
+					expires_at, go_live_at, redirect_type, tags, has_qrcode, group_id,
+					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
+					ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch, ab_clicks_a, ab_clicks_b, ab_started_at, version`,
+			)
+			.bind(
+				duplicateSlug,
+				source.target_url,
+				redirectType,
+				source.tags,
+				source.group_id,
+				abEnabled ? 1 : 0,
+				source.ab_target_url ?? null,
+				source.ab_weight_b ?? DEFAULT_AB_WEIGHT_B,
+				abEnabled ? 1 : 0,
+				abEnabled ? isoNow() : null,
+			)
+			.first<LinkRow>()
+		: await c.env.db_boltlink
+			.prepare(
+				`INSERT INTO links (slug, target_url, redirect_type, tags, group_id)
+				VALUES (?, ?, ?, ?, ?)
+				RETURNING id, slug, target_url, clicks_total, created_at, updated_at, disabled_at,
+					expires_at, go_live_at, redirect_type, tags, has_qrcode, group_id,
+					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password, version`,
+			)
+			.bind(duplicateSlug, source.target_url, redirectType, source.tags, source.group_id)
+			.first<LinkRow>();
 
 	return c.json({ link: created }, 201);
 });
@@ -689,11 +894,12 @@ app.get("/:slug", async (c) => {
 		return c.text("Too many requests", 429);
 	}
 
-	await ensureDatabaseSchema(c.env.db_boltlink);
+	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
+	const abSelect = schema.abReady ? ", ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch" : "";
 
 	const link = await c.env.db_boltlink
 		.prepare(
-			`SELECT id, slug, target_url, expires_at, go_live_at, redirect_type, password_hash
+			`SELECT id, slug, target_url, expires_at, go_live_at, redirect_type, password_hash${abSelect}
 			FROM links
 			WHERE slug = ? AND disabled_at IS NULL`,
 		)
@@ -721,10 +927,22 @@ app.get("/:slug", async (c) => {
 		}
 	}
 
-	const response = c.redirect(link.target_url, Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302);
+	const countable = isCountableClick(c.req.raw);
+	const activeAb = schema.abReady && isActiveAbLink(link);
+	const roll = activeAb && countable ? randomPercent() : null;
+	const { destination, variant } = resolveRedirectTarget(link, roll);
+	const status = activeAb ? 302 : Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302;
+	const response = c.redirect(destination, status);
+	if (activeAb) {
+		response.headers.set("Cache-Control", "no-store");
+	}
 
-	if (isCountableClick(c.req.raw)) {
-		c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, link.id));
+	if (countable) {
+		c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, link.id, {
+			variant: activeAb ? variant : null,
+			generation: link.ab_generation ?? 0,
+			epoch: schema.abReady ? (link.metric_epoch ?? 0) : null,
+		}));
 	}
 
 	return response;
@@ -740,10 +958,12 @@ app.post("/:slug", async (c) => {
 		return c.text("Too many requests", 429);
 	}
 
-	await ensureDatabaseSchema(c.env.db_boltlink);
+	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
+	const abSelect = schema.abReady ? ", ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch" : "";
+
 	const link = await c.env.db_boltlink
 		.prepare(
-			`SELECT id, slug, target_url, expires_at, go_live_at, redirect_type, password_hash
+			`SELECT id, slug, target_url, expires_at, go_live_at, redirect_type, password_hash${abSelect}
 			FROM links
 			WHERE slug = ? AND disabled_at IS NULL`,
 		)
@@ -763,7 +983,13 @@ app.post("/:slug", async (c) => {
 	}
 
 	if (!link.password_hash) {
-		return c.redirect(link.target_url, Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302);
+		const activeAb = schema.abReady && isActiveAbLink(link);
+		const status = activeAb ? 302 : Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302;
+		const response = c.redirect(link.target_url, status);
+		if (activeAb) {
+			response.headers.set("Cache-Control", "no-store");
+		}
+		return response;
 	}
 
 	if (!hasConfiguredPasswordSessionSecret(c.env)) {
@@ -780,16 +1006,28 @@ app.post("/:slug", async (c) => {
 		return c.html(renderPasswordGate(link.slug, "Senha inválida."), 401);
 	}
 
+	const countable = isCountablePasswordSubmission(c.req.raw);
+	const activeAb = schema.abReady && isActiveAbLink(link);
+	const roll = activeAb && countable ? randomPercent() : null;
+	const { destination, variant } = resolveRedirectTarget(link, roll);
 	const token = await createPasswordSessionToken(c.env, link.slug);
-	const response = c.redirect(link.target_url, Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302);
+	const status = activeAb ? 302 : Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302;
+	const response = c.redirect(destination, status);
+	if (activeAb) {
+		response.headers.set("Cache-Control", "no-store");
+	}
 	const cookieSecure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
 	response.headers.append(
 		"Set-Cookie",
 		`${passwordCookieName(link.slug)}=${token}; Path=/${slug}; HttpOnly; SameSite=Lax; Max-Age=${PASSWORD_SESSION_MAX_AGE_SECONDS}${cookieSecure}`,
 	);
 
-	if (isCountablePasswordSubmission(c.req.raw)) {
-		c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, link.id));
+	if (countable) {
+		c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, link.id, {
+			variant: activeAb ? variant : null,
+			generation: link.ab_generation ?? 0,
+			epoch: schema.abReady ? (link.metric_epoch ?? 0) : null,
+		}));
 	}
 
 	return response;
@@ -812,6 +1050,12 @@ async function updateLink(c: Context<AppContext>) {
 
 	if (payload.slug && payload.slug !== slug) {
 		return c.json({ error: "Slug is immutable after creation" }, 400);
+	}
+
+	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
+	const hasAbPayload = payload.abEnabled !== undefined || payload.abTargetUrl !== undefined || payload.abWeightB !== undefined;
+	if (!schema.abReady && hasAbPayload) {
+		return c.json({ error: "A/B testing requires migration 0004_ab_testing.sql to be applied" }, 400);
 	}
 
 	const password = normalizePassword(payload.password);
@@ -854,18 +1098,44 @@ async function updateLink(c: Context<AppContext>) {
 		return c.json({ error: "Group not found" }, 404);
 	}
 
-	let previousGroupId: number | null | undefined;
-	if (groupId !== undefined) {
-		const currentLink = await c.env.db_boltlink
-			.prepare("SELECT group_id FROM links WHERE slug = ? AND disabled_at IS NULL")
-			.bind(slug)
-			.first<{ group_id: number | null }>();
+	const abReadColumns = schema.abReady ? ", ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch" : "";
+	const existingLink = await c.env.db_boltlink
+		.prepare(`SELECT target_url, group_id, expires_at, go_live_at, redirect_type, version${abReadColumns} FROM links WHERE slug = ? AND disabled_at IS NULL`)
+		.bind(slug)
+		.first<{
+			target_url: string;
+			group_id: number | null;
+			expires_at: string | null;
+			go_live_at: string | null;
+			redirect_type: "301" | "302";
+			version: number;
+			ab_enabled?: number;
+			ab_target_url?: string | null;
+			ab_weight_b?: number;
+			ab_generation?: number;
+			metric_epoch?: number;
+		}>();
 
-		if (!currentLink) {
-			return c.json({ error: "Link not found" }, 404);
+	if (!existingLink) {
+		return c.json({ error: "Link not found" }, 404);
+	}
+
+	const existingAb: ExistingAbConfig | null = schema.abReady
+		? {
+			ab_enabled: existingLink.ab_enabled ?? 0,
+			ab_target_url: existingLink.ab_target_url ?? null,
+			ab_weight_b: existingLink.ab_weight_b ?? DEFAULT_AB_WEIGHT_B,
 		}
+		: null;
 
-		previousGroupId = currentLink.group_id;
+	const abConfig = resolveAbConfig(payload, existingAb);
+	if (!abConfig.ok) {
+		return c.json({ error: abConfig.error }, 400);
+	}
+
+	const finalRedirectType = redirectType ?? existingLink.redirect_type;
+	if (abConfig.enabled && finalRedirectType === "301") {
+		return c.json({ error: "A/B testing requires a temporary redirect (302)" }, 400);
 	}
 
 	const passwordHash = password.kind === "absent"
@@ -877,17 +1147,8 @@ async function updateLink(c: Context<AppContext>) {
 	if (
 		(expiresAt || payload.expiresAt === null || goLiveAt || payload.goLiveAt === null)
 	) {
-		const existing = await c.env.db_boltlink
-			.prepare("SELECT expires_at, go_live_at FROM links WHERE slug = ? AND disabled_at IS NULL")
-			.bind(slug)
-			.first<{ expires_at: string | null; go_live_at: string | null }>();
-
-		if (!existing) {
-			return c.json({ error: "Link not found" }, 404);
-		}
-
-		const finalExpires = expiresAt === undefined ? existing.expires_at : expiresAt;
-		const finalGoLive = goLiveAt === undefined ? existing.go_live_at : goLiveAt;
+		const finalExpires = expiresAt === undefined ? existingLink.expires_at : expiresAt;
+		const finalGoLive = goLiveAt === undefined ? existingLink.go_live_at : goLiveAt;
 		if (finalExpires && finalGoLive && new Date(finalExpires).getTime() < new Date(finalGoLive).getTime()) {
 			return c.json({ error: "expiresAt cannot be earlier than goLiveAt" }, 400);
 		}
@@ -895,6 +1156,7 @@ async function updateLink(c: Context<AppContext>) {
 
 	const updates: string[] = [];
 	const values: Array<string | number | null> = [];
+	const now = isoNow();
 
 	if (targetUrl !== undefined) {
 		updates.push("target_url = ?");
@@ -925,18 +1187,55 @@ async function updateLink(c: Context<AppContext>) {
 		values.push(passwordHash);
 	}
 
+	const abReset =
+		schema.abReady &&
+		abConfig.enabled &&
+		(
+			existingLink.ab_enabled !== 1 ||
+			(targetUrl !== undefined && targetUrl !== existingLink.target_url) ||
+			(payload.abTargetUrl !== undefined && abConfig.targetUrl !== (existingLink.ab_target_url ?? null)) ||
+			(payload.abWeightB !== undefined && abConfig.weightB !== existingLink.ab_weight_b)
+		);
+
+	if (payload.abEnabled !== undefined) {
+		updates.push("ab_enabled = ?");
+		values.push(abConfig.enabled ? 1 : 0);
+	}
+	if (payload.abTargetUrl !== undefined) {
+		updates.push("ab_target_url = ?");
+		values.push(abConfig.targetUrl);
+	}
+	if (payload.abWeightB !== undefined) {
+		updates.push("ab_weight_b = ?");
+		values.push(abConfig.weightB);
+	}
+	if (abReset) {
+		updates.push("ab_clicks_a = ?", "ab_clicks_b = ?", "ab_started_at = ?", "ab_generation = ab_generation + 1");
+		values.push(0, 0, now);
+	}
+
 	if (!updates.length) {
 		return c.json({ error: "No updatable fields provided" }, 400);
 	}
 
-	const now = isoNow();
 	updates.push("updated_at = ?", "version = version + 1");
 	values.push(now);
+	const abReturning = schema.abReady
+		? `,
+				ab_enabled,
+				ab_target_url,
+				ab_weight_b,
+				ab_generation,
+				metric_epoch,
+				ab_clicks_a,
+				ab_clicks_b,
+				ab_started_at`
+		: "";
 	const updatedLink = await c.env.db_boltlink
 		.prepare(
 			`UPDATE links
 			SET ${updates.join(", ")}
-			WHERE slug = ? AND disabled_at IS NULL
+			WHERE slug = ? AND disabled_at IS NULL AND version = ?
 			RETURNING
 				id,
 				slug,
@@ -951,18 +1250,18 @@ async function updateLink(c: Context<AppContext>) {
 				tags,
 				has_qrcode,
 				group_id,
-				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
+				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${abReturning},
 				version`,
 		)
-		.bind(...values, slug)
+		.bind(...values, slug, existingLink.version)
 		.first<LinkRow>();
 
 	if (!updatedLink) {
-		return c.json({ error: "Link not found" }, 404);
+		return c.json({ error: "Link was modified concurrently. Reload it and try again" }, 409);
 	}
 
-	if (groupId !== undefined && previousGroupId !== undefined && previousGroupId !== groupId && previousGroupId !== null) {
-		await cleanupEmptyGroup(c.env.db_boltlink, previousGroupId);
+	if (groupId !== undefined && existingLink.group_id !== null && existingLink.group_id !== groupId) {
+		await cleanupEmptyGroup(c.env.db_boltlink, existingLink.group_id);
 	}
 
 	return c.json({ link: updatedLink });
@@ -1008,137 +1307,103 @@ function serveHealth(c: Context<AppContext>) {
 	return c.json({ ok: true, service: "boltlink" });
 }
 
-function ensureDatabaseSchema(database: D1Database) {
+async function ensureDatabaseSchema(database: D1Database): Promise<SchemaCapabilities> {
 	const cachedBootstrap = databaseSchemaBootstrap.get(database);
 	if (cachedBootstrap) {
-		return cachedBootstrap;
+		await cachedBootstrap;
+	} else {
+		const bootstrap = initializeDatabaseSchema(database).catch((error) => {
+			databaseSchemaBootstrap.delete(database);
+			throw error;
+		});
+		databaseSchemaBootstrap.set(database, bootstrap);
+		await bootstrap;
 	}
 
-	const bootstrap = initializeDatabaseSchema(database).catch((error) => {
-		databaseSchemaBootstrap.delete(database);
-		throw error;
-	});
+	if (databaseAbReady.get(database)) {
+		return { abReady: true };
+	}
 
-	databaseSchemaBootstrap.set(database, bootstrap);
-	return bootstrap;
+	// Negative capabilities are never cached: a Worker started before migration
+	// 0004 must be able to discover the migration once it is applied.
+	const capabilities = await detectSchemaCapabilities(database);
+	if (capabilities.abReady) {
+		databaseAbReady.set(database, true);
+	}
+	return capabilities;
 }
 
+type SchemaCapabilities = {
+	abReady: boolean;
+};
+
+class DatabaseSchemaNotInitializedError extends Error {
+	constructor() {
+		super(DATABASE_SCHEMA_NOT_INITIALIZED_MESSAGE);
+		this.name = "DatabaseSchemaNotInitializedError";
+	}
+}
+
+/**
+ * Schema ownership: versioned migrations are the only authority for creating
+ * or evolving tables and columns. The runtime validates that the database was
+ * prepared and fails closed otherwise; it never runs `schema.sql`, never adds
+ * feature columns and never rebuilds tables. Legacy extra columns
+ * (`last_clicked_at`, `notes`, `stats`) are ignored and can stay until an
+ * explicit migration removes them.
+ */
 async function initializeDatabaseSchema(database: D1Database) {
-	await reconcileLegacySchema(database);
-	for (const statement of databaseSchemaStatements) {
-		await database.prepare(statement).run();
-	}
+	const columns = await readInitializedLinkColumns(database);
+	await ensureMetricFenceView(database, columns);
 }
 
-async function reconcileLegacySchema(database: D1Database) {
+async function readInitializedLinkColumns(database: D1Database): Promise<Set<string>> {
 	const linksTable = await database
 		.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'links'")
 		.first<{ name: string }>();
 
 	if (!linksTable) {
-		return;
+		throw new DatabaseSchemaNotInitializedError();
 	}
 
 	const info = await database.prepare("PRAGMA table_info(links)").all<{ name: string }>();
-	const existingColumns = new Set((info.results ?? []).map((column) => column.name));
-	const hasLegacyLinksColumns = existingColumns.has("last_clicked_at") || existingColumns.has("notes");
-	const statsTable = await database
-		.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'stats'")
-		.first<{ name: string }>();
-
-	if (hasLegacyLinksColumns || statsTable) {
-		await rebuildLinksTable(database, existingColumns, Boolean(statsTable));
-		return;
+	const columns = new Set((info.results ?? []).map((column) => column.name));
+	if (!REQUIRED_LINK_COLUMNS.every((column) => columns.has(column))) {
+		throw new DatabaseSchemaNotInitializedError();
 	}
 
-	const addColumnStatements: Array<[string, string]> = [
-		["expires_at", "ALTER TABLE links ADD COLUMN expires_at TEXT"],
-		["go_live_at", "ALTER TABLE links ADD COLUMN go_live_at TEXT"],
-		["redirect_type", "ALTER TABLE links ADD COLUMN redirect_type TEXT NOT NULL DEFAULT '302'"],
-		["tags", "ALTER TABLE links ADD COLUMN tags TEXT"],
-		["has_qrcode", "ALTER TABLE links ADD COLUMN has_qrcode INTEGER NOT NULL DEFAULT 0"],
-		["group_id", "ALTER TABLE links ADD COLUMN group_id INTEGER"],
-		["password_hash", "ALTER TABLE links ADD COLUMN password_hash TEXT"],
-	];
-
-	for (const [columnName, statement] of addColumnStatements) {
-		if (!existingColumns.has(columnName)) {
-			await database.prepare(statement).run();
-		}
-	}
+	return columns;
 }
 
-async function rebuildLinksTable(database: D1Database, existingColumns: Set<string>, hasStatsTable: boolean) {
-	if (hasStatsTable) {
-		await database.prepare("DROP TABLE IF EXISTS stats").run();
-	}
-
-	await database.prepare("ALTER TABLE links RENAME TO links_legacy").run();
-	await database.prepare(
-		`CREATE TABLE IF NOT EXISTS links (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			slug TEXT NOT NULL UNIQUE,
-			target_url TEXT NOT NULL,
-			clicks_total INTEGER NOT NULL DEFAULT 0,
-			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-			updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-			disabled_at TEXT,
-			expires_at TEXT,
-			go_live_at TEXT,
-			redirect_type TEXT NOT NULL DEFAULT '302',
-			tags TEXT,
-			has_qrcode INTEGER NOT NULL DEFAULT 0,
-			group_id INTEGER,
-			password_hash TEXT,
-			version INTEGER NOT NULL DEFAULT 1
-		)`,
-	).run();
-
-	await database.prepare(
-		`INSERT INTO links (
-			id,
-			slug,
-			target_url,
-			clicks_total,
-			created_at,
-			updated_at,
-			disabled_at,
-			expires_at,
-			go_live_at,
-			redirect_type,
-			tags,
-			has_qrcode,
-			group_id,
-			password_hash,
-			version
-		)
-		SELECT
-			${selectLegacyColumn(existingColumns, "id", "NULL")},
-			${selectLegacyColumn(existingColumns, "slug", "''")},
-			${selectLegacyColumn(existingColumns, "target_url", "''")},
-			${selectLegacyColumn(existingColumns, "clicks_total", "0")},
-			${selectLegacyColumn(existingColumns, "created_at", "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')")},
-			${selectLegacyColumn(existingColumns, "updated_at", "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')")},
-			${selectLegacyColumn(existingColumns, "disabled_at", "NULL")},
-			${selectLegacyColumn(existingColumns, "expires_at", "NULL")},
-			${selectLegacyColumn(existingColumns, "go_live_at", "NULL")},
-			${selectLegacyColumn(existingColumns, "redirect_type", "'302'")},
-			${selectLegacyColumn(existingColumns, "tags", "NULL")},
-			${selectLegacyColumn(existingColumns, "has_qrcode", "0")},
-			${selectLegacyColumn(existingColumns, "group_id", "NULL")},
-			${selectLegacyColumn(existingColumns, "password_hash", "NULL")},
-			${selectLegacyColumn(existingColumns, "version", "1")}
-		FROM links_legacy`,
-	).run();
-
-	await database.prepare("DROP TABLE links_legacy").run();
-	for (const statement of LINK_INDEX_STATEMENTS) {
-		await database.prepare(statement).run();
-	}
+/**
+ * The legacy click UPDATE reads the reset epoch through this projection so the
+ * fence is evaluated by the same statement that writes `clicks_total`. Before
+ * migration 0004 the projection reports the implicit initial epoch 0; migration
+ * 0004 promotes it to the real `metric_epoch`, so a delayed pre-migration write
+ * sees a reset that landed after the SQL was chosen. The view never creates
+ * A/B columns: `metric_epoch` remains owned by the migration.
+ *
+ * The runtime path is intentionally non-destructive and monotonic
+ * (absent -> shim, absent -> real). It uses `CREATE VIEW IF NOT EXISTS` and
+ * never drops the projection, so a bootstrap that read a pre-0004 schema and
+ * resumes after the migration can only no-op against the real view. Promotion
+ * SHIM -> REAL is owned exclusively by migration 0004.
+ */
+async function ensureMetricFenceView(database: D1Database, columns: Set<string>) {
+	const sql = columns.has("metric_epoch") ? METRIC_FENCE_VIEW_REAL_SQL : METRIC_FENCE_VIEW_LEGACY_SQL;
+	await database.prepare(sql).run();
 }
 
-function selectLegacyColumn(existingColumns: Set<string>, columnName: string, fallbackSql: string) {
-	return existingColumns.has(columnName) ? columnName : fallbackSql;
+/**
+ * A/B columns are owned by migration 0004. The runtime never creates them,
+ * otherwise `wrangler d1 migrations apply` would fail with "duplicate column
+ * name". Until the migration is applied, normal links keep working and A/B
+ * configuration is rejected with a clear operational error.
+ */
+async function detectSchemaCapabilities(database: D1Database): Promise<SchemaCapabilities> {
+	const info = await database.prepare("PRAGMA table_info(links)").all<{ name: string }>();
+	const columns = new Set((info.results ?? []).map((column) => column.name));
+	return { abReady: AB_SCHEMA_COLUMNS.every((column) => columns.has(column)) };
 }
 
 function renderHomePage() {
@@ -1864,6 +2129,101 @@ function normalizePassword(value: unknown): NormalizedPassword {
 	return { kind: "invalid" };
 }
 
+type AbConfigResult =
+	| { ok: true; enabled: boolean; targetUrl: string | null; weightB: number }
+	| { ok: false; error: string };
+
+type ExistingAbConfig = {
+	ab_enabled: number;
+	ab_target_url: string | null;
+	ab_weight_b: number;
+};
+
+/**
+ * Validates and normalizes the A/B test configuration. Control A is always the
+ * link's main `target_url`; only Variant B needs extra storage. All checks
+ * happen before any mutation so an invalid payload never partially updates.
+ */
+function resolveAbConfig(
+	payload: { abEnabled?: unknown; abTargetUrl?: unknown; abWeightB?: unknown },
+	existing: ExistingAbConfig | null,
+): AbConfigResult {
+	let enabled = existing ? existing.ab_enabled === 1 : false;
+	if (payload.abEnabled !== undefined) {
+		if (typeof payload.abEnabled !== "boolean") {
+			return { ok: false, error: "Invalid abEnabled. Use true or false" };
+		}
+		enabled = payload.abEnabled;
+	}
+
+	let targetUrl = existing ? existing.ab_target_url : null;
+	if (payload.abTargetUrl !== undefined) {
+		if (payload.abTargetUrl === null || (typeof payload.abTargetUrl === "string" && payload.abTargetUrl.trim() === "")) {
+			targetUrl = null;
+		} else if (typeof payload.abTargetUrl === "string") {
+			const normalized = normalizeTargetUrl(payload.abTargetUrl);
+			if (!normalized) {
+				return { ok: false, error: "Invalid abTargetUrl" };
+			}
+			targetUrl = normalized;
+		} else {
+			return { ok: false, error: "Invalid abTargetUrl" };
+		}
+	}
+
+	let weightB = existing ? existing.ab_weight_b : DEFAULT_AB_WEIGHT_B;
+	if (payload.abWeightB !== undefined) {
+		if (
+			typeof payload.abWeightB !== "number" ||
+			!Number.isInteger(payload.abWeightB) ||
+			payload.abWeightB < AB_WEIGHT_MIN ||
+			payload.abWeightB > AB_WEIGHT_MAX
+		) {
+			return { ok: false, error: "Invalid abWeightB. Use an integer between 1 and 99" };
+		}
+		weightB = payload.abWeightB;
+	}
+
+	if (enabled && !targetUrl) {
+		return { ok: false, error: "abTargetUrl is required when A/B testing is enabled" };
+	}
+
+	return { ok: true, enabled, targetUrl, weightB };
+}
+
+/**
+ * Pure split decision: returns true when the request should go to Variant B.
+ * `roll` is an integer in [0, 100). No cryptographic requirement here, only a
+ * uniform distribution for a simple percentage split.
+ */
+export function isVariantB(weightB: number, roll: number): boolean {
+	return roll < weightB;
+}
+
+/** Bots/previews never enter the split: they always receive Control A. */
+function resolveRedirectTarget(
+	link: RedirectRow,
+	roll: number | null,
+): { destination: string; variant: "a" | "b" | null } {
+	if (!isActiveAbLink(link)) {
+		return { destination: link.target_url, variant: null };
+	}
+
+	if (roll === null) {
+		return { destination: link.target_url, variant: null };
+	}
+
+	if (isVariantB(link.ab_weight_b ?? DEFAULT_AB_WEIGHT_B, roll)) {
+		return { destination: link.ab_target_url as string, variant: "b" };
+	}
+
+	return { destination: link.target_url, variant: "a" };
+}
+
+function isActiveAbLink(link: RedirectRow): boolean {
+	return link.ab_enabled === 1 && Boolean(link.ab_target_url);
+}
+
 async function verifyPassword(candidate: string, storedHash: string) {
 	const [salt, expected] = storedHash.split(":");
 	if (!salt || !expected) {
@@ -2199,11 +2559,74 @@ function generateSlug() {
 	return Array.from(bytes, (byte) => SLUG_ALPHABET[byte % SLUG_ALPHABET.length]).join("");
 }
 
-async function recordClick(database: D1Database, linkId: number) {
+type ClickCapture = {
+	variant: "a" | "b" | null;
+	generation: number;
+	epoch: number | null;
+};
+
+/**
+ * Single aggregate row write. `clicks_total` is the historical counter and is
+ * fenced by `metric_epoch` so a delayed write cannot resurrect a manual reset.
+ * Variant counters are additionally fenced by `ab_generation` so a delayed
+ * write can never contaminate a newer A/B definition.
+ *
+ * A request captured before migration 0004 (`epoch === null`) cannot rely on
+ * the capability read made before the write: the migration (and a reset) can
+ * land between that read and the UPDATE. Both statements below therefore carry
+ * the fence inside the write itself. Once the migration is visible the write
+ * compares the real `metric_epoch` against the implicit initial epoch 0. During
+ * the transition it reads the same value through `boltlink_metric_fence`, a
+ * projection that reports 0 before 0004 and the real column afterwards, so the
+ * fence is evaluated atomically with the write in both worlds.
+ */
+async function recordClick(database: D1Database, linkId: number, capture: ClickCapture) {
+	if (capture.epoch === null) {
+		const capabilities = await ensureDatabaseSchema(database).catch((error) => {
+			console.error("Failed to revalidate schema for delayed click", error);
+			return null;
+		});
+		const sql = capabilities?.abReady
+			? "UPDATE links SET clicks_total = clicks_total + CASE WHEN metric_epoch = 0 THEN 1 ELSE 0 END WHERE id = ?"
+			: `UPDATE links SET clicks_total = clicks_total + (SELECT CASE WHEN metric_epoch = 0 THEN 1 ELSE 0 END FROM ${METRIC_FENCE_VIEW} WHERE ${METRIC_FENCE_VIEW}.id = links.id) WHERE id = ?`;
+		try {
+			await database.prepare(sql).bind(linkId).run();
+		} catch (error) {
+			console.error("Failed to record click", error);
+		}
+		return;
+	}
+
 	try {
+		if (capture.variant === "a") {
+			await database
+				.prepare(
+					`UPDATE links
+					SET clicks_total = clicks_total + CASE WHEN metric_epoch = ? THEN 1 ELSE 0 END,
+						ab_clicks_a = ab_clicks_a + CASE WHEN metric_epoch = ? AND ab_generation = ? THEN 1 ELSE 0 END
+					WHERE id = ?`,
+				)
+				.bind(capture.epoch, capture.epoch, capture.generation, linkId)
+				.run();
+			return;
+		}
+
+		if (capture.variant === "b") {
+			await database
+				.prepare(
+					`UPDATE links
+					SET clicks_total = clicks_total + CASE WHEN metric_epoch = ? THEN 1 ELSE 0 END,
+						ab_clicks_b = ab_clicks_b + CASE WHEN metric_epoch = ? AND ab_generation = ? THEN 1 ELSE 0 END
+					WHERE id = ?`,
+				)
+				.bind(capture.epoch, capture.epoch, capture.generation, linkId)
+				.run();
+			return;
+		}
+
 		await database
-			.prepare("UPDATE links SET clicks_total = clicks_total + 1 WHERE id = ?")
-			.bind(linkId)
+			.prepare("UPDATE links SET clicks_total = clicks_total + CASE WHEN metric_epoch = ? THEN 1 ELSE 0 END WHERE id = ?")
+			.bind(capture.epoch, linkId)
 			.run();
 	} catch (error) {
 		console.error("Failed to record click", error);

@@ -52,6 +52,16 @@ const SCHEMA_STATEMENTS = [
 	  has_qrcode INTEGER NOT NULL DEFAULT 0,
 	  group_id INTEGER,
 	  password_hash TEXT,
+	  ab_enabled INTEGER NOT NULL DEFAULT 0,
+	  ab_target_url TEXT,
+	  ab_weight_b INTEGER NOT NULL DEFAULT 50,
+
+	  ab_generation INTEGER NOT NULL DEFAULT 0,
+
+	  metric_epoch INTEGER NOT NULL DEFAULT 0,
+	  ab_clicks_a INTEGER NOT NULL DEFAULT 0,
+	  ab_clicks_b INTEGER NOT NULL DEFAULT 0,
+	  ab_started_at TEXT,
 	  version INTEGER NOT NULL DEFAULT 1
 	)` ,
 	"CREATE INDEX IF NOT EXISTS idx_links_slug ON links(slug)",
@@ -77,6 +87,19 @@ async function fetchWorker(url: string, init?: RequestInit, overrides?: Partial<
 	return response;
 }
 
+function passThrough(target: object, prop: string | symbol) {
+	const value = Reflect.get(target, prop);
+	return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+}
+
+function cloneDbHandle(db: D1Database): D1Database {
+	return new Proxy(db, {
+		get(target, prop) {
+			return passThrough(target, prop);
+		},
+	}) as D1Database;
+}
+
 async function resetDatabase() {
 	for (const statement of SCHEMA_STATEMENTS) {
 		await env.db_boltlink.prepare(statement).run();
@@ -86,6 +109,7 @@ async function resetDatabase() {
 }
 
 async function dropDatabase() {
+	await env.db_boltlink.prepare("DROP VIEW IF EXISTS boltlink_metric_fence").run();
 	await env.db_boltlink.prepare("DROP TABLE IF EXISTS link_groups").run();
 	await env.db_boltlink.prepare("DROP TABLE IF EXISTS stats").run();
 	await env.db_boltlink.prepare("DROP TABLE IF EXISTS links").run();
@@ -134,31 +158,32 @@ describe("URL shortener worker", () => {
 		expect(await response.text()).toContain('id="link-form"');
 	});
 
-	it("bootstraps the D1 schema automatically on first API use", async () => {
+	it("fails closed when the database schema was not initialized by migrations", async () => {
 		await dropDatabase();
+		const handle = cloneDbHandle(env.db_boltlink);
 
-		const createResponse = await fetchWorker("http://localhost/api/links", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
+		const response = await fetchWorker(
+			"http://localhost/api/links",
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					slug: "first-run",
+					targetUrl: "https://destination.example.com/first-run",
+				}),
 			},
-			body: JSON.stringify({
-				slug: "first-run",
-				targetUrl: "https://destination.example.com/first-run",
-			}),
-		});
-
-		expect(createResponse.status).toBe(201);
-
-		const listResponse = await fetchWorker("http://localhost/api/links");
-		expect(listResponse.status).toBe(200);
-
-		const listPayload = (await listResponse.json()) as {
-			links: Array<{ slug: string }>;
-		};
-		expect(listPayload.links).toEqual(
-			expect.arrayContaining([expect.objectContaining({ slug: "first-run" })]),
+			{ db_boltlink: handle },
 		);
+
+		expect(response.status).toBe(503);
+		expect(await response.json()).toEqual({ error: "Database schema is not initialized" });
+
+		const linksTable = await env.db_boltlink
+			.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'links'")
+			.first<{ name: string }>();
+		expect(linksTable).toBeNull();
 	});
 
 	it("reserves fixed public routes without consuming normal slugs", async () => {
@@ -535,8 +560,8 @@ describe("URL shortener worker", () => {
 		});
 
 		expect(resetResponse.status).toBe(200);
-		const resetPayload = (await resetResponse.json()) as { link: { slug: string; clicks_total: number } };
-		expect(resetPayload.link).toEqual({ slug: "reset-me", clicks_total: 0 });
+		const resetPayload = (await resetResponse.json()) as { link: { slug: string; clicks_total: number; ab_clicks_a: number; ab_clicks_b: number } };
+		expect(resetPayload.link).toMatchObject({ slug: "reset-me", clicks_total: 0, ab_clicks_a: 0, ab_clicks_b: 0 });
 
 		const storedLink = await env.db_boltlink
 			.prepare("SELECT slug, target_url, clicks_total FROM links WHERE slug = ?")

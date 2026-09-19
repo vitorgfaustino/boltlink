@@ -37,6 +37,7 @@ O sistema pode persistir:
 - datas operacionais do link
 - tags e grupos definidos pelo operador
 - hash de senha do link, quando houver proteção por senha
+- quando o Split Test A/B estiver ativo: URL da Variant B, alocação de tráfego e contadores agregados `ab_clicks_a`/`ab_clicks_b`
 
 O sistema não persiste, por padrão:
 
@@ -46,6 +47,8 @@ O sistema não persiste, por padrão:
 - `Referer`
 - `User-Agent`
 - eventos individuais por clique
+- cookie de experimento A/B, visitor ID ou fingerprint
+- registro de qual variante um visitante recebeu
 
 ## 4. Finalidades do tratamento
 
@@ -54,6 +57,7 @@ Os dados são tratados para:
 - operar o redirecionamento de links
 - administrar links, grupos, expiração e configurações relacionadas
 - manter contagem agregada de cliques
+- distribuir tráfego entre variantes de Split Test A/B de forma stateless, mantendo apenas contadores agregados
 - proteger o painel administrativo e a API
 
 ## 5. Base legal

@@ -62,9 +62,12 @@ O botão continua funcional com o `wrangler.jsonc` público.
 ```bash
 npm install
 npm run setup
+npm run dev-prepare
 npm run dev
 npm test
 ```
+
+`npm run dev-prepare` aplica a cadeia de migrations no D1 local que o `wrangler dev` usa (`.wrangler/state/v3/d1`).
 
 Se quiser criar o D1 explicitamente:
 
@@ -78,13 +81,23 @@ Se quiser criar o D1 já com jurisdição:
 npm run wrangler -- d1 create <nome-do-banco> --binding db_boltlink --update-config --jurisdiction=eu
 ```
 
-Para desenvolvimento manual com banco SQLite local de apoio:
+Antes de subir o Worker, aplique as migrations no D1 local que o `wrangler dev` usa (o runtime não cria schema):
+
+```bash
+npm run dev-prepare
+```
+
+O comando lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc` e aplica `migrations/0000` a `0004` em `.wrangler/state/v3/d1`. Equivalente explícito: `npm run wrangler -- d1 migrations apply boltlink-db --local`.
+
+Com o banco sem schema, a API e os redirects respondem `503 Database schema is not initialized`; aplique as migrations e o mesmo isolate volta a funcionar sem restart.
+
+Para inspecionar dados manualmente com um SQLite auxiliar:
 
 ```bash
 npm run dev-init
 ```
 
-Esse fluxo cria `.dev-env/db.sqlite3` localmente. O diretório `.dev-env/` é ignorado pelo Git e não vai para o GitHub.
+Esse comando cria `.dev-env/db.sqlite3` (migrations + seed) apenas para exploração local com `sqlite3`. Ele **não** é o D1 usado pelo Worker; para o Worker, use `npm run dev-prepare`. O diretório `.dev-env/` é ignorado pelo Git e não vai para o GitHub.
 
 ### 2. Operação guiada por IA
 
@@ -101,11 +114,12 @@ Pedidos úteis:
 
 Depois do deploy:
 
-1. validar `workers.dev`
-2. configurar Access para `/admin`, `/admin.html`, `/api` e `/api/*`
-3. preencher `TEAM_DOMAIN` e `POLICY_AUD`
-4. opcionalmente configurar `API_KEY`; configurar `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
-5. opcionalmente trocar para domínio próprio
+1. aplicar as migrations no D1 (`npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`); sem isso a API e os redirects respondem `503 Database schema is not initialized`
+2. validar `workers.dev`
+3. configurar Access para `/admin`, `/admin.html`, `/api` e `/api/*`
+4. preencher `TEAM_DOMAIN` e `POLICY_AUD`
+5. opcionalmente configurar `API_KEY`; configurar `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
+6. opcionalmente trocar para domínio próprio
 
 Se você utiliza o recurso de links protegidos por senha, **deve obrigatoriamente** configurar o `PASSWORD_SESSION_SECRET`. Se não for configurado, a criação e o acesso aos links com senha falharão.
 Se você usa GitHub auto-deploy ou o botão de deploy da Cloudflare, configure `PASSWORD_SESSION_SECRET` no painel da Cloudflare como `Secret`.
@@ -135,6 +149,7 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 - mantém slug imutável
 - protege links opcionais com senha
 - permite grupos, tags, QR code, ativação e expiração
+- permite Split Test A/B com distribuição stateless e apenas contadores agregados
 - conta cliques de forma agregada sem eventos detalhados
 - permite zerar a estatística agregada de um link ativo
 - inclui orientações para reduzir tráfego desnecessário no plano gratuito da Cloudflare
@@ -155,7 +170,26 @@ npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
 npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc
 ```
 
-Para instalações já alinhadas com `2.0.0`, esta release não exige migration nova nem bindings novos.
+Para instalações já alinhadas com `2.0.0`, o upgrade base não exige migration nova nem bindings novos.
+
+O Split Test A/B adiciona a migration `0004_ab_testing.sql`, que é a fonte autoritativa das colunas A/B. O runtime **não** cria nem altera colunas: uma instalação existente precisa aplicar a `0004` para habilitar A/B e uma instalação nova precisa aplicar a cadeia completa de migrations. O `schema.sql` é apenas o baseline da `0000` para ferramentas manuais e não é executado pelo runtime.
+
+Procedimento recomendado:
+
+1. backup conforme o procedimento da instância;
+2. aplicar as migrations (`npm run wrangler -- d1 migrations apply ...`);
+3. atualizar/publicar o Worker;
+4. validar o painel (o Admin mostra A/B somente quando a capability está disponível).
+
+Sem a migration, links normais continuam criando, editando, duplicando e redirecionando normalmente; apenas o Split Test A/B fica indisponível.
+
+## Split Test A/B
+
+Um link pode dividir tráfego entre Control A (destino principal) e Variant B (destino alternativo). A escolha é feita por requisição, sem cookie, sem visitor ID e sem fingerprint; qualquer automação reconhecida (bots, crawlers, previews, prefetch/prerender) recebe sempre o Control A.
+
+Links com A/B ativo usam sempre redirect temporário `302` com `Cache-Control: no-store`; `301` é incompatível com A/B. Mudanças de configuração avançam a geração do experimento, então métricas atrasadas não contaminam o novo teste, e `reset-clicks` funciona como corte explícito das métricas.
+
+O produto expõe apenas distribuição de cliques (`Cliques A`, `Cliques B`, `Distribuição observada`, `Traffic Allocation`). Conversão continua sendo medida por ferramentas externas.
 
 ## Tráfego e estatísticas
 

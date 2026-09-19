@@ -44,6 +44,29 @@ Um redirect público normal deve permanecer aproximadamente:
 
 A escrita é feita somente para uma requisição elegível e não atrasa a resposta de redirect. Links protegidos podem executar a verificação de sessão/gate, mas não adicionam consultas externas ou uma tabela de eventos. A contagem agregada não cria clickstream.
 
+## Split Test A/B no caminho crítico
+
+O Split Test A/B é stateless e não aumenta o custo normal:
+
+```text
+link normal contável:
+1 invocação do Worker
++ 1 lookup principal no D1
++ 1 linha agregada escrita
+
+link A/B humano:
+1 invocação do Worker
++ 1 lookup principal no D1
++ 1 linha agregada escrita (clicks_total + contador da variante na mesma row)
+
+crawler/preview em link A/B:
+1 invocação do Worker
++ 1 lookup principal no D1
++ 0 escrita de métrica
+```
+
+Não existe tabela separada de variantes, lookup extra ou segunda escrita por clique. A decisão A/B usa um sorteio em memória e retorna sempre o Control A quando o filtro de métricas reconhece automação, sem bloquear o redirect.
+
 ## O que o código faz
 
 BoltLink aplica duas protecoes gratuitas dentro da aplicacao:

@@ -31,13 +31,15 @@ Se precisar de jurisdição D1 na criação:
 npm run wrangler -- d1 create <nome-do-banco> --binding db_boltlink --update-config --jurisdiction=eu
 ```
 
-4. Aplicar migrations:
+4. Aplicar migrations no D1 local usado pelo Worker. O runtime não cria schema; banco vazio responde `503 Database schema is not initialized`:
 
 ```bash
-npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
+npm run dev-prepare
 ```
 
-5. Para upgrade remoto:
+`npm run dev-prepare` lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc` e aplica `migrations/0000` a `0004` em `.wrangler/state/v3/d1`.
+
+5. Para D1 remoto / upgrade:
 
 ```bash
 npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc
@@ -67,20 +69,23 @@ Na versão atual, o pedido de atualização deve:
 2. preservar `wrangler.local.jsonc` e overlays do projeto
 3. atualizar dependências
 4. rodar `npm run wrangler:init`
-5. aplicar `0003_lgpd_minimization.sql` no D1 quando o ambiente ainda estiver em schema antigo
+5. aplicar as migrations pendentes no D1 (local com `npm run dev-prepare`; remoto com `--remote -c wrangler.local.jsonc`); a `0003_lgpd_minimization.sql` remove `stats`, `last_clicked_at` e `notes` e a `0004_ab_testing.sql` habilita A/B
 6. rodar `npm test`
 
 ## Fluxo C: Deploy to Cloudflare Workers
 
 O botão continua usando `wrangler.jsonc`.
 
-Depois do deploy:
+O provisionamento/deploy inicial **não** prepara o schema D1. Até as migrations serem aplicadas, `/api/*` e os redirects respondem `503 Database schema is not initialized`.
 
-1. valide `workers.dev`
-2. configure Cloudflare Access para `/admin`, `/admin.html`, `/api` e `/api/*`
-3. preencha `TEAM_DOMAIN` e `POLICY_AUD`
-4. opcionalmente configure `API_KEY`; configure `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
-5. opcionalmente troque para domínio próprio
+Depois do deploy/provisionamento:
+
+1. aplique as migrations no D1 remoto: `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`
+2. valide `workers.dev` (API e redirect)
+3. configure Cloudflare Access para `/admin`, `/admin.html`, `/api` e `/api/*`
+4. preencha `TEAM_DOMAIN` e `POLICY_AUD`
+5. opcionalmente configure `API_KEY`; configure `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
+6. opcionalmente troque para domínio próprio
 
 Não existe mais etapa de publicar `IP_HASH_SECRET`.
 
@@ -103,11 +108,13 @@ Sugestao:
 
 ## Upgrade one-click / GitHub auto-deploy
 
-Para quem já está em produção e recebe atualização por GitHub:
+Para quem já está em produção e recebe atualização por GitHub/Deploy Button:
 
-- o código novo já reconcilia schema legado em runtime
-- ainda assim, a forma recomendada é aplicar a migration `0003_lgpd_minimization.sql`
-- o efeito do upgrade é remover `stats`, `last_clicked_at` e `notes`
+- o runtime não executa reconciliação de schema; colunas legadas extras são ignoradas e permanecem até uma migration explícita
+- ordem suportada: migrations remotas → deploy/atualização do Worker → validação
+- aplique as migrations pendentes no D1 remoto (incluindo `0004_ab_testing.sql` para habilitar A/B): `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`
+- a `0003_lgpd_minimization.sql` remove `stats`, `last_clicked_at` e `notes`
+- deploy sozinho não deixa a instalação operacional: até aplicar as migrations, API e redirects respondem `503 Database schema is not initialized`
 - `wrangler.local.jsonc` não participa desse fluxo e não sobrescreve variáveis do ambiente de GitHub/Workers Builds
 
 ## Variaveis e secrets

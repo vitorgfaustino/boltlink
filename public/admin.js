@@ -20,6 +20,7 @@ const state = {
   links: [],
   pendingDeletes: new Map(),
   countdownInterval: null,
+  abTesting: false,
 };
 
 const ICONS = {
@@ -94,6 +95,11 @@ const newGroupNameInput = document.getElementById("new-group-name");
 const goLiveAtInput = document.getElementById("go-live-at");
 const expiresAtInput = document.getElementById("expires-at");
 const passwordInput = document.getElementById("password");
+const abEnabledInput = document.getElementById("ab-enabled");
+const abTargetUrlInput = document.getElementById("ab-target-url");
+const abWeightBInput = document.getElementById("ab-weight-b");
+const abTestingSection = document.getElementById("ab-testing-section");
+const abTestingUnavailable = document.getElementById("ab-testing-unavailable");
 const domainWarning = document.getElementById("domain-warning");
 const utmSourceInput = document.getElementById("utm-source");
 const utmMediumInput = document.getElementById("utm-medium");
@@ -467,10 +473,54 @@ async function downloadQrForSlug(slug) {
   return shortLink;
 }
 
+function setAbWeightBValue(rawWeight) {
+  const weight = Number(rawWeight);
+  if (!Number.isInteger(weight) || weight < 1 || weight > 99) {
+    abWeightBInput.value = "50";
+    return;
+  }
+
+  const value = String(weight);
+  if (!Array.from(abWeightBInput.options).some((option) => option.value === value)) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = `A ${100 - weight}% / B ${weight}%`;
+    option.dataset.custom = "1";
+    abWeightBInput.appendChild(option);
+  }
+  abWeightBInput.value = value;
+}
+
+function clearCustomAbWeightOptions() {
+  Array.from(abWeightBInput.options)
+    .filter((option) => option.dataset.custom === "1")
+    .forEach((option) => option.remove());
+}
+
+function syncAbRedirectConstraint() {
+  const abEnabled = abEnabledInput.checked;
+  const option301 = redirectTypeInput.querySelector('option[value="301"]');
+
+  if (option301) {
+    option301.disabled = abEnabled;
+  }
+
+  if (abEnabled && redirectTypeInput.value === "301") {
+    redirectTypeInput.value = "302";
+  }
+}
+
+abEnabledInput.addEventListener("change", syncAbRedirectConstraint);
+
 function resetForm() {
   state.editingSlug = null;
   linkForm.reset();
   redirectTypeInput.value = "302";
+  abEnabledInput.checked = false;
+  abTargetUrlInput.value = "";
+  clearCustomAbWeightOptions();
+  abWeightBInput.value = "50";
+  syncAbRedirectConstraint();
   slugInput.readOnly = false;
   formTitle.textContent = "Criar link";
   submitButton.innerHTML = buttonMarkup("save", "Salvar link");
@@ -498,6 +548,11 @@ function beginEdit(link) {
   goLiveAtInput.value = toLocalInputDateTime(link.go_live_at);
   expiresAtInput.value = toLocalInputDateTime(link.expires_at);
   passwordInput.value = "";
+  abEnabledInput.checked = link.ab_enabled === 1;
+  abTargetUrlInput.value = link.ab_target_url || "";
+  clearCustomAbWeightOptions();
+  setAbWeightBValue(link.ab_weight_b);
+  syncAbRedirectConstraint();
   slugInput.readOnly = true;
   formTitle.textContent = `Editar /${link.slug}`;
   submitButton.innerHTML = buttonMarkup("update", "Atualizar");
@@ -515,6 +570,35 @@ function createClientSlug() {
   const bytes = new Uint8Array(7);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+}
+
+function renderAbMetrics(link) {
+  const display = window.BoltLinkAbDisplay?.buildAbDisplay(link);
+  if (!display) {
+    return "";
+  }
+
+  const metrics = [
+    `<span class="metric">Split A/B <strong>${display.title}</strong></span>`,
+  ];
+
+  if (display.showHistoricalLabel) {
+    metrics.push('<span class="metric">Resultados do último teste</span>');
+  }
+
+  metrics.push(`<span class="metric">Cliques A <strong>${display.clicksA}</strong></span>`);
+  metrics.push(`<span class="metric">Cliques B <strong>${display.clicksB}</strong></span>`);
+  metrics.push(`<span class="metric">Distribuição observada <strong>${display.observed}</strong></span>`);
+
+  if (display.allocation) {
+    metrics.push(`<span class="metric">Alocação <strong>${display.allocation}</strong></span>`);
+  }
+
+  if (display.nextTest) {
+    metrics.push(`<span class="metric">Próximo teste <strong>${escapeHtml(display.nextTest.allocation)} · ${escapeHtml(display.nextTest.targetUrl)}</strong></span>`);
+  }
+
+  return metrics.join("");
 }
 
 function formatDate(value) {
@@ -580,6 +664,7 @@ function renderLinks() {
             <div class="slug-info">
               <p class="slug">/${safeSlug}</p>
               <div class="slug-url">${safeTargetUrl}</div>
+              ${link.ab_enabled === 1 && link.ab_target_url ? `<div class="slug-url">Variant B: ${escapeHtml(link.ab_target_url)}</div>` : ""}
               ${link.group_name ? `<span class="group-badge">Grupo: ${escapeHtml(link.group_name)}</span>` : ""}
             </div>
             <div class="card-actions">
@@ -594,6 +679,7 @@ function renderLinks() {
             ${link.go_live_at ? `<span class="metric">Ativa <strong>${formatDate(link.go_live_at)}</strong></span>` : ""}
             ${link.has_qrcode ? '<span class="metric">QR <strong>Ativo</strong></span>' : ""}
             ${link.has_password ? '<span class="metric">Senha <strong>Protegido</strong></span>' : ""}
+            ${renderAbMetrics(link)}
             ${parsedTags.length ? `<span class="metric">Tags <strong>${escapeHtml(parsedTags.join(", "))}</strong></span>` : ""}
             ${isPendingDelete ? `<span class="metric pending-note">Exclusão em <strong>${Math.ceil((state.pendingDeletes.get(link.slug)?.remaining || 0) / 1000)}s</strong></span>` : ""}
           </div>
@@ -647,6 +733,37 @@ async function loadLinks(searchTerm = searchTermInput.value, groupFilter = searc
     );
   } catch (error) {
     setStatus(listStatus, error.message, "error");
+  }
+}
+
+async function loadCapabilities() {
+  try {
+    const payload = await request("/api/capabilities", { method: "GET" });
+    state.abTesting = payload?.abTesting === true;
+  } catch {
+    state.abTesting = false;
+  }
+
+  applyAbCapabilityToUi();
+}
+
+function applyAbCapabilityToUi() {
+  const available = state.abTesting;
+
+  if (abTestingSection) {
+    abTestingSection.hidden = !available;
+  }
+  if (abTestingUnavailable) {
+    abTestingUnavailable.hidden = available;
+  }
+
+  abEnabledInput.disabled = !available;
+  abTargetUrlInput.disabled = !available;
+  abWeightBInput.disabled = !available;
+
+  if (!available) {
+    abEnabledInput.checked = false;
+    syncAbRedirectConstraint();
   }
 }
 
@@ -760,6 +877,12 @@ linkForm.addEventListener("submit", async (event) => {
 
   const urlWithUtm = buildUtmUrl(targetUrlInput.value.trim()) || targetUrlInput.value.trim();
 
+  const abFields = window.BoltLinkAbDisplay?.buildAbFields(state.abTesting, {
+    abEnabled: abEnabledInput.checked,
+    abTargetUrl: abTargetUrlInput.value.trim() || null,
+    abWeightB: Number(abWeightBInput.value) || 50,
+  }) || {};
+
   const body = {
     slug: slugInput.value.trim() || undefined,
     targetUrl: urlWithUtm,
@@ -769,6 +892,7 @@ linkForm.addEventListener("submit", async (event) => {
     goLiveAt: toIsoDateTime(goLiveAtInput.value),
     expiresAt: toIsoDateTime(expiresAtInput.value),
     password: passwordInput.value.trim() || undefined,
+    ...abFields,
   };
 
   try {
@@ -784,6 +908,7 @@ linkForm.addEventListener("submit", async (event) => {
           goLiveAt: body.goLiveAt,
           expiresAt: body.expiresAt,
           password: body.password,
+          ...abFields,
         }),
       });
       successMessage = `Destino de /${state.editingSlug} atualizado.`;
@@ -975,7 +1100,7 @@ async function copyToClipboard(text) {
 
 resetForm();
 footerYear.textContent = String(new Date().getFullYear());
-loadLinks();
+loadCapabilities().finally(() => loadLinks());
 loadGroups();
 loadVersion();
 

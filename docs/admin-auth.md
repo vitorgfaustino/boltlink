@@ -27,6 +27,8 @@ O Worker:
 
 ## One-click e GitHub auto-deploy
 
+Antes de validar a API, aplique as migrations no D1 remoto (`npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`): sem isso `/api/*` e os redirects respondem `503 Database schema is not initialized`.
+
 Depois do deploy:
 
 - configure o aplicativo Access manualmente
