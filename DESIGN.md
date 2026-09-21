@@ -201,6 +201,15 @@ O sistema usa camadas com transparência e blur, não sombras pesadas. A profund
 - **Results:** métricas no card do link (pills `--metric`) quando o teste está ativo e também quando encerrado com histórico (`Split A/B Encerrado`, `Resultados do último teste`), no mesmo estilo dos demais metadados. Por não existir snapshot da configuração antiga, alocação e Variant B atuais nunca são exibidos como parte dos resultados históricos; quando configurados, aparecem separados como `Próximo teste`. Sem gráficos, sem segunda cor, sem destaque visual de "vencedor".
 - **Restraint:** um único toggle e um único percentual. A/B/C/D, sticky sessions e seleção automática de vencedor ficam fora de escopo.
 
+### Smart Routing
+- **Container:** Accordion `Smart Routing` dentro do formulário, com toggle (`checkbox-row`), lista ordenada de regras e botão `Adicionar regra`. Cada regra tem país, dispositivo e destino, mais ações `Mover para cima`, `Mover para baixo` e `Remover`. Quando a capability `smartRouting` é falsa (instalação pré-`0005`), a seção fica oculta com uma nota curta e o payload não recebe o campo.
+- **Storage:** uma única coluna JSON na própria linha (`links.smart_routing_rules`). Não há tabela secundária, JOIN auxiliar ou SELECT adicional no redirect.
+- **Ordering:** a ordem da lista é a prioridade. As regras são avaliadas de cima para baixo e a primeira compatível vence; o fallback é sempre `target_url` e aparece como leitura somente. Botões mover/remover substituem drag-and-drop para manter acessibilidade e mobile.
+- **Redirect:** ativar Smart Routing força `302` e desabilita `301` enquanto o toggle estiver ligado; o backend rejeita Smart Routing + `301` com `400`. Links configurados respondem sempre `302` com `Cache-Control: no-store`.
+- **Conflict:** Smart Routing e Split Test A/B são mutuamente exclusivos. Ativar um desativa o outro localmente e o `PATCH` final é único, preservando a atomicidade administrativa. Um estado persistido ambíguo é exibido como `configuração ambígua` no card, sem reparo automático.
+- **Copy:** `País`, `Dispositivo`, `Destino`, `Fallback`, `Qualquer país`, `Qualquer dispositivo`. UI-only fields (id de linha) nunca são enviados à API.
+- **Restraint:** no máximo 20 regras, sem país/device analytics, sem contador por regra, sem UTM injection e sem sticky routing.
+
 ## 6. Do's and Don'ts
 
 ### Do:

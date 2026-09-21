@@ -25,10 +25,11 @@
 ## Notas da linha atual
 
 - não existe mais `IP_HASH_SECRET`
-- o upgrade relevante é `0003_lgpd_minimization.sql`
+- a release publicada `v2.2.1` (tag real) termina na `0003_lgpd_minimization.sql`; a `0004` pertence ao baseline local da Fase 2 e a `0005` ao estado Unreleased / Fase 3
 - o endpoint `/api/links/:slug/stats` não faz mais parte do produto
 - o endpoint `/api/maintenance/purge-stats` não faz mais parte do produto
-- para pedido de teste local/manual, a IA deve aplicar migrations no D1 local do Worker com `npm run dev-prepare` antes de `npm run dev`; `npm run dev-init` é opcional e cria apenas o SQLite auxiliar `.dev-env/db.sqlite3`
+- para pedido de teste local/manual nas bases locais (Fase 2 e Fase 3), a IA deve aplicar migrations no D1 local do Worker com `npm run dev-prepare` antes de `npm run dev`; no checkout da tag `v2.2.1` esse script não existe e o comando é `npm run wrangler -- d1 migrations apply ... --local`
+- `npm run dev-init` é opcional em qualquer base e cria apenas o SQLite auxiliar `.dev-env/db.sqlite3`
 
 ---
 

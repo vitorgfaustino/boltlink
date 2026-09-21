@@ -1,5 +1,7 @@
 # Privacy (BoltLink v2.2.1)
 
+> Escopo: release publicada/baseline = **v2.2.1**. Uma feature **Unreleased (Fase 3)** é descrita em seção própria abaixo; a release publicada não a processa.
+
 ## Princípio
 
 Redirecionar, contar de forma agregada e evitar coleta desnecessária.
@@ -12,14 +14,20 @@ Redirecionar, contar de forma agregada e evitar coleta desnecessária.
 - `links.created_at`
 - `links.updated_at`
 - campos operacionais do link: `redirect_type`, `expires_at`, `go_live_at`, `tags`, `has_qrcode`, `group_id`, `password_hash`, `disabled_at`, `version`
-- quando o Split Test A/B está ativo: `ab_target_url`, `ab_weight_b`, `ab_enabled`, `ab_started_at`, a geração/epóque do experimento e os contadores agregados `ab_clicks_a` e `ab_clicks_b`
 - nomes de grupos em `link_groups`
+
+### Split Test A/B (Phase 2 local)
+
+> Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não tem Split Test A/B.
+
+- quando o Split Test A/B está ativo, o link passa a persistir também `ab_target_url`, `ab_weight_b`, `ab_enabled`, `ab_started_at`, a geração/epóque do experimento e os contadores agregados `ab_clicks_a` e `ab_clicks_b`
 
 ## O que o produto não persiste
 
 - IP em texto puro
 - hash de IP
-- país
+- país por visitante
+- dispositivo derivado por visitante
 - `Referer`
 - `User-Agent`
 - eventos por clique
@@ -38,9 +46,22 @@ O redirecionamento continua respondendo antes da atualização do contador.
 
 O operador pode zerar manualmente `links.clicks_total` de um link ativo pelo admin. Isso remove apenas a métrica agregada daquele link; não existe histórico de eventos individuais para apagar.
 
-Privacy-first stateless A/B testing distributes each eligible request independently without building visitor profiles. Em links com Split Test A/B, a variante é sorteada por requisição e apenas os contadores agregados (`ab_clicks_a`, `ab_clicks_b`) são persistidos.
-
 Excluir um link não remove fisicamente a linha do D1. O produto marca `disabled_at` para impedir novo redirect e preservar o slug como não reutilizável.
+
+### Contagem no Split Test A/B (Phase 2 local)
+
+> Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não tem Split Test A/B.
+
+Stateless A/B testing distributes each eligible request independently without building visitor profiles. Em links com Split Test A/B, a variante é sorteada por requisição e apenas os contadores agregados (`ab_clicks_a`, `ab_clicks_b`) são persistidos.
+
+## Smart Routing (Unreleased / Fase 3)
+
+> Escopo: release publicada/baseline = **v2.2.1**. Esta seção descreve uma feature Unreleased da branch de desenvolvimento; a release publicada não a processa.
+
+- quando configurado, o link persiste apenas as regras administrativas em `smart_routing_rules` (país, dispositivo e destino); nenhum dado de visitante é armazenado.
+- a seleção de destino usa, de forma transitória e apenas em memória durante o request, o país aproximado fornecido pela Cloudflare (`request.cf.country`) e o `User-Agent` para derivar o tipo de dispositivo. Esses valores não são persistidos por visitante e não produzem analytics de país ou dispositivo.
+- não existe cookie de roteamento, visitor ID, fingerprint nem registro da regra selecionada por visita.
+- quando o link usa essa feature, apenas `clicks_total` é incrementado; não há contador por regra.
 
 ## Referrer
 

@@ -2,15 +2,24 @@
 
 ## Unreleased
 
+> Este bloco cobre o baseline local da **Fase 2** (Split Test A/B, migration `0004`) e o estado **Unreleased da Fase 3** (Smart Routing, migration `0005`). A tag publicada `v2.2.1` termina na `0003` e não contém nenhum dos dois. Nenhum bump de versão está associado a estas correções.
+
 ### Adicionado
 
 - Split Test A/B por link com Control A (`target_url`) e Variant B (`ab_target_url`), distribuição stateless por requisição e contadores agregados `ab_clicks_a`/`ab_clicks_b`
 - migration `0004_ab_testing.sql` como fonte autoritativa das colunas A/B; o runtime não pré-aplica a migration e mantém links normais funcionando em banco pré-0004
-- migrations como única autoridade do schema: instalação limpa = aplicar `0000` a `0004`; `schema.sql` passa a ser apenas o baseline da `0000` para ferramentas manuais
+- migrations como única autoridade do schema: instalação limpa = aplicar `0000` a `0005`; `schema.sql` passa a ser apenas o baseline da `0000` para ferramentas manuais
 - UI de Split Test A/B no admin (toggle, Variant B, presets de Traffic Allocation) e exibição de Cliques A/B e Distribuição observada, inclusive após o teste ser encerrado
 - validação fail-fast de `abEnabled`/`abTargetUrl`/`abWeightB` (1 a 99) sem partial mutation
 - `ab_generation`/`metric_epoch` para fencing de métricas atrasadas e concorrência otimista (`version`) nos updates administrativos
 - testes determinísticos de split (RNG injetado), geração, late write, reset, concorrência, cache, senha + A/B, duplicação, instalação limpa e upgrade
+- Smart Routing privacy-first por link: regras ordenadas de país/dispositivo com first-match-wins e fallback em `target_url`, usando `links.smart_routing_rules` (JSON em linha) e país/dispositivo apenas em memória
+- editor de Smart Routing no Admin com regras ordenadas (mover para cima/baixo, remover), país via lista ISO local com `Intl.DisplayNames` quando disponível, `Qualquer país`/`Qualquer dispositivo`, fallback somente leitura e limite de 20 regras
+- capability-aware UI: a seção Smart Routing só aparece quando `smartRouting=true`; instalações pré-`0005` não recebem o campo no payload
+- migration `0005_smart_routing.sql` como fonte autoritativa de `links.smart_routing_rules`; instalação limpa = aplicar `0000` a `0005`
+- exclusão mútua entre Smart Routing e Split Test A/B, e bloqueio de `301` quando Smart Routing está ativo, com transição atômica em um único `PATCH`
+- redirect público integrado: Smart Routing usa sempre `302` + `Cache-Control: no-store`, bot/preview/prefetch sempre no fallback, e estado híbrido/corrompido falha seguro em `target_url` com métrica somente `clicks_total`
+- hot path sem SELECT adicional, sem tabela auxiliar, sem API externa e sem PRAGMA por clique; testes de SQL instrumentado (cold vs warm) e provas de zero parse/classificação/RNG em bots e híbridos
 
 ### Corrigido
 
@@ -27,6 +36,9 @@
 - README deixa explícito que migrations são autoritativas e que o runtime não cria colunas A/B
 - scripts `dev-validate-phase-*` usam `--testNamePattern` (Vitest 4) com `--passWithNoTests`
 - fluxo local deixa explícito que `npm run dev-init` prepara apenas o SQLite auxiliar `.dev-env/db.sqlite3`; o Worker usa o D1 local do Wrangler, preparado por `npm run dev-prepare` antes de `npm run dev`; mensagem final do `dev-init` e fluxos one-click/remotos sincronizados (provisionar/deploy inicial não substitui migrations remotas) (`BL-AB-016`)
+- o redirect público deixou de depender de cache de capability por isolate: a linha principal é lida com projeção schema-neutral (`SELECT *`) e a presença da coluna é observada a cada request, então um isolate aquecido antes da `0005` converge sozinho no próximo request público — sem `PRAGMA` por clique e sem depender de afinidade com um request Admin/API (`BL-SR-GLOBAL-001`)
+- configuração Smart Routing persistida e ilegível deixou de ser confundida com "desativada": a API expõe `smartRoutingStatus` (`disabled`/`valid`/`invalid`) sem revelar o valor cru, o Admin mantém o estado como corrupção preservada, edições não relacionadas não enviam o campo e só a ação explícita de limpeza grava `NULL`; a validação de híbrido passou a rejeitar apenas híbrido novo ou reescrito, preservando o fail-safe de linhas já híbridas (`BL-SR-GLOBAL-002`)
+- documentação separada em três bases explícitas — tag publicada `v2.2.1` (até `0003`), baseline local da Fase 2 (`0004`) e working tree da Fase 3 (`0005`) — e o scanner de documentação passou a proteger também o limite publicado vs. artefatos da Fase 2 (`0004`, A/B, `ab_enabled`, `ab_target_url`, `dev-prepare`) (`BL-SR-GLOBAL-003`)
 
 ### Segurança e comportamento
 

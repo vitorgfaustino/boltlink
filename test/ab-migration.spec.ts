@@ -18,6 +18,7 @@ import migration0001 from "../migrations/0001_link_management.sql";
 import migration0002 from "../migrations/0002_advanced_features.sql";
 import migration0003 from "../migrations/0003_lgpd_minimization.sql";
 import migration0004 from "../migrations/0004_ab_testing.sql";
+import migration0005 from "../migrations/0005_smart_routing.sql";
 
 const AB_COLUMNS = ["ab_enabled", "ab_target_url", "ab_weight_b", "ab_generation", "metric_epoch", "ab_clicks_a", "ab_clicks_b", "ab_started_at"];
 
@@ -217,7 +218,7 @@ describe("A/B schema migration", () => {
 		}
 
 		const capabilitiesPre = await worker.fetch(new Request("http://127.0.0.1/api/capabilities"), env, createExecutionContext());
-		expect(await capabilitiesPre.json()).toEqual({ abTesting: false });
+		expect(await capabilitiesPre.json()).toEqual({ abTesting: false, smartRouting: false });
 
 		// Real admin payload for a normal link: no A/B fields at all.
 		const normalCreateCtx = createExecutionContext();
@@ -267,7 +268,7 @@ describe("A/B schema migration", () => {
 		}
 
 		const capabilitiesPost = await worker.fetch(new Request("http://127.0.0.1/api/capabilities"), env, createExecutionContext());
-		expect(await capabilitiesPost.json()).toEqual({ abTesting: true });
+		expect(await capabilitiesPost.json()).toEqual({ abTesting: true, smartRouting: false });
 
 		const legacyRow = await env.db_boltlink
 			.prepare("SELECT clicks_total, ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch, ab_clicks_a, ab_clicks_b, ab_started_at FROM links WHERE slug = ?")
@@ -292,7 +293,7 @@ describe("A/B schema migration", () => {
 		await env.db_boltlink.prepare("DROP TABLE IF EXISTS link_groups").run();
 		await env.db_boltlink.prepare("DROP VIEW IF EXISTS boltlink_metric_fence").run();
 
-		for (const migration of [migration0000, migration0001, migration0002, migration0003, migration0004]) {
+		for (const migration of [migration0000, migration0001, migration0002, migration0003, migration0004, migration0005]) {
 			await applyStatements(migration);
 		}
 
@@ -317,7 +318,7 @@ describe("A/B schema migration", () => {
 		const untouched = await tableColumns();
 		expect(untouched.size).toBe(0);
 
-		for (const migration of [migration0000, migration0001, migration0002, migration0003, migration0004]) {
+		for (const migration of [migration0000, migration0001, migration0002, migration0003, migration0004, migration0005]) {
 			await applyStatements(migration);
 		}
 
@@ -330,7 +331,7 @@ describe("A/B schema migration", () => {
 		const capabilityCtx = createExecutionContext();
 		const capability = await worker.fetch(new Request("http://127.0.0.1/api/capabilities"), { ...env, db_boltlink: handle }, capabilityCtx);
 		await waitOnExecutionContext(capabilityCtx);
-		expect(await capability.json()).toEqual({ abTesting: true });
+		expect(await capability.json()).toEqual({ abTesting: true, smartRouting: true });
 	});
 
 	it("treats a partial A/B column set as not ready without adding columns or losing data", async () => {
@@ -380,7 +381,7 @@ describe("A/B schema migration", () => {
 			{ ...env, db_boltlink: dbHandle },
 			createExecutionContext(),
 		);
-		expect(await capabilitiesPartial.json()).toEqual({ abTesting: false });
+		expect(await capabilitiesPartial.json()).toEqual({ abTesting: false, smartRouting: false });
 	});
 
 	it("re-detects capabilities on an existing handle after 0004 is applied", async () => {
@@ -437,7 +438,7 @@ describe("A/B schema migration", () => {
 			{ ...env, db_boltlink: handle },
 			capabilityCtx,
 		);
-		expect(await capability.json()).toEqual({ abTesting: true });
+		expect(await capability.json()).toEqual({ abTesting: true, smartRouting: false });
 
 		const clickCtx = createExecutionContext();
 		const click = await worker.fetch(

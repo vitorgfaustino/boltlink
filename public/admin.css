@@ -1240,3 +1240,89 @@ button.icon-btn {
     font-size: 0.78rem;
   }
 }
+
+/* Smart Routing rules editor */
+.smart-rules {
+  display: grid;
+  gap: 12px;
+}
+
+.smart-rule {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.smart-rule-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.smart-rule-field select,
+.smart-rule-field input {
+  width: 100%;
+  min-width: 0;
+}
+
+.smart-rule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.smart-rule-button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 6px 12px;
+}
+
+.smart-rule-actions .smart-rule-button[data-smart-action="remove"] {
+  color: #fecaca;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.smart-routing-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+#smart-routing-fallback {
+  word-break: break-all;
+}
+
+.error-text {
+  color: #fda4af;
+  font-weight: 600;
+}
+
+/* Preserved corrupt Smart Routing state: a warning, not a user input error. */
+.corrupt-text {
+  color: #fcd34d;
+  font-weight: 600;
+}
+
+#clear-smart-invalid-button {
+  justify-self: start;
+}
+
+@media (min-width: 560px) {
+  .smart-rule {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: end;
+  }
+
+  .smart-rule .smart-rule-field:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .smart-rule-actions {
+    grid-column: 1 / -1;
+  }
+}

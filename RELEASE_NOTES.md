@@ -1,3 +1,21 @@
+## Unreleased - Smart Routing (Fase 3)
+
+Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.
+
+> Escopo: este bloco cobre o **baseline local da Fase 2** (Split Test A/B, migration `0004`) e o **estado Unreleased da Fase 3** (Smart Routing, migration `0005`). Nenhum dos dois está na tag publicada `v2.2.1`, que termina na `0003`.
+
+### Destaques
+
+- **Smart Routing privacy-first**: escolha de destino por país e/ou dispositivo com regras ordenadas, first-match-wins e fallback no destino principal.
+- **Sem dados de visitante**: país aproximado da Cloudflare e `User-Agent` são usados apenas em memória para selecionar o destino; país, user-agent, dispositivo derivado e regra escolhida não são persistidos.
+- **Uma coluna, um SELECT**: regras ficam em `links.smart_routing_rules` (JSON em linha), sem tabela auxiliar, JOIN ou SELECT adicional no redirect.
+- **Redirect previsível**: links com Smart Routing usam sempre `302` com `Cache-Control: no-store`, e bots/previews recebem sempre o fallback.
+- **Editor no Admin**: ativar/desativar, adicionar/mover/remover regras (sem drag-and-drop), país via lista ISO local, limite de 20 regras e fallback somente leitura.
+- **Exclusão mútua com A/B**: Smart Routing e Split Test A/B não coexistem; a troca acontece em um único `PATCH` atômico, e `301` fica indisponível enquanto Smart Routing estiver ativo.
+- **Migration 0005**: `0005_smart_routing.sql` é a fonte autoritativa da coluna; o deploy não aplica migrations automaticamente.
+- **Convergência sem restart**: o redirect público lê a linha com projeção schema-neutral, então um isolate aquecido antes da `0005` passa a rotear corretamente no request público seguinte, sem depender de um request Admin/API no mesmo isolate.
+- **Corrupção preservada**: um valor persistido ilegível em `smart_routing_rules` deixa de ser tratado como "desativado" — a API informa `smartRoutingStatus: "invalid"` sem expor o valor cru, edições não relacionadas preservam os bytes e só a ação explícita de limpeza grava `NULL`.
+
 ## BoltLink 2.2.1 - UX Refinement & Keyboard Shortcuts
 
 Esta atualização traz melhorias no controle por teclado, acessibilidade (WCAG), consistência visual nos templates de páginas públicas e de redirecionamento, e refinamentos de design para dispositivos móveis.

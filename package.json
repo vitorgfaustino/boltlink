@@ -20,7 +20,7 @@
     "dev-validate-phase-1": "npm run test -- --testNamePattern 'Phase 1' --passWithNoTests",
     "dev-validate-phase-2": "npm run test -- --testNamePattern 'Phase 2' --passWithNoTests",
     "dev-validate-phase-3": "npm run test -- --testNamePattern 'Phase 3' --passWithNoTests",
-    "dev-validate-phase-4": "npm run test -- --testNamePattern 'Phase 4' --passWithNoTests",
+    "dev-validate-phase-4": "vitest run test/link-lifecycle-and-management.spec.ts",
     "dev-validate-phase-5": "npm run test -- --testNamePattern 'Phase 5' --passWithNoTests"
   },
   "cloudflare": {

@@ -21,9 +21,10 @@ import migration0001 from "../migrations/0001_link_management.sql";
 import migration0002 from "../migrations/0002_advanced_features.sql";
 import migration0003 from "../migrations/0003_lgpd_minimization.sql";
 import migration0004 from "../migrations/0004_ab_testing.sql";
+import migration0005 from "../migrations/0005_smart_routing.sql";
 
 const AB_COLUMNS = ["ab_enabled", "ab_target_url", "ab_weight_b", "ab_generation", "metric_epoch", "ab_clicks_a", "ab_clicks_b", "ab_started_at"];
-const CHAIN = [schemaBaseline, migration0000, migration0001, migration0002, migration0003, migration0004];
+const CHAIN = [schemaBaseline, migration0000, migration0001, migration0002, migration0003, migration0004, migration0005];
 
 function passThrough(target: object, prop: string | symbol) {
 	const value = Reflect.get(target, prop);
@@ -101,7 +102,7 @@ describe("Schema installation contract", () => {
 	it("applies the full migration chain on an empty database without duplicate columns", async () => {
 		await dropEverything();
 
-		for (const migration of [migration0000, migration0001, migration0002, migration0003, migration0004]) {
+		for (const migration of [migration0000, migration0001, migration0002, migration0003, migration0004, migration0005]) {
 			await applySchema(migration);
 		}
 
@@ -111,7 +112,7 @@ describe("Schema installation contract", () => {
 		}
 
 		const capabilities = await fetchWorker("http://127.0.0.1/api/capabilities");
-		expect(await capabilities.json()).toEqual({ abTesting: true });
+		expect(await capabilities.json()).toEqual({ abTesting: true, smartRouting: true });
 
 		const createResponse = await fetchWorker("http://127.0.0.1/api/links", {
 			method: "POST",
@@ -145,6 +146,6 @@ describe("Schema installation contract", () => {
 
 		const handle = cloneDbHandle(env.db_boltlink);
 		const capabilities = await fetchWorker("http://127.0.0.1/api/capabilities", undefined, { db_boltlink: handle });
-		expect(await capabilities.json()).toEqual({ abTesting: true });
+		expect(await capabilities.json()).toEqual({ abTesting: true, smartRouting: true });
 	});
 });

@@ -37,17 +37,20 @@ O sistema pode persistir:
 - datas operacionais do link
 - tags e grupos definidos pelo operador
 - hash de senha do link, quando houver proteção por senha
-- quando o Split Test A/B estiver ativo: URL da Variant B, alocação de tráfego e contadores agregados `ab_clicks_a`/`ab_clicks_b`
+- quando o Split Test A/B estiver ativo (**Phase 2 local**, não presente na tag publicada `v2.2.1`): URL da Variant B, alocação de tráfego e contadores agregados `ab_clicks_a`/`ab_clicks_b`
+- quando o Smart Routing estiver configurado (**Unreleased / Fase 3** na branch de desenvolvimento, não presente na tag publicada `v2.2.1`): as regras administrativas (país, dispositivo e destino) em `smart_routing_rules`, sem qualquer dado de visitante
 
 O sistema não persiste, por padrão:
 
 - IP em texto puro
 - hash de IP
-- país por clique
+- país por visitante
+- dispositivo derivado por visitante
+- regra de Smart Routing selecionada por visita
 - `Referer`
 - `User-Agent`
 - eventos individuais por clique
-- cookie de experimento A/B, visitor ID ou fingerprint
+- cookie de experimento A/B, cookie de roteamento, visitor ID ou fingerprint
 - registro de qual variante um visitante recebeu
 
 ## 4. Finalidades do tratamento
@@ -58,6 +61,7 @@ Os dados são tratados para:
 - administrar links, grupos, expiração e configurações relacionadas
 - manter contagem agregada de cliques
 - distribuir tráfego entre variantes de Split Test A/B de forma stateless, mantendo apenas contadores agregados
+- selecionar o destino de um link por país e/ou dispositivo com Smart Routing, usando país aproximado e `User-Agent` apenas em memória durante o request
 - proteger o painel administrativo e a API
 
 ## 5. Base legal

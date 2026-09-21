@@ -215,6 +215,31 @@
             </div>
           </details>
 
+          <p class="field-help" id="smart-routing-unavailable" hidden>Smart Routing requer a migration 0005_smart_routing.sql aplicada nesta instalação.</p>
+          <details id="smart-routing-section" hidden>
+            <summary>Smart Routing</summary>
+            <div class="form-section">
+              <label class="checkbox-row">
+                <input id="smart-routing-enabled" type="checkbox" />
+                Ativar Smart Routing
+              </label>
+              <p class="field-help">As regras são avaliadas de cima para baixo. A primeira regra compatível define o destino. Sem regra compatível, o visitante segue para o destino principal do link. Nenhum dado do visitante é armazenado.</p>
+
+              <p class="field-help" id="smart-routing-conflict" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+              <p class="field-help corrupt-text" id="smart-routing-invalid" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+              <button type="button" class="secondary compact" id="clear-smart-invalid-button" hidden>Limpar configuração inválida</button>
+              <div id="smart-routing-rules" class="smart-rules"></div>
+
+              <div class="smart-routing-footer">
+                <button type="button" class="secondary compact" id="add-smart-rule-button">Adicionar regra</button>
+                <span class="field-help" id="smart-routing-count">0 / 20</span>
+              </div>
+
+              <p class="field-help" id="smart-routing-fallback">Fallback: destino principal do link</p>
+              <p class="field-help error-text" id="smart-routing-error" role="alert" aria-live="assertive" aria-atomic="true" hidden></p>
+            </div>
+          </details>
+
           <div class="actions">
             <button type="submit" id="submit-button" class="primary">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -232,7 +257,7 @@
               <span>Cancelar</span>
             </button>
           </div>
-          <div class="status" id="form-status"></div>
+          <div class="status" id="form-status" role="status" aria-live="polite" aria-atomic="true"></div>
         </form>
       </article>
 
@@ -289,6 +314,7 @@
   </main>
 
   <script src="/ab-display.js"></script>
+  <script src="/smart-routing-ui.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>

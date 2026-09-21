@@ -22,9 +22,19 @@ Leia nesta ordem antes de agir:
 5. `docs/admin-auth.md`
 6. `docs/privacy.md`
 
-## Estado atual do produto
+## Três bases de código (não confundir)
 
-BoltLink v2.2.1 é um gerenciador de links com:
+Existem três estados distintos. A tag publicada **não** é igual ao baseline local:
+
+| Base | Como identificar | Migrations | Recursos extras |
+| --- | --- | --- | --- |
+| **Publicada** (`v2.2.1`) | tag real: `git rev-parse v2.2.1` → `8b3895e` | `0000` a `0003` | — |
+| **Fase 2 local** | baseline local `23353a1`, **não publicado** | `0000` a `0004` | Split Test A/B |
+| **Fase 3 working tree** | esta branch de desenvolvimento, **Unreleased** | `0000` a `0005` | Split Test A/B + Smart Routing |
+
+Não chame o baseline local da Fase 2 de "v2.2.1 publicada": a tag publicada não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`.
+
+Publicada (v2.2.1):
 
 - redirect público por slug
 - painel administrativo estático
@@ -32,6 +42,16 @@ BoltLink v2.2.1 é um gerenciador de links com:
 - Cloudflare Access para `/admin`, `/admin.html`, `/api` e `/api/*`
 - contagem apenas agregada em `links.clicks_total`
 - política pública em `/privacidade`
+
+Phase 2 local (`23353a1`, não publicado):
+
+- Split Test A/B por link (Control A = `target_url`, Variant B = `ab_target_url`), stateless e com contadores agregados
+- migration `0004_ab_testing.sql` como fonte autoritativa das colunas A/B
+
+Unreleased / Fase 3 (somente nesta branch de desenvolvimento):
+
+- Smart Routing por país/dispositivo com primeira regra compatível vencendo e fallback no destino principal
+- migration `0005_smart_routing.sql`
 
 O produto não mantém:
 
@@ -41,7 +61,9 @@ O produto não mantém:
 - `notes`
 - IP persistido
 - hash estável de IP
-- país por clique
+- país por visitante
+- dispositivo derivado por visitante
+- regra de Smart Routing selecionada
 - `Referer` persistido
 - `User-Agent` persistido
 
@@ -59,6 +81,12 @@ O produto não mantém:
 - redirects públicos usam `Referrer-Policy: strict-origin`
 - admin, API, home, gate de senha e respostas não redirect usam `Referrer-Policy: no-referrer`
 - sempre que fizer um bump de versão (ex: editar `package.json`), procure por strings da versão antiga nos arquivos de teste (`test/index.spec.ts`) e atualize-as, rodando `npm test` para garantir que as asserções não quebrem.
+- `migrations/` é a autoridade do schema; o runtime não cria colunas, não executa `schema.sql` e não aplica migrations implicitamente
+- Smart Routing e Split Test A/B são mutuamente exclusivos; links com Smart Routing usam sempre `302` + `Cache-Control: no-store`
+- Smart Routing usa `links.smart_routing_rules` (JSON em linha), com um único SELECT e sem tabela auxiliar, JOIN ou API externa
+- país, User-Agent, dispositivo derivado e regra selecionada nunca são persistidos; Smart Routing não tem contador por regra
+- configuração Smart Routing persistida e ilegível é corrupção **preservada**, não "desativada": a API informa `smartRoutingStatus: "invalid"` (sem expor o valor cru), edições não relacionadas não podem apagá-la e só uma ação explícita de limpeza grava `NULL`
+- para desenvolvimento local do Worker **nas bases locais (Fase 2 e Fase 3)**, rode `npm run dev-prepare` (migrations no D1 do Wrangler) antes de `npm run dev`; no checkout da tag `v2.2.1` esse script não existe, use `npm run wrangler -- d1 migrations apply ... --local`
 
 ## Como interpretar pedidos
 
@@ -119,7 +147,7 @@ Fluxo para `Iniciar o Projeto`:
 4. rodar `npm install`
 5. rodar `npm run setup`
 6. se o usuário quiser banco explícito, criar D1 com `npm run wrangler -- d1 create ... --update-config`
-7. aplicar migrations locais (`npm run dev-prepare`)
+7. aplicar migrations locais (nas bases locais da Fase 2/Fase 3: `npm run dev-prepare`; no checkout da tag `v2.2.1`: `npm run wrangler -- d1 migrations apply ... --local`)
 8. se o destino for remoto, aplicar as migrations no D1 (`--remote -c wrangler.local.jsonc`) antes de publicar/validar; no Deploy Button, o provisionamento inicial **não** substitui esse passo
 9. rodar `npm test`
 10. parar antes da criação final do Access
@@ -127,10 +155,10 @@ Fluxo para `Iniciar o Projeto`:
 Se o pedido for iniciar o projeto apenas localmente para testes manuais, a IA deve preparar o D1 local do Worker **antes** de `npm run dev`:
 
 ```bash
-npm run dev-prepare
+npm run dev-prepare   # existe apenas nas bases locais (Fase 2 e Fase 3)
 ```
 
-`npm run dev-prepare` aplica as migrations no D1 local usado pelo `wrangler dev` (`.wrangler/state/v3/d1`). Sem isso o Worker responde `503 Database schema is not initialized`.
+`npm run dev-prepare` aplica as migrations no D1 local usado pelo `wrangler dev` (`.wrangler/state/v3/d1`). Sem isso o Worker responde `503 Database schema is not initialized`. No checkout da tag `v2.2.1` esse script não existe; use `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
 
 Opcionalmente, para navegação/experimentação com um SQLite auxiliar:
 
@@ -158,7 +186,7 @@ Quando o pedido for `Atualizar o Projeto`, a IA deve:
 5. se estiver seguro, rodar `git pull --ff-only`
 6. rodar `npm install`
 7. rodar `npm run wrangler:init`
-8. aplicar migrations locais (`npm run dev-prepare`)
+8. aplicar migrations locais (`npm run dev-prepare` nas bases locais; `npm run wrangler -- d1 migrations apply ... --local` no checkout da tag `v2.2.1`)
 9. se o deploy remoto for operado por CLI: aplicar as migrations remotas (`--remote -c wrangler.local.jsonc`) e só então publicar com `npm run deploy`
 10. se o deploy for GitHub auto-deploy ou Deploy Button: após o provisionamento/deploy inicial, aplicar as migrations remotas antes de validar; deploy sozinho não deixa a instalação operacional (`503 Database schema is not initialized`)
 11. rodar `npm test`
@@ -272,15 +300,17 @@ npm install
 npm run setup
 ```
 
-Setup local com banco SQLite de apoio:
+Setup local com banco SQLite de apoio (bases locais da Fase 2 e Fase 3):
 
 ```bash
 npm install
 npm run setup
-npm run dev-prepare   # migrations no D1 local usado pelo Worker
+npm run dev-prepare   # migrations no D1 local usado pelo Worker (não existe na tag v2.2.1)
 npm run dev-init      # opcional: SQLite auxiliar em .dev-env/
 npm run dev
 ```
+
+No checkout da tag `v2.2.1`, substitua `dev-prepare` por `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
 
 Criar D1 com update do config local:
 

@@ -15,7 +15,17 @@ Este guia cobre as três formas de operar o BoltLink v2.2.1:
 - não existe mais `IP_HASH_SECRET`
 - a contagem é apenas agregada em `clicks_total`
 
-## Fluxo A: Wrangler local
+## Três bases de código
+
+| Base | Migrations | Recursos extras |
+| --- | --- | --- |
+| Publicada (tag `v2.2.1`, `8b3895e`) | `0000` a `0003` | — |
+| Fase 2 local (`23353a1`, não publicado) | `0000` a `0004` | Split Test A/B |
+| Fase 3 working tree (esta branch) | `0000` a `0005` | Split Test A/B + Smart Routing |
+
+Os fluxos publicados abaixo usam apenas comandos que existem na tag. `npm run dev-prepare`, `0004` e `0005` pertencem às seções locais.
+
+## Fluxo A: Wrangler local (release publicada v2.2.1)
 
 1. `npm install`
 2. `npm run setup`
@@ -34,10 +44,10 @@ npm run wrangler -- d1 create <nome-do-banco> --binding db_boltlink --update-con
 4. Aplicar migrations no D1 local usado pelo Worker. O runtime não cria schema; banco vazio responde `503 Database schema is not initialized`:
 
 ```bash
-npm run dev-prepare
+npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
 ```
 
-`npm run dev-prepare` lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc` e aplica `migrations/0000` a `0004` em `.wrangler/state/v3/d1`.
+A tag publicada `v2.2.1` aplica `migrations/0000` a `0003` por esse comando. Os recursos das bases locais (Fase 2 e Fase 3) têm seção própria adiante.
 
 5. Para D1 remoto / upgrade:
 
@@ -52,6 +62,26 @@ npm run dev
 npm test
 ```
 
+## Fluxo local de desenvolvimento (Phase 2 local)
+
+No baseline local da Fase 2 (`23353a1`, não publicado) o script `npm run dev-prepare` aplica a cadeia de migrations (`0000` a `0004`) no D1 local do Wrangler (`.wrangler/state/v3/d1`):
+
+```bash
+npm run dev-prepare
+npm run dev
+```
+
+`dev-prepare` não existe na tag `v2.2.1`; lá use o comando do Fluxo A.
+
+## Fluxo local de desenvolvimento (Unreleased / Fase 3)
+
+Nesta branch de desenvolvimento, o mesmo `npm run dev-prepare` aplica a cadeia até `migrations/0005`:
+
+```bash
+npm run dev-prepare
+npm run dev
+```
+
 ## Fluxo B: AI-guided setup
 
 Use `AI-START.md` como entrada única.
@@ -63,14 +93,28 @@ Pedidos recomendados:
 - `Auditar estado operacional`
 - `Aplicar migrations`
 
-Na versão atual, o pedido de atualização deve:
+> Escopo: release publicada/baseline = **v2.2.1** (migrations até `0003`). Recursos Phase 2 local e Unreleased / Fase 3 têm seção própria adiante; não instrua operadores de um checkout da tag `v2.2.1` a procurar migrations ou recursos que não existem nela.
+
+No checkout da tag, o pedido de atualização deve:
 
 1. verificar `git status --short`
 2. preservar `wrangler.local.jsonc` e overlays do projeto
 3. atualizar dependências
 4. rodar `npm run wrangler:init`
-5. aplicar as migrations pendentes no D1 (local com `npm run dev-prepare`; remoto com `--remote -c wrangler.local.jsonc`); a `0003_lgpd_minimization.sql` remove `stats`, `last_clicked_at` e `notes` e a `0004_ab_testing.sql` habilita A/B
+5. aplicar as migrations pendentes no D1 (local com `npm run wrangler -- d1 migrations apply ... --local`; remoto com `--remote -c wrangler.local.jsonc`); a `0003_lgpd_minimization.sql` remove `stats`, `last_clicked_at` e `notes` e é a última migration da release publicada `v2.2.1`.
 6. rodar `npm test`
+
+Nas bases locais (Fase 2 e Fase 3), substitua o passo 5 por `npm run dev-prepare`, que aplica a cadeia até a `0004` ou a `0005` conforme a base.
+
+## Unreleased / Fase 3 (próxima release)
+
+> Escopo: release publicada/baseline = **v2.2.1**. Esta seção descreve somente a branch de desenvolvimento; um checkout da tag `v2.2.1` não contém o Smart Routing nem a migration `0005_smart_routing.sql`.
+
+Na branch de desenvolvimento:
+
+- aplique também a `0005_smart_routing.sql` antes de configurar Smart Routing;
+- valide `GET /api/capabilities` com `smartRouting: true`;
+- configure Smart Routing no Admin.
 
 ## Fluxo C: Deploy to Cloudflare Workers
 
@@ -112,8 +156,9 @@ Para quem já está em produção e recebe atualização por GitHub/Deploy Butto
 
 - o runtime não executa reconciliação de schema; colunas legadas extras são ignoradas e permanecem até uma migration explícita
 - ordem suportada: migrations remotas → deploy/atualização do Worker → validação
-- aplique as migrations pendentes no D1 remoto (incluindo `0004_ab_testing.sql` para habilitar A/B): `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`
-- a `0003_lgpd_minimization.sql` remove `stats`, `last_clicked_at` e `notes`
+- aplique as migrations pendentes no D1 remoto (a `0003_lgpd_minimization.sql` remove `stats`, `last_clicked_at` e `notes` e é a última migration da release publicada `v2.2.1`): `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`
+- **Phase 2 local:** a `0004_ab_testing.sql` habilita o Split Test A/B e não existe no checkout da tag `v2.2.1`
+- **Unreleased / Fase 3:** a `0005_smart_routing.sql` habilita Smart Routing e também não existe no checkout da tag `v2.2.1`
 - deploy sozinho não deixa a instalação operacional: até aplicar as migrations, API e redirects respondem `503 Database schema is not initialized`
 - `wrangler.local.jsonc` não participa desse fluxo e não sobrescreve variáveis do ambiente de GitHub/Workers Builds
 

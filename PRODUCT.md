@@ -20,6 +20,14 @@ Um link pode dividir tráfego entre Control A (o destino principal) e Variant B 
 
 O produto mede apenas **distribuição de cliques** (`Cliques A`, `Cliques B`, `Distribuição observada`, `Traffic Allocation`). Não há taxa de conversão, vencedor, significância estatística, sessões ou receita — conversão continua sendo responsabilidade de ferramentas externas como Google Ads, GA4 e Meta.
 
+## Smart Routing
+
+Um link pode escolher o destino por **país** e/ou **dispositivo** a partir de uma lista ordenada de regras. A primeira regra compatível vence; sem regra compatível, o visitante segue para o destino principal (fallback). O país é o metadado aproximado fornecido pela Cloudflare e o dispositivo é derivado do `User-Agent` da requisição. Ambos são usados apenas para selecionar o destino e não são armazenados por visitante.
+
+Smart Routing é **stateless**: nenhum cookie de roteamento, visitor ID ou fingerprint é criado. A métrica continua sendo apenas `clicks_total` agregado — não há contador por regra, por país ou por dispositivo. Bots, crawlers, previews e prefetch/prerender recebem sempre o destino principal.
+
+Smart Routing e Split Test A/B são **mutuamente exclusivos**, e links com Smart Routing ativo usam sempre redirect temporário `302` com `Cache-Control: no-store`. O recurso não transforma o produto em plataforma de analytics: não há country analytics, device analytics, conversão, UTM injection ou sticky routing.
+
 ## Brand Personality
 
 **privacy-first, preciso, confiável**

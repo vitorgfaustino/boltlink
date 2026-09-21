@@ -21,7 +21,16 @@ const state = {
   pendingDeletes: new Map(),
   countdownInterval: null,
   abTesting: false,
+  smartRouting: false,
+  smartRules: [],
+  // Loaded persisted routing state is kept explicit: a corrupt value must never
+  // be collapsed into "off", otherwise an unrelated edit would erase it.
+  smartRoutingCorrupt: false,
+  smartClearInvalid: false,
 };
+
+const smartRoutingUi = window.BoltLinkSmartRouting || null;
+const MAX_SMART_RULES = smartRoutingUi ? smartRoutingUi.MAX_RULES : 20;
 
 const ICONS = {
   save: `
@@ -100,6 +109,17 @@ const abTargetUrlInput = document.getElementById("ab-target-url");
 const abWeightBInput = document.getElementById("ab-weight-b");
 const abTestingSection = document.getElementById("ab-testing-section");
 const abTestingUnavailable = document.getElementById("ab-testing-unavailable");
+const smartRoutingEnabledInput = document.getElementById("smart-routing-enabled");
+const smartRoutingSection = document.getElementById("smart-routing-section");
+const smartRoutingUnavailable = document.getElementById("smart-routing-unavailable");
+const smartRoutingRulesContainer = document.getElementById("smart-routing-rules");
+const smartRoutingCount = document.getElementById("smart-routing-count");
+const smartRoutingFallback = document.getElementById("smart-routing-fallback");
+const smartRoutingError = document.getElementById("smart-routing-error");
+const smartRoutingConflict = document.getElementById("smart-routing-conflict");
+const smartRoutingInvalid = document.getElementById("smart-routing-invalid");
+const clearSmartInvalidButton = document.getElementById("clear-smart-invalid-button");
+const addSmartRuleButton = document.getElementById("add-smart-rule-button");
 const domainWarning = document.getElementById("domain-warning");
 const utmSourceInput = document.getElementById("utm-source");
 const utmMediumInput = document.getElementById("utm-medium");
@@ -497,20 +517,323 @@ function clearCustomAbWeightOptions() {
     .forEach((option) => option.remove());
 }
 
-function syncAbRedirectConstraint() {
-  const abEnabled = abEnabledInput.checked;
+function isSmartRoutingActive() {
+  return state.smartRouting && smartRoutingEnabledInput.checked;
+}
+
+// A/B and Smart Routing both require a temporary redirect. The helper is
+// shared so the 301 constraint cannot diverge between the two editors.
+function syncRedirectConstraint() {
+  const temporaryRequired = smartRoutingUi
+    ? smartRoutingUi.requiresTemporaryRedirect({ abEnabled: abEnabledInput.checked, smartEnabled: isSmartRoutingActive() })
+    : (abEnabledInput.checked || isSmartRoutingActive());
   const option301 = redirectTypeInput.querySelector('option[value="301"]');
 
   if (option301) {
-    option301.disabled = abEnabled;
+    option301.disabled = temporaryRequired;
   }
 
-  if (abEnabled && redirectTypeInput.value === "301") {
-    redirectTypeInput.value = "302";
+  const resolvedType = smartRoutingUi
+    ? smartRoutingUi.resolveRedirectType(redirectTypeInput.value, temporaryRequired)
+    : (temporaryRequired && redirectTypeInput.value === "301" ? "302" : redirectTypeInput.value);
+  if (redirectTypeInput.value !== resolvedType) {
+    redirectTypeInput.value = resolvedType;
   }
 }
 
-abEnabledInput.addEventListener("change", syncAbRedirectConstraint);
+abEnabledInput.addEventListener("change", () => {
+  const transition = smartRoutingUi
+    ? smartRoutingUi.resolveModeTransition({ abEnabled: abEnabledInput.checked, smartEnabled: smartRoutingEnabledInput.checked }, "ab")
+    : null;
+  if (transition) {
+    abEnabledInput.checked = transition.abEnabled;
+    smartRoutingEnabledInput.checked = transition.smartEnabled;
+    setSmartRoutingConflict(transition.notice);
+  }
+  syncRedirectConstraint();
+  updateSmartRoutingCount();
+  setSmartRoutingError("");
+});
+
+function setSmartRoutingConflict(message) {
+  if (!smartRoutingConflict) {
+    return;
+  }
+  smartRoutingConflict.textContent = message || "";
+  smartRoutingConflict.hidden = !message;
+}
+
+function setSmartRoutingError(message) {
+  if (!smartRoutingError) {
+    return;
+  }
+  smartRoutingError.textContent = message || "";
+  smartRoutingError.hidden = !message;
+}
+
+/**
+ * Preserved corrupt state notice. `link` is only used to read the boolean
+ * `smartRoutingStatus`; the copy is a fixed string assigned through
+ * textContent, so the raw persisted configuration is never rendered.
+ */
+function setSmartRoutingInvalidState(link) {
+  const notice = link && smartRoutingUi ? smartRoutingUi.smartInvalidNotice(link) : "";
+  state.smartRoutingCorrupt = Boolean(notice);
+  if (smartRoutingInvalid) {
+    smartRoutingInvalid.textContent = notice;
+    smartRoutingInvalid.hidden = !notice;
+  }
+  if (clearSmartInvalidButton) {
+    clearSmartInvalidButton.hidden = !notice;
+  }
+}
+
+function updateSmartRoutingCount() {
+  if (smartRoutingCount) {
+    smartRoutingCount.textContent = `${state.smartRules.length} / ${MAX_SMART_RULES}`;
+  }
+  if (addSmartRuleButton) {
+    addSmartRuleButton.disabled = !state.smartRouting || state.smartRules.length >= MAX_SMART_RULES;
+  }
+}
+
+function refreshSmartFallback() {
+  if (!smartRoutingFallback) {
+    return;
+  }
+  const value = targetUrlInput.value.trim();
+  smartRoutingFallback.textContent = value ? `Fallback: ${value}` : "Fallback: destino principal do link";
+}
+
+function createSmartSelect(labelText, className, options, selectedValue) {
+  const label = document.createElement("label");
+  label.className = "smart-rule-field";
+
+  const span = document.createElement("span");
+  span.className = "field-label";
+  span.textContent = labelText;
+
+  const select = document.createElement("select");
+  select.className = className;
+  select.setAttribute("aria-describedby", "smart-routing-error");
+  options.forEach((option) => {
+    const optionElement = document.createElement("option");
+    optionElement.value = option.value;
+    optionElement.textContent = option.label;
+    select.appendChild(optionElement);
+  });
+  select.value = selectedValue || "";
+
+  label.appendChild(span);
+  label.appendChild(select);
+  return label;
+}
+
+function clearSmartRuleInvalidState() {
+  smartRoutingRulesContainer.querySelectorAll("[aria-invalid]").forEach((element) => {
+    element.removeAttribute("aria-invalid");
+  });
+}
+
+// Moves focus to the first invalid rule control instead of the toggle, so the
+// operator lands on the field that actually needs attention.
+function focusFirstInvalidSmartRule() {
+  clearSmartRuleInvalidState();
+  if (!smartRoutingUi) {
+    return;
+  }
+  collectSmartRules();
+  const index = smartRoutingUi.findFirstInvalidRuleIndex(state.smartRules);
+  if (index < 0) {
+    return;
+  }
+  const row = smartRoutingRulesContainer.querySelectorAll(".smart-rule")[index];
+  if (!row) {
+    return;
+  }
+  const field = smartRoutingUi.firstInvalidField(state.smartRules[index]);
+  const control = row.querySelector(
+    field === "country" ? ".smart-rule-country" : field === "device" ? ".smart-rule-device" : ".smart-rule-url",
+  );
+  if (control) {
+    control.setAttribute("aria-invalid", "true");
+    control.focus();
+  }
+}
+
+function createSmartRuleButton(action, label, text, disabled) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "secondary compact smart-rule-button";
+  button.dataset.smartAction = action;
+  button.setAttribute("aria-label", label);
+  button.title = label;
+  button.textContent = text;
+  button.disabled = disabled;
+  return button;
+}
+
+// All rule values are inserted through DOM APIs (value/textContent). No rule,
+// country, URL or error string ever reaches innerHTML.
+function renderSmartRules() {
+  if (!smartRoutingRulesContainer) {
+    return;
+  }
+  smartRoutingRulesContainer.replaceChildren();
+
+  const countries = smartRoutingUi
+    ? smartRoutingUi.countryOptions()
+    : [{ value: "", label: "Qualquer país" }];
+  const devices = smartRoutingUi
+    ? smartRoutingUi.deviceOptions()
+    : [{ value: "", label: "Qualquer dispositivo" }];
+
+  state.smartRules.forEach((rule, index) => {
+    const row = document.createElement("div");
+    row.className = "smart-rule";
+    row.dataset.index = String(index);
+
+    row.appendChild(createSmartSelect("País", "smart-rule-country", countries, rule.country));
+    row.appendChild(createSmartSelect("Dispositivo", "smart-rule-device", devices, rule.device));
+
+    const urlLabel = document.createElement("label");
+    urlLabel.className = "smart-rule-field";
+    const urlSpan = document.createElement("span");
+    urlSpan.className = "field-label";
+    urlSpan.textContent = "Destino";
+    const urlInput = document.createElement("input");
+    urlInput.type = "url";
+    urlInput.className = "smart-rule-url";
+    urlInput.placeholder = "https://exemplo.com/destino";
+    urlInput.setAttribute("aria-describedby", "smart-routing-error");
+    urlInput.value = rule.url || "";
+    urlLabel.appendChild(urlSpan);
+    urlLabel.appendChild(urlInput);
+    row.appendChild(urlLabel);
+
+    const actions = document.createElement("div");
+    actions.className = "smart-rule-actions";
+    actions.appendChild(createSmartRuleButton("up", "Mover regra para cima", "↑", index === 0));
+    actions.appendChild(createSmartRuleButton("down", "Mover regra para baixo", "↓", index === state.smartRules.length - 1));
+    actions.appendChild(createSmartRuleButton("remove", "Remover regra", "Remover", false));
+    row.appendChild(actions);
+
+    smartRoutingRulesContainer.appendChild(row);
+  });
+
+  updateSmartRoutingCount();
+  refreshSmartFallback();
+}
+
+function collectSmartRules() {
+  if (!smartRoutingRulesContainer) {
+    return state.smartRules;
+  }
+  const rows = Array.from(smartRoutingRulesContainer.querySelectorAll(".smart-rule"));
+  state.smartRules = rows.map((row) => ({
+    country: row.querySelector(".smart-rule-country")?.value || "",
+    device: row.querySelector(".smart-rule-device")?.value || "",
+    url: row.querySelector(".smart-rule-url")?.value || "",
+  }));
+  return state.smartRules;
+}
+
+smartRoutingEnabledInput.addEventListener("change", () => {
+  const transition = smartRoutingUi
+    ? smartRoutingUi.resolveModeTransition({ abEnabled: abEnabledInput.checked, smartEnabled: smartRoutingEnabledInput.checked }, "smart")
+    : null;
+  if (transition) {
+    abEnabledInput.checked = transition.abEnabled;
+    smartRoutingEnabledInput.checked = transition.smartEnabled;
+    setSmartRoutingConflict(transition.notice);
+  } else if (!smartRoutingEnabledInput.checked) {
+    setSmartRoutingConflict("");
+  }
+
+  if (smartRoutingEnabledInput.checked && !state.smartRules.length) {
+    state.smartRules.push({ country: "", device: "", url: "" });
+  }
+  syncRedirectConstraint();
+  renderSmartRules();
+  setSmartRoutingError("");
+});
+
+/**
+ * Explicit clear of a preserved corrupt configuration. It only arms the flag
+ * and delegates to the form submit so the shared payload builder stays the
+ * single request authority; every other save path omits the field entirely.
+ */
+clearSmartInvalidButton.addEventListener("click", () => {
+  if (!state.smartRoutingCorrupt || !state.smartRouting) {
+    return;
+  }
+  state.smartClearInvalid = true;
+  linkForm.requestSubmit();
+});
+
+addSmartRuleButton.addEventListener("click", () => {
+  if (!state.smartRouting) {
+    return;
+  }
+  if (state.smartRules.length >= MAX_SMART_RULES) {
+    setSmartRoutingError(smartRoutingUi ? smartRoutingUi.smartErrorMessage("TOO_MANY_RULES") : "Limite de regras atingido.");
+    return;
+  }
+  collectSmartRules();
+  state.smartRules.push({ country: "", device: "", url: "" });
+  renderSmartRules();
+  setSmartRoutingError("");
+  const lastUrl = smartRoutingRulesContainer.querySelector(".smart-rule:last-child .smart-rule-url");
+  if (lastUrl) {
+    lastUrl.focus();
+  }
+});
+
+smartRoutingRulesContainer.addEventListener("input", (event) => {
+  if (event.target.matches(".smart-rule-url")) {
+    collectSmartRules();
+    clearSmartRuleInvalidState();
+    setSmartRoutingError("");
+  }
+});
+
+smartRoutingRulesContainer.addEventListener("change", (event) => {
+  if (event.target.matches(".smart-rule-country, .smart-rule-device")) {
+    collectSmartRules();
+    clearSmartRuleInvalidState();
+    setSmartRoutingError("");
+  }
+});
+
+smartRoutingRulesContainer.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-smart-action]");
+  if (!button) {
+    return;
+  }
+  collectSmartRules();
+  const row = button.closest(".smart-rule");
+  const index = row ? Number(row.dataset.index) : -1;
+  const action = button.dataset.smartAction;
+
+  if (action === "remove") {
+    state.smartRules.splice(index, 1);
+    if (!state.smartRules.length) {
+      // Removing the last rule disables the feature locally instead of
+      // sending an invalid empty array.
+      smartRoutingEnabledInput.checked = false;
+      setSmartRoutingConflict("Smart Routing foi desativado porque não há regras.");
+      syncRedirectConstraint();
+    }
+    renderSmartRules();
+    setSmartRoutingError("");
+    return;
+  }
+
+  if (smartRoutingUi) {
+    state.smartRules = smartRoutingUi.moveRule(state.smartRules, index, action);
+  }
+  renderSmartRules();
+});
 
 function resetForm() {
   state.editingSlug = null;
@@ -520,7 +843,16 @@ function resetForm() {
   abTargetUrlInput.value = "";
   clearCustomAbWeightOptions();
   abWeightBInput.value = "50";
-  syncAbRedirectConstraint();
+  smartRoutingEnabledInput.checked = false;
+  state.smartRules = [];
+  state.smartRoutingCorrupt = false;
+  state.smartClearInvalid = false;
+  setSmartRoutingConflict("");
+  setSmartRoutingError("");
+  setSmartRoutingInvalidState(null);
+  clearSmartRuleInvalidState();
+  syncRedirectConstraint();
+  renderSmartRules();
   slugInput.readOnly = false;
   formTitle.textContent = "Criar link";
   submitButton.innerHTML = buttonMarkup("save", "Salvar link");
@@ -552,7 +884,26 @@ function beginEdit(link) {
   abTargetUrlInput.value = link.ab_target_url || "";
   clearCustomAbWeightOptions();
   setAbWeightBValue(link.ab_weight_b);
-  syncAbRedirectConstraint();
+
+  const loadedSmartRules = state.smartRouting
+    ? (smartRoutingUi ? smartRoutingUi.normalizeLoadedRules(link.smartRoutingRules) : [])
+    : [];
+  smartRoutingEnabledInput.checked = state.smartRouting && loadedSmartRules.length > 0;
+  state.smartRules = loadedSmartRules;
+  state.smartClearInvalid = false;
+  // A corrupt persisted value loads as "preserved", never as ordinary off: the
+  // notice stays visible and nothing is written unless the operator repairs or
+  // explicitly clears it.
+  setSmartRoutingInvalidState(state.smartRouting ? link : null);
+  setSmartRoutingConflict(
+    state.smartRouting && link.ab_enabled === 1 && (loadedSmartRules.length > 0 || state.smartRoutingCorrupt)
+      ? "Estado persistido ambíguo: Split Test A/B e Smart Routing estão configurados. O redirect público usa o destino principal."
+      : "",
+  );
+  setSmartRoutingError("");
+
+  syncRedirectConstraint();
+  renderSmartRules();
   slugInput.readOnly = true;
   formTitle.textContent = `Editar /${link.slug}`;
   submitButton.innerHTML = buttonMarkup("update", "Atualizar");
@@ -599,6 +950,23 @@ function renderAbMetrics(link) {
   }
 
   return metrics.join("");
+}
+
+function renderSmartBadge(link) {
+  const badge = smartRoutingUi ? smartRoutingUi.smartBadge(link, state.smartRouting) : null;
+  if (!badge) {
+    return "";
+  }
+  if (badge.corrupt) {
+    return badge.conflict
+      ? '<span class="metric">Smart Routing <strong>configuração inválida preservada</strong> · Split Test A/B ativo</span>'
+      : '<span class="metric">Smart Routing <strong>configuração inválida preservada</strong></span>';
+  }
+  if (badge.conflict) {
+    return '<span class="metric">Smart Routing <strong>configuração ambígua</strong></span>';
+  }
+  const suffix = badge.count === 1 ? "regra" : "regras";
+  return `<span class="metric">Smart Routing <strong>${badge.count} ${suffix}</strong></span>`;
 }
 
 function formatDate(value) {
@@ -680,6 +1048,7 @@ function renderLinks() {
             ${link.has_qrcode ? '<span class="metric">QR <strong>Ativo</strong></span>' : ""}
             ${link.has_password ? '<span class="metric">Senha <strong>Protegido</strong></span>' : ""}
             ${renderAbMetrics(link)}
+            ${renderSmartBadge(link)}
             ${parsedTags.length ? `<span class="metric">Tags <strong>${escapeHtml(parsedTags.join(", "))}</strong></span>` : ""}
             ${isPendingDelete ? `<span class="metric pending-note">Exclusão em <strong>${Math.ceil((state.pendingDeletes.get(link.slug)?.remaining || 0) / 1000)}s</strong></span>` : ""}
           </div>
@@ -740,11 +1109,14 @@ async function loadCapabilities() {
   try {
     const payload = await request("/api/capabilities", { method: "GET" });
     state.abTesting = payload?.abTesting === true;
+    state.smartRouting = payload?.smartRouting === true;
   } catch {
     state.abTesting = false;
+    state.smartRouting = false;
   }
 
   applyAbCapabilityToUi();
+  applySmartRoutingCapabilityToUi();
 }
 
 function applyAbCapabilityToUi() {
@@ -763,8 +1135,32 @@ function applyAbCapabilityToUi() {
 
   if (!available) {
     abEnabledInput.checked = false;
-    syncAbRedirectConstraint();
   }
+  syncRedirectConstraint();
+}
+
+function applySmartRoutingCapabilityToUi() {
+  const available = state.smartRouting;
+
+  if (smartRoutingSection) {
+    smartRoutingSection.hidden = !available;
+  }
+  if (smartRoutingUnavailable) {
+    smartRoutingUnavailable.hidden = available;
+  }
+  if (smartRoutingEnabledInput) {
+    smartRoutingEnabledInput.disabled = !available;
+  }
+
+  if (!available) {
+    smartRoutingEnabledInput.checked = false;
+    state.smartRules = [];
+    setSmartRoutingConflict("");
+    setSmartRoutingError("");
+  }
+
+  renderSmartRules();
+  syncRedirectConstraint();
 }
 
 async function loadVersion() {
@@ -875,15 +1271,26 @@ linkForm.addEventListener("submit", async (event) => {
   setStatus(formStatus, state.editingSlug ? "Atualizando link..." : "Criando link...");
   setBusy(submitButton, true);
 
+  if (!smartRoutingUi || typeof smartRoutingUi.submitLinkForm !== "function") {
+    setStatus(formStatus, "Não foi possível preparar o envio do formulário.", "error");
+    setBusy(submitButton, false);
+    return;
+  }
+
   const urlWithUtm = buildUtmUrl(targetUrlInput.value.trim()) || targetUrlInput.value.trim();
+  collectSmartRules();
+  clearSmartRuleInvalidState();
+  // Clear any stale Smart error before a new attempt. The empty string does not
+  // produce an announcement, so this cannot duplicate the next message.
+  setSmartRoutingError("");
 
-  const abFields = window.BoltLinkAbDisplay?.buildAbFields(state.abTesting, {
-    abEnabled: abEnabledInput.checked,
-    abTargetUrl: abTargetUrlInput.value.trim() || null,
-    abWeightB: Number(abWeightBInput.value) || 50,
-  }) || {};
-
-  const body = {
+  // The final payload is composed exclusively by the shared builder used here
+  // and in the integrated tests. This listener never rebuilds A/B, Smart or
+  // redirect fields on its own.
+  const input = {
+    mode: state.editingSlug ? "edit" : "create",
+    editingSlug: state.editingSlug,
+    capabilities: { abTesting: state.abTesting, smartRouting: state.smartRouting },
     slug: slugInput.value.trim() || undefined,
     targetUrl: urlWithUtm,
     redirectType: redirectTypeInput.value,
@@ -892,33 +1299,45 @@ linkForm.addEventListener("submit", async (event) => {
     goLiveAt: toIsoDateTime(goLiveAtInput.value),
     expiresAt: toIsoDateTime(expiresAtInput.value),
     password: passwordInput.value.trim() || undefined,
-    ...abFields,
+    ab: {
+      enabled: abEnabledInput.checked,
+      targetUrl: abTargetUrlInput.value.trim() || null,
+      weightB: Number(abWeightBInput.value) || 50,
+    },
+    smart: {
+      enabled: smartRoutingEnabledInput.checked,
+      rules: state.smartRules,
+      // Corrupt persisted state: preserve it unless the operator used the
+      // explicit clear action, in which case the builder sends null.
+      preserveInvalid: state.smartRoutingCorrupt,
+      clearInvalid: state.smartClearInvalid,
+    },
   };
 
   try {
-    let successMessage = "";
-    if (state.editingSlug) {
-      await request(`/api/links/${encodeURIComponent(state.editingSlug)}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          targetUrl: body.targetUrl,
-          redirectType: body.redirectType,
-          tags: body.tags,
-          groupId: body.groupId,
-          goLiveAt: body.goLiveAt,
-          expiresAt: body.expiresAt,
-          password: body.password,
-          ...abFields,
-        }),
-      });
-      successMessage = `Destino de /${state.editingSlug} atualizado.`;
-    } else {
-      const payload = await request("/api/links", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      successMessage = `Link /${payload.link.slug} criado com sucesso.`;
+    const result = await smartRoutingUi.submitLinkForm(input);
+
+    if (!result.ok) {
+      // A Smart Routing failure is announced only by the assertive
+      // #smart-routing-error region. #form-status stays empty to avoid a
+      // duplicate screen-reader announcement.
+      const feedback = smartRoutingUi.resolveSubmissionFeedback(result);
+      if (feedback.smartError) {
+        setStatus(formStatus, "");
+        setSmartRoutingError(feedback.smartError);
+        if (feedback.focusRules) {
+          focusFirstInvalidSmartRule();
+        }
+        return;
+      }
+
+      setStatus(formStatus, feedback.formStatus || "Falha inesperada", "error");
+      return;
     }
+
+    const successMessage = state.editingSlug
+      ? `Destino de /${state.editingSlug} atualizado.`
+      : `Link /${result.payload.link.slug} criado com sucesso.`;
 
     resetForm();
     await loadLinks();
@@ -966,6 +1385,7 @@ createGroupButton.addEventListener("click", async () => {
     refreshUtmPreview();
     refreshDomainWarning();
     if (input === targetUrlInput) {
+      refreshSmartFallback();
       schedulePreviewLoad();
     }
   });

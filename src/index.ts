@@ -33,6 +33,17 @@ import packageJson from "../package.json";
 import { consumePublicRedirectBudget, rateLimitMiddleware } from "./rate-limit";
 import { isCountableClick, isCountablePasswordSubmission } from "./click-filter";
 import { randomPercent } from "./ab-random";
+import {
+	classifyDevice,
+	normalizeRequestCountry,
+	parsePersistedSmartRoutingRules,
+	parseSmartRoutingRules,
+	selectSmartRoutingTarget,
+} from "./smart-routing";
+import type { SmartRoutingPersistedResult, SmartRoutingRule } from "./smart-routing";
+
+/** Persisted-state classification exposed to the Admin: disabled ≠ corrupt. */
+type SmartRoutingStatus = SmartRoutingPersistedResult["status"];
 
 type Bindings = {
 	db_boltlink: D1Database;
@@ -72,9 +83,15 @@ type LinkRow = {
 	ab_clicks_a: number;
 	ab_clicks_b: number;
 	ab_started_at: string | null;
+	smart_routing_rules?: string | null;
 	version: number;
 };
 
+/**
+ * Row of the public redirect `SELECT *`. Every feature column is optional
+ * because presence depends on the migration level of the database: the row
+ * shape is what tells the runtime which features exist.
+ */
 type RedirectRow = {
 	id: number;
 	slug: string;
@@ -88,6 +105,10 @@ type RedirectRow = {
 	ab_weight_b?: number;
 	ab_generation?: number;
 	metric_epoch?: number;
+	ab_clicks_a?: number;
+	ab_clicks_b?: number;
+	ab_started_at?: string | null;
+	smart_routing_rules?: string | null;
 };
 
 type CreateLinkPayload = {
@@ -103,6 +124,7 @@ type CreateLinkPayload = {
 	abEnabled?: boolean;
 	abTargetUrl?: string | null;
 	abWeightB?: number;
+	smartRoutingRules?: unknown;
 };
 
 type UpdateLinkPayload = {
@@ -118,6 +140,7 @@ type UpdateLinkPayload = {
 	abEnabled?: boolean;
 	abTargetUrl?: string | null;
 	abWeightB?: number;
+	smartRoutingRules?: unknown;
 };
 
 type LinkGroupRow = {
@@ -146,6 +169,18 @@ const SLUG_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const accessJwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 const databaseSchemaBootstrap = new WeakMap<D1Database, Promise<void>>();
 const databaseAbReady = new WeakMap<D1Database, boolean>();
+const databaseSmartRoutingReady = new WeakMap<D1Database, boolean>();
+const SMART_ROUTING_COLUMN = "smart_routing_rules";
+const SMART_ROUTING_MIGRATION_HINT = "Smart Routing requires migration 0005_smart_routing.sql to be applied";
+/**
+ * Primary (and only) public redirect read. The wildcard projection is what makes
+ * the redirect schema-neutral: it names no feature column, so it is valid on
+ * every migration level, and whatever the migration added shows up in the row
+ * on the next request of *any* handle. That removes the need for a capability
+ * cache on this path, so a handle warmed before a migration can never stay
+ * stuck on a stale negative. Row shape is read by `readPublicRowCapabilities`.
+ */
+const PUBLIC_REDIRECT_SQL = "SELECT * FROM links WHERE slug = ? AND disabled_at IS NULL";
 const AB_SCHEMA_COLUMNS = [
 	"ab_enabled",
 	"ab_target_url",
@@ -282,7 +317,8 @@ app.get("/privacidade", servePrivacyAsset);
 
 app.get("/api/capabilities", async (c) => {
 	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
-	return c.json({ abTesting: schema.abReady });
+	const smartRouting = await ensureSmartRoutingCapability(c.env.db_boltlink);
+	return c.json({ abTesting: schema.abReady, smartRouting });
 });
 
 app.get("/api/links", async (c) => {
@@ -324,6 +360,7 @@ app.get("/api/links", async (c) => {
 	}
 
 	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
+	const smartRouting = await ensureSmartRoutingCapability(c.env.db_boltlink);
 	const abColumns = schema.abReady
 		? `,
 				links.ab_enabled,
@@ -335,6 +372,7 @@ app.get("/api/links", async (c) => {
 				links.ab_clicks_b,
 				links.ab_started_at`
 		: "";
+	const smartColumns = smartRouting ? ", links.smart_routing_rules" : "";
 
 	const baseSql = `SELECT
 				links.id,
@@ -351,7 +389,7 @@ app.get("/api/links", async (c) => {
 				links.has_qrcode,
 				links.group_id,
 				link_groups.name AS group_name,
-				CASE WHEN links.password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${abColumns},
+				CASE WHEN links.password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${abColumns}${smartColumns},
 				links.version
 			FROM links
 			LEFT JOIN link_groups ON link_groups.id = links.group_id
@@ -363,7 +401,8 @@ app.get("/api/links", async (c) => {
 		: c.env.db_boltlink.prepare(baseSql);
 	const result = await statement.all<LinkRow>();
 
-	return c.json({ links: result.results ?? [], search });
+	const links = (result.results ?? []).map((row) => exposeSmartRoutingRules(row));
+	return c.json({ links, search });
 });
 
 app.post("/api/links", async (c) => {
@@ -417,6 +456,17 @@ app.post("/api/links", async (c) => {
 	const passwordHash = password.kind === "set" ? await hashPassword(password.value) : null;
 
 	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
+	const smartReady = await ensureSmartRoutingCapability(c.env.db_boltlink);
+	const hasSmartPayload = payload.smartRoutingRules !== undefined;
+	if (hasSmartPayload && !smartReady) {
+		return c.json({ error: SMART_ROUTING_MIGRATION_HINT }, 400);
+	}
+
+	const smartConfig = resolveSmartRoutingPayload(payload.smartRoutingRules);
+	if (!smartConfig.ok) {
+		return c.json({ error: smartConfig.error }, 400);
+	}
+
 	if (!schema.abReady && (payload.abEnabled !== undefined || payload.abTargetUrl !== undefined || payload.abWeightB !== undefined)) {
 		return c.json({ error: "A/B testing requires migration 0004_ab_testing.sql to be applied" }, 400);
 	}
@@ -427,6 +477,12 @@ app.post("/api/links", async (c) => {
 	}
 	if (abConfig.enabled && redirectType === "301") {
 		return c.json({ error: "A/B testing requires a temporary redirect (302)" }, 400);
+	}
+	if (smartConfig.configured && abConfig.enabled) {
+		return c.json({ error: "A/B testing and Smart Routing are mutually exclusive" }, 400);
+	}
+	if (smartConfig.configured && redirectType === "301") {
+		return c.json({ error: "Smart Routing requires a temporary redirect (302)" }, 400);
 	}
 
 	const requestedSlug = payload.slug?.trim();
@@ -448,6 +504,11 @@ app.post("/api/links", async (c) => {
 	}
 
 	const abStartedAt = abConfig.enabled ? isoNow() : null;
+	const smartColumns = smartReady ? ", smart_routing_rules" : "";
+	const smartPlaceholders = smartReady ? ", ?" : "";
+	const smartReturning = smartReady ? ", smart_routing_rules" : "";
+	const smartValue = smartConfig.serialized;
+
 	const createdLink = schema.abReady
 		? await c.env.db_boltlink
 			.prepare(
@@ -464,9 +525,9 @@ app.post("/api/links", async (c) => {
 					ab_target_url,
 					ab_weight_b,
 					ab_generation,
-					ab_started_at
+					ab_started_at${smartColumns}
 				)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${smartPlaceholders})
 				RETURNING
 					id,
 					slug,
@@ -489,7 +550,7 @@ app.post("/api/links", async (c) => {
 					metric_epoch,
 					ab_clicks_a,
 					ab_clicks_b,
-					ab_started_at,
+					ab_started_at${smartReturning},
 					version`,
 			)
 			.bind(
@@ -506,6 +567,7 @@ app.post("/api/links", async (c) => {
 				abConfig.weightB,
 				abConfig.enabled ? 1 : 0,
 				abStartedAt,
+				...(smartReady ? [smartValue] : []),
 			)
 			.first<LinkRow>()
 		: await c.env.db_boltlink
@@ -518,9 +580,9 @@ app.post("/api/links", async (c) => {
 					redirect_type,
 					tags,
 					group_id,
-					password_hash
+					password_hash${smartColumns}
 				)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?${smartPlaceholders})
 				RETURNING
 					id,
 					slug,
@@ -535,7 +597,7 @@ app.post("/api/links", async (c) => {
 					tags,
 					has_qrcode,
 					group_id,
-					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
+					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${smartReturning},
 					version`,
 			)
 			.bind(
@@ -547,10 +609,11 @@ app.post("/api/links", async (c) => {
 				tags,
 				groupId ?? null,
 				passwordHash,
+				...(smartReady ? [smartValue] : []),
 			)
 			.first<LinkRow>();
 
-	return c.json({ link: createdLink }, 201);
+	return c.json({ link: createdLink ? exposeSmartRoutingRules(createdLink) : createdLink }, 201);
 });
 
 app.patch("/api/links/:slug", updateLink);
@@ -681,10 +744,12 @@ app.get("/api/links/:slug/qrcode", async (c) => {
 app.post("/api/links/:slug/duplicate", async (c) => {
 	const slug = c.req.param("slug");
 	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
+	const smartReady = await ensureSmartRoutingCapability(c.env.db_boltlink);
 	const abSelect = schema.abReady ? ", ab_enabled, ab_target_url, ab_weight_b" : "";
+	const smartSelect = smartReady ? ", smart_routing_rules" : "";
 	const source = await c.env.db_boltlink
 		.prepare(
-			`SELECT target_url, redirect_type, tags, group_id${abSelect}
+			`SELECT target_url, redirect_type, tags, group_id${abSelect}${smartSelect}
 			FROM links
 			WHERE slug = ? AND disabled_at IS NULL`,
 		)
@@ -697,6 +762,7 @@ app.post("/api/links/:slug/duplicate", async (c) => {
 			ab_enabled?: number;
 			ab_target_url?: string | null;
 			ab_weight_b?: number;
+			smart_routing_rules?: string | null;
 		}>();
 
 	if (!source) {
@@ -704,17 +770,27 @@ app.post("/api/links/:slug/duplicate", async (c) => {
 	}
 
 	const abEnabled = schema.abReady && source.ab_enabled === 1 && Boolean(source.ab_target_url);
-	const redirectType = abEnabled ? "302" : source.redirect_type;
+	const copiedSmartRules = smartReady ? copyPersistedSmartRoutingRules(source.smart_routing_rules ?? null) : null;
+	// Duplicate is not exempt from the administrative invariant: never create a
+	// row that is simultaneously A/B-active and Smart-Routing-configured. The
+	// source is left untouched; the operator must resolve it explicitly.
+	if (abEnabled && copiedSmartRules !== null) {
+		return c.json({ error: "Source link has incompatible routing configuration" }, 409);
+	}
+	const redirectType = abEnabled || copiedSmartRules ? "302" : source.redirect_type;
+	const smartColumns = smartReady ? ", smart_routing_rules" : "";
+	const smartPlaceholders = smartReady ? ", ?" : "";
+	const smartReturning = smartReady ? ", smart_routing_rules" : "";
 	const duplicateSlug = await suggestDuplicateSlug(c.env.db_boltlink, slug);
 	const created = schema.abReady
 		? await c.env.db_boltlink
 			.prepare(
-				`INSERT INTO links (slug, target_url, redirect_type, tags, group_id, ab_enabled, ab_target_url, ab_weight_b, ab_generation, ab_started_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				`INSERT INTO links (slug, target_url, redirect_type, tags, group_id, ab_enabled, ab_target_url, ab_weight_b, ab_generation, ab_started_at${smartColumns})
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?${smartPlaceholders})
 				RETURNING id, slug, target_url, clicks_total, created_at, updated_at, disabled_at,
 					expires_at, go_live_at, redirect_type, tags, has_qrcode, group_id,
 					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
-					ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch, ab_clicks_a, ab_clicks_b, ab_started_at, version`,
+					ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch, ab_clicks_a, ab_clicks_b, ab_started_at${smartReturning}, version`,
 			)
 			.bind(
 				duplicateSlug,
@@ -727,20 +803,28 @@ app.post("/api/links/:slug/duplicate", async (c) => {
 				source.ab_weight_b ?? DEFAULT_AB_WEIGHT_B,
 				abEnabled ? 1 : 0,
 				abEnabled ? isoNow() : null,
+				...(smartReady ? [copiedSmartRules] : []),
 			)
 			.first<LinkRow>()
 		: await c.env.db_boltlink
 			.prepare(
-				`INSERT INTO links (slug, target_url, redirect_type, tags, group_id)
-				VALUES (?, ?, ?, ?, ?)
+				`INSERT INTO links (slug, target_url, redirect_type, tags, group_id${smartColumns})
+				VALUES (?, ?, ?, ?, ?${smartPlaceholders})
 				RETURNING id, slug, target_url, clicks_total, created_at, updated_at, disabled_at,
 					expires_at, go_live_at, redirect_type, tags, has_qrcode, group_id,
-					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password, version`,
+					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${smartReturning}, version`,
 			)
-			.bind(duplicateSlug, source.target_url, redirectType, source.tags, source.group_id)
+			.bind(
+				duplicateSlug,
+				source.target_url,
+				redirectType,
+				source.tags,
+				source.group_id,
+				...(smartReady ? [copiedSmartRules] : []),
+			)
 			.first<LinkRow>();
 
-	return c.json({ link: created }, 201);
+	return c.json({ link: created ? exposeSmartRoutingRules(created) : created }, 201);
 });
 
 app.get("/api/groups", async (c) => {
@@ -894,17 +978,9 @@ app.get("/:slug", async (c) => {
 		return c.text("Too many requests", 429);
 	}
 
-	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
-	const abSelect = schema.abReady ? ", ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch" : "";
+	await ensurePreparedDatabase(c.env.db_boltlink);
 
-	const link = await c.env.db_boltlink
-		.prepare(
-			`SELECT id, slug, target_url, expires_at, go_live_at, redirect_type, password_hash${abSelect}
-			FROM links
-			WHERE slug = ? AND disabled_at IS NULL`,
-		)
-		.bind(slug)
-		.first<RedirectRow>();
+	const link = await c.env.db_boltlink.prepare(PUBLIC_REDIRECT_SQL).bind(slug).first<RedirectRow>();
 
 	if (!link) {
 		return c.notFound();
@@ -927,21 +1003,19 @@ app.get("/:slug", async (c) => {
 		}
 	}
 
+	const capabilities = readPublicRowCapabilities(link);
 	const countable = isCountableClick(c.req.raw);
-	const activeAb = schema.abReady && isActiveAbLink(link);
-	const roll = activeAb && countable ? randomPercent() : null;
-	const { destination, variant } = resolveRedirectTarget(link, roll);
-	const status = activeAb ? 302 : Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302;
-	const response = c.redirect(destination, status);
-	if (activeAb) {
+	const decision = resolvePublicRedirectDecision(link, capabilities, countable, c.req.raw);
+	const response = c.redirect(decision.destination, decision.status);
+	if (decision.noStore) {
 		response.headers.set("Cache-Control", "no-store");
 	}
 
 	if (countable) {
 		c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, link.id, {
-			variant: activeAb ? variant : null,
+			variant: decision.variant,
 			generation: link.ab_generation ?? 0,
-			epoch: schema.abReady ? (link.metric_epoch ?? 0) : null,
+			epoch: capabilities.abReady ? (link.metric_epoch ?? 0) : null,
 		}));
 	}
 
@@ -958,17 +1032,9 @@ app.post("/:slug", async (c) => {
 		return c.text("Too many requests", 429);
 	}
 
-	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
-	const abSelect = schema.abReady ? ", ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch" : "";
+	await ensurePreparedDatabase(c.env.db_boltlink);
 
-	const link = await c.env.db_boltlink
-		.prepare(
-			`SELECT id, slug, target_url, expires_at, go_live_at, redirect_type, password_hash${abSelect}
-			FROM links
-			WHERE slug = ? AND disabled_at IS NULL`,
-		)
-		.bind(slug)
-		.first<RedirectRow>();
+	const link = await c.env.db_boltlink.prepare(PUBLIC_REDIRECT_SQL).bind(slug).first<RedirectRow>();
 
 	if (!link) {
 		return c.notFound();
@@ -982,11 +1048,17 @@ app.post("/:slug", async (c) => {
 		return c.text("Link expired", 410);
 	}
 
+	const capabilities = readPublicRowCapabilities(link);
+
 	if (!link.password_hash) {
-		const activeAb = schema.abReady && isActiveAbLink(link);
-		const status = activeAb ? 302 : Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302;
+		// This legacy POST path never counts a click and never chooses a target.
+		// It still refuses a permanent redirect when a dynamic configuration is
+		// present, matching the GET fail-safe for corrupted rows.
+		const smartRoutingConfigured = capabilities.smartRoutingReady && (link.smart_routing_rules ?? null) !== null;
+		const activeAb = capabilities.abReady && isActiveAbLink(link);
+		const status = smartRoutingConfigured || activeAb ? 302 : Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302;
 		const response = c.redirect(link.target_url, status);
-		if (activeAb) {
+		if (smartRoutingConfigured || activeAb) {
 			response.headers.set("Cache-Control", "no-store");
 		}
 		return response;
@@ -1007,13 +1079,10 @@ app.post("/:slug", async (c) => {
 	}
 
 	const countable = isCountablePasswordSubmission(c.req.raw);
-	const activeAb = schema.abReady && isActiveAbLink(link);
-	const roll = activeAb && countable ? randomPercent() : null;
-	const { destination, variant } = resolveRedirectTarget(link, roll);
+	const decision = resolvePublicRedirectDecision(link, capabilities, countable, c.req.raw);
 	const token = await createPasswordSessionToken(c.env, link.slug);
-	const status = activeAb ? 302 : Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302;
-	const response = c.redirect(destination, status);
-	if (activeAb) {
+	const response = c.redirect(decision.destination, decision.status);
+	if (decision.noStore) {
 		response.headers.set("Cache-Control", "no-store");
 	}
 	const cookieSecure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
@@ -1024,9 +1093,9 @@ app.post("/:slug", async (c) => {
 
 	if (countable) {
 		c.executionCtx.waitUntil(recordClick(c.env.db_boltlink, link.id, {
-			variant: activeAb ? variant : null,
+			variant: decision.variant,
 			generation: link.ab_generation ?? 0,
-			epoch: schema.abReady ? (link.metric_epoch ?? 0) : null,
+			epoch: capabilities.abReady ? (link.metric_epoch ?? 0) : null,
 		}));
 	}
 
@@ -1053,6 +1122,17 @@ async function updateLink(c: Context<AppContext>) {
 	}
 
 	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
+	const hasSmartPayload = payload.smartRoutingRules !== undefined;
+	const smartReady = await ensureSmartRoutingCapability(c.env.db_boltlink);
+	if (hasSmartPayload && !smartReady) {
+		return c.json({ error: SMART_ROUTING_MIGRATION_HINT }, 400);
+	}
+
+	const smartConfig = resolveSmartRoutingPayload(payload.smartRoutingRules);
+	if (!smartConfig.ok) {
+		return c.json({ error: smartConfig.error }, 400);
+	}
+
 	const hasAbPayload = payload.abEnabled !== undefined || payload.abTargetUrl !== undefined || payload.abWeightB !== undefined;
 	if (!schema.abReady && hasAbPayload) {
 		return c.json({ error: "A/B testing requires migration 0004_ab_testing.sql to be applied" }, 400);
@@ -1099,8 +1179,9 @@ async function updateLink(c: Context<AppContext>) {
 	}
 
 	const abReadColumns = schema.abReady ? ", ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch" : "";
+	const smartReadColumns = smartReady ? ", smart_routing_rules" : "";
 	const existingLink = await c.env.db_boltlink
-		.prepare(`SELECT target_url, group_id, expires_at, go_live_at, redirect_type, version${abReadColumns} FROM links WHERE slug = ? AND disabled_at IS NULL`)
+		.prepare(`SELECT target_url, group_id, expires_at, go_live_at, redirect_type, version${abReadColumns}${smartReadColumns} FROM links WHERE slug = ? AND disabled_at IS NULL`)
 		.bind(slug)
 		.first<{
 			target_url: string;
@@ -1114,6 +1195,7 @@ async function updateLink(c: Context<AppContext>) {
 			ab_weight_b?: number;
 			ab_generation?: number;
 			metric_epoch?: number;
+			smart_routing_rules?: string | null;
 		}>();
 
 	if (!existingLink) {
@@ -1136,6 +1218,36 @@ async function updateLink(c: Context<AppContext>) {
 	const finalRedirectType = redirectType ?? existingLink.redirect_type;
 	if (abConfig.enabled && finalRedirectType === "301") {
 		return c.json({ error: "A/B testing requires a temporary redirect (302)" }, 400);
+	}
+
+	// Final-state validation: Smart Routing and A/B are mutually exclusive, and
+	// active Smart Routing requires a temporary redirect. Any non-null persisted
+	// value counts as configured, even if corrupt, so a broken row cannot be
+	// silently overwritten by enabling A/B on top of it.
+	const existingSmartRaw = smartReady ? (existingLink.smart_routing_rules ?? null) : null;
+	const finalSmartConfigured = hasSmartPayload ? smartConfig.configured : existingSmartRaw !== null;
+	const finalSmartSerialized = hasSmartPayload ? smartConfig.serialized : existingSmartRaw;
+	const existingSmartHybrid = schema.abReady && existingLink.ab_enabled === 1 && existingSmartRaw !== null;
+	if (finalSmartConfigured && finalRedirectType === "301") {
+		return c.json({ error: "Smart Routing requires a temporary redirect (302)" }, 400);
+	}
+	const abRoutingChanged =
+		existingAb !== null &&
+		hasEffectiveAbConfigurationChange(
+			{ enabled: existingAb.ab_enabled === 1, targetUrl: existingAb.ab_target_url, weightB: existingAb.ab_weight_b },
+			{ enabled: abConfig.enabled, targetUrl: abConfig.targetUrl, weightB: abConfig.weightB },
+		);
+	const smartRoutingChanged = hasSmartPayload && finalSmartSerialized !== existingSmartRaw;
+	// The exclusivity check rejects a hybrid that the request would introduce or
+	// rewrite. A row that is already hybrid and is being edited somewhere else
+	// (tags, target, lifecycle) must stay accepted: refusing it would make the row
+	// uneditable, and accepting it preserves the exact persisted bytes, so the
+	// public fail-safe keeps working and no new hybrid is ever created. The
+	// comparison is between the persisted values and the normalized final ones, so
+	// the Admin re-sending identical A/B fields during an unrelated edit is not a
+	// routing change; editing a routing value while the row stays hybrid is.
+	if (abConfig.enabled && finalSmartConfigured && (!existingSmartHybrid || abRoutingChanged || smartRoutingChanged)) {
+		return c.json({ error: "A/B testing and Smart Routing are mutually exclusive" }, 400);
 	}
 
 	const passwordHash = password.kind === "absent"
@@ -1213,6 +1325,10 @@ async function updateLink(c: Context<AppContext>) {
 		updates.push("ab_clicks_a = ?", "ab_clicks_b = ?", "ab_started_at = ?", "ab_generation = ab_generation + 1");
 		values.push(0, 0, now);
 	}
+	if (hasSmartPayload) {
+		updates.push("smart_routing_rules = ?");
+		values.push(finalSmartSerialized);
+	}
 
 	if (!updates.length) {
 		return c.json({ error: "No updatable fields provided" }, 400);
@@ -1231,6 +1347,7 @@ async function updateLink(c: Context<AppContext>) {
 				ab_clicks_b,
 				ab_started_at`
 		: "";
+	const smartReturning = smartReady ? ", smart_routing_rules" : "";
 	const updatedLink = await c.env.db_boltlink
 		.prepare(
 			`UPDATE links
@@ -1250,7 +1367,7 @@ async function updateLink(c: Context<AppContext>) {
 				tags,
 				has_qrcode,
 				group_id,
-				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${abReturning},
+				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${abReturning}${smartReturning},
 				version`,
 		)
 		.bind(...values, slug, existingLink.version)
@@ -1264,7 +1381,7 @@ async function updateLink(c: Context<AppContext>) {
 		await cleanupEmptyGroup(c.env.db_boltlink, existingLink.group_id);
 	}
 
-	return c.json({ link: updatedLink });
+	return c.json({ link: updatedLink ? exposeSmartRoutingRules(updatedLink) : updatedLink });
 }
 
 async function serveAdminAsset(c: Context<AppContext>) {
@@ -1307,25 +1424,41 @@ function serveHealth(c: Context<AppContext>) {
 	return c.json({ ok: true, service: "boltlink" });
 }
 
-async function ensureDatabaseSchema(database: D1Database): Promise<SchemaCapabilities> {
+/**
+ * Validates that the database was prepared and installs the metric fence
+ * projection, reusing the per-handle bootstrap promise when it already ran.
+ * This is the whole public-redirect schema dependency: it runs no PRAGMA in
+ * steady state and never reads a capability, because the public path derives
+ * what exists from the row shape instead of from a cache.
+ */
+async function ensurePreparedDatabase(database: D1Database): Promise<void> {
 	const cachedBootstrap = databaseSchemaBootstrap.get(database);
 	if (cachedBootstrap) {
 		await cachedBootstrap;
-	} else {
-		const bootstrap = initializeDatabaseSchema(database).catch((error) => {
-			databaseSchemaBootstrap.delete(database);
-			throw error;
-		});
-		databaseSchemaBootstrap.set(database, bootstrap);
-		await bootstrap;
+		return;
 	}
 
+	const bootstrap = initializeDatabaseSchema(database).catch((error) => {
+		databaseSchemaBootstrap.delete(database);
+		throw error;
+	});
+	databaseSchemaBootstrap.set(database, bootstrap);
+	await bootstrap;
+}
+
+async function ensureDatabaseSchema(database: D1Database): Promise<SchemaCapabilities> {
+	await ensurePreparedDatabase(database);
+
 	if (databaseAbReady.get(database)) {
-		return { abReady: true };
+		return {
+			abReady: true,
+			smartRoutingReady: databaseSmartRoutingReady.get(database) === true,
+		};
 	}
 
 	// Negative capabilities are never cached: a Worker started before migration
-	// 0004 must be able to discover the migration once it is applied.
+	// 0004 must be able to discover the migration once it is applied. The same
+	// schema read also classifies Smart Routing.
 	const capabilities = await detectSchemaCapabilities(database);
 	if (capabilities.abReady) {
 		databaseAbReady.set(database, true);
@@ -1335,6 +1468,7 @@ async function ensureDatabaseSchema(database: D1Database): Promise<SchemaCapabil
 
 type SchemaCapabilities = {
 	abReady: boolean;
+	smartRoutingReady: boolean;
 };
 
 class DatabaseSchemaNotInitializedError extends Error {
@@ -1403,7 +1537,35 @@ async function ensureMetricFenceView(database: D1Database, columns: Set<string>)
 async function detectSchemaCapabilities(database: D1Database): Promise<SchemaCapabilities> {
 	const info = await database.prepare("PRAGMA table_info(links)").all<{ name: string }>();
 	const columns = new Set((info.results ?? []).map((column) => column.name));
-	return { abReady: AB_SCHEMA_COLUMNS.every((column) => columns.has(column)) };
+	const smartRoutingReady = columns.has(SMART_ROUTING_COLUMN);
+	if (smartRoutingReady) {
+		databaseSmartRoutingReady.set(database, true);
+	}
+	return {
+		abReady: AB_SCHEMA_COLUMNS.every((column) => columns.has(column)),
+		smartRoutingReady,
+	};
+}
+
+/**
+ * Administrative Smart Routing capability. Positive results are cached;
+ * negative results are revalidated so applying migration 0005 needs no restart.
+ * The public redirect does not use this helper: it is schema-neutral and reads
+ * the column from the row it already fetched.
+ */
+async function ensureSmartRoutingCapability(database: D1Database): Promise<boolean> {
+	const schema = await ensureDatabaseSchema(database);
+	if (schema.smartRoutingReady || databaseSmartRoutingReady.get(database) === true) {
+		return true;
+	}
+
+	const info = await database.prepare("PRAGMA table_info(links)").all<{ name: string }>();
+	const columns = new Set((info.results ?? []).map((column) => column.name));
+	const ready = columns.has(SMART_ROUTING_COLUMN);
+	if (ready) {
+		databaseSmartRoutingReady.set(database, true);
+	}
+	return ready;
 }
 
 function renderHomePage() {
@@ -2140,6 +2302,26 @@ type ExistingAbConfig = {
 };
 
 /**
+ * Routing-significant comparison between the persisted A/B configuration and the
+ * normalized final one. Compares values instead of field presence, because the
+ * Admin re-sends every A/B field it loaded during an unrelated edit; comparing
+ * the effective values keeps that resend a no-op while a real change to the
+ * split is still detected. Metrics (`ab_clicks_*`, `ab_generation`,
+ * `ab_started_at`) are deliberately excluded: they are outcomes, not operator
+ * configuration.
+ */
+function hasEffectiveAbConfigurationChange(
+	existing: { enabled: boolean; targetUrl: string | null; weightB: number },
+	final: { enabled: boolean; targetUrl: string | null; weightB: number },
+): boolean {
+	return (
+		existing.enabled !== final.enabled ||
+		existing.targetUrl !== final.targetUrl ||
+		existing.weightB !== final.weightB
+	);
+}
+
+/**
  * Validates and normalizes the A/B test configuration. Control A is always the
  * link's main `target_url`; only Variant B needs extra storage. All checks
  * happen before any mutation so an invalid payload never partially updates.
@@ -2191,6 +2373,69 @@ function resolveAbConfig(
 	return { ok: true, enabled, targetUrl, weightB };
 }
 
+type ResolvedSmartRoutingPayload =
+	| { ok: true; configured: boolean; serialized: string | null; rules: SmartRoutingRule[] | null }
+	| { ok: false; error: string };
+
+/**
+ * Validates an administrative `smartRoutingRules` value with the approved pure
+ * domain. `undefined`/`null` mean disabled; `[]` and any semantic error are
+ * rejected. Storage always receives the canonical JSON produced by the domain,
+ * never the raw client input.
+ */
+function resolveSmartRoutingPayload(value: unknown): ResolvedSmartRoutingPayload {
+	if (value === undefined || value === null) {
+		return { ok: true, configured: false, serialized: null, rules: null };
+	}
+
+	const parsed = parseSmartRoutingRules(value);
+	if (!parsed.ok) {
+		return { ok: false, error: `Invalid smartRoutingRules (${parsed.code})` };
+	}
+
+	return { ok: true, configured: true, serialized: JSON.stringify(parsed.rules), rules: parsed.rules };
+}
+
+/** Administrative view of the persisted Smart Routing state. */
+type SerializedSmartRoutingRules = {
+	smartRoutingRules?: SmartRoutingRule[] | null;
+	smartRoutingStatus?: SmartRoutingStatus;
+};
+
+/**
+ * Administrative response mapping: exposes the persisted rules as a canonical
+ * array (or `null`), never as the raw JSON string. Invalid persisted content is
+ * reported without throwing and without repairing the database. When the column
+ * was not selected (pre-0005), both properties are omitted entirely.
+ *
+ * `smartRoutingRules: null` alone is ambiguous: it means "disabled" for a NULL
+ * column but also "unreadable" for a corrupt non-null value. `smartRoutingStatus`
+ * removes the ambiguity so a client can tell an intentionally disabled link from
+ * one whose configuration must be preserved instead of overwritten. The status
+ * is metadata only: it never mutates or normalizes the stored bytes.
+ */
+function exposeSmartRoutingRules<T extends { smart_routing_rules?: string | null }>(
+	row: T,
+): Omit<T, "smart_routing_rules"> & SerializedSmartRoutingRules {
+	if (!Object.prototype.hasOwnProperty.call(row, "smart_routing_rules")) {
+		return row as Omit<T, "smart_routing_rules">;
+	}
+
+	const { smart_routing_rules: raw, ...rest } = row;
+	const persisted = parsePersistedSmartRoutingRules(raw ?? null);
+	return {
+		...rest,
+		smartRoutingRules: persisted.status === "valid" ? persisted.rules : null,
+		smartRoutingStatus: persisted.status,
+	};
+}
+
+/** Duplicate copies only a valid canonical configuration; corrupt content becomes disabled. */
+function copyPersistedSmartRoutingRules(raw: string | null): string | null {
+	const persisted = parsePersistedSmartRoutingRules(raw);
+	return persisted.status === "valid" ? JSON.stringify(persisted.rules) : null;
+}
+
 /**
  * Pure split decision: returns true when the request should go to Variant B.
  * `roll` is an integer in [0, 100). No cryptographic requirement here, only a
@@ -2222,6 +2467,98 @@ function resolveRedirectTarget(
 
 function isActiveAbLink(link: RedirectRow): boolean {
 	return link.ab_enabled === 1 && Boolean(link.ab_target_url);
+}
+
+type PublicRedirectDecision = {
+	destination: string;
+	variant: "a" | "b" | null;
+	status: 301 | 302;
+	noStore: boolean;
+};
+
+/**
+ * Public capability read derived from the row that was just fetched. `SELECT *`
+ * returns every existing column, so presence of a column is the schema answer
+ * for *this* request; nothing is cached and no isolate can hold a stale belief
+ * about the migration level. A handle warmed before migration 0005 therefore
+ * converges on its next public request even when no admin/API request ever
+ * reaches it, and a non-null `smart_routing_rules` is never hidden by a cache.
+ */
+function readPublicRowCapabilities(link: RedirectRow): Pick<SchemaCapabilities, "abReady" | "smartRoutingReady"> {
+	return {
+		abReady: AB_SCHEMA_COLUMNS.every((column) => Object.prototype.hasOwnProperty.call(link, column)),
+		smartRoutingReady: Object.prototype.hasOwnProperty.call(link, SMART_ROUTING_COLUMN),
+	};
+}
+
+/**
+ * Public redirect decision shared by GET and authenticated POST.
+ *
+ * A non-null persisted `smart_routing_rules` marks the row as dynamic even when
+ * the configuration is corrupt: it always answers with 302 + no-store and never
+ * falls back to a permanent redirect. Bots/prefetch and the ambiguous hybrid
+ * state (A/B enable flag present + routing configured) receive `target_url`
+ * without parsing rules, classifying country/device or running the A/B RNG.
+ * The normal A/B path is reached only when Smart Routing is absent and keeps its
+ * exact previous behavior.
+ *
+ * Hybrid detection uses the persisted `ab_enabled` flag, not `isActiveAbLink()`:
+ * the latter answers "is the split operationally executable?" and requires a
+ * variant B target. A row with `ab_enabled = 1` and a missing/empty variant B is
+ * still an ambiguous persisted state and must not run Smart Routing either.
+ *
+ * `capabilities` comes from `readPublicRowCapabilities(link)`, never from a
+ * cache: a request that can see the column always sees its value, so the
+ * no-store treatment cannot be lost to a stale negative.
+ */
+function resolvePublicRedirectDecision(
+	link: RedirectRow,
+	capabilities: Pick<SchemaCapabilities, "abReady" | "smartRoutingReady">,
+	countable: boolean,
+	request: Request,
+): PublicRedirectDecision {
+	const smartRaw = capabilities.smartRoutingReady ? link.smart_routing_rules ?? null : null;
+	const smartRoutingConfigured = smartRaw !== null;
+
+	if (smartRoutingConfigured) {
+		// Fail-safe for corrupted rows: the persisted A/B enable flag alone is
+		// already ambiguous, even when the variant B target is missing or empty.
+		// It must never run either engine. Non-navigational requests never reach
+		// the parser or the classifiers either.
+		const abEnabledFlag = capabilities.abReady && link.ab_enabled === 1;
+		if (abEnabledFlag || !countable) {
+			return { destination: link.target_url, variant: null, status: 302, noStore: true };
+		}
+
+		const persisted = parsePersistedSmartRoutingRules(smartRaw);
+		if (persisted.status !== "valid") {
+			return { destination: link.target_url, variant: null, status: 302, noStore: true };
+		}
+
+		const context = {
+			country: normalizeRequestCountry(request.cf?.country),
+			device: classifyDevice(request.headers.get("user-agent")),
+		};
+		return {
+			destination: selectSmartRoutingTarget(persisted.rules, context, link.target_url),
+			variant: null,
+			status: 302,
+			noStore: true,
+		};
+	}
+
+	if (capabilities.abReady && isActiveAbLink(link)) {
+		const roll = countable ? randomPercent() : null;
+		const { destination, variant } = resolveRedirectTarget(link, roll);
+		return { destination, variant, status: 302, noStore: true };
+	}
+
+	return {
+		destination: link.target_url,
+		variant: null,
+		status: Number.parseInt(link.redirect_type, 10) === 301 ? 301 : 302,
+		noStore: false,
+	};
 }
 
 async function verifyPassword(candidate: string, storedHash: string) {

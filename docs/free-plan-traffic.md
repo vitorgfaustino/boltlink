@@ -44,7 +44,9 @@ Um redirect público normal deve permanecer aproximadamente:
 
 A escrita é feita somente para uma requisição elegível e não atrasa a resposta de redirect. Links protegidos podem executar a verificação de sessão/gate, mas não adicionam consultas externas ou uma tabela de eventos. A contagem agregada não cria clickstream.
 
-## Split Test A/B no caminho crítico
+## Split Test A/B no caminho crítico (Phase 2 local)
+
+> Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não tem Split Test A/B.
 
 O Split Test A/B é stateless e não aumenta o custo normal:
 
@@ -66,6 +68,26 @@ crawler/preview em link A/B:
 ```
 
 Não existe tabela separada de variantes, lookup extra ou segunda escrita por clique. A decisão A/B usa um sorteio em memória e retorna sempre o Control A quando o filtro de métricas reconhece automação, sem bloquear o redirect.
+
+## Smart Routing no caminho crítico (Unreleased / Fase 3)
+
+> Escopo: release publicada/baseline = **v2.2.1**. O Smart Routing abaixo pertence ao estado Unreleased da branch de desenvolvimento.
+
+O Smart Routing é stateless e não adiciona lookup extra:
+
+```text
+link Smart Routing humano:
+1 invocação do Worker
++ 1 lookup principal no D1
++ 1 linha agregada escrita (somente clicks_total)
+
+crawler/preview em link Smart Routing:
+1 invocação do Worker
++ 1 lookup principal no D1
++ 0 escrita de métrica
+```
+
+As regras vivem em uma coluna JSON na própria linha do link, então não há tabela secundária, JOIN auxiliar, SELECT adicional nem API externa de geolocalização. O país vem do metadado da Cloudflare e o dispositivo é derivado do `User-Agent` em memória. O pior caso do teste de capability é uma sondagem de schema por isolate, não por clique.
 
 ## O que o código faz
 

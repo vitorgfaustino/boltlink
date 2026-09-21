@@ -4,6 +4,8 @@ BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel ad
 
 **Versão 2.2.1 - AGPL-3.0**
 
+> Release publicada: **v2.2.1**. O Smart Routing (Fase 3, migration `0005_smart_routing.sql`) descrito neste documento está em **Unreleased** nesta branch de desenvolvimento e ainda não faz parte da release/tag publicada. Um checkout da tag `v2.2.1` não contém Smart Routing nem a migration `0005`.
+
 Ele funciona como encurtador de URLs, mas o objetivo real do projeto é maior: manter links públicos estáveis, simples de operar e independentes de plataformas terceiras, com controle do redirect, proteção do painel e uma baseline de privacidade mais rígida do que a maioria das ferramentas desse tipo.
 
 Esta versão muda o produto para uma baseline LGPD mais rígida:
@@ -57,17 +59,17 @@ O botão continua funcional com o `wrangler.jsonc` público.
 
 ## Três formas de usar
 
-### 1. Wrangler local
+### 1. Wrangler local (release publicada v2.2.1)
+
+Fluxo da tag `v2.2.1`, que termina na migration `0003_lgpd_minimization.sql`:
 
 ```bash
 npm install
 npm run setup
-npm run dev-prepare
+npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
 npm run dev
 npm test
 ```
-
-`npm run dev-prepare` aplica a cadeia de migrations no D1 local que o `wrangler dev` usa (`.wrangler/state/v3/d1`).
 
 Se quiser criar o D1 explicitamente:
 
@@ -81,15 +83,7 @@ Se quiser criar o D1 já com jurisdição:
 npm run wrangler -- d1 create <nome-do-banco> --binding db_boltlink --update-config --jurisdiction=eu
 ```
 
-Antes de subir o Worker, aplique as migrations no D1 local que o `wrangler dev` usa (o runtime não cria schema):
-
-```bash
-npm run dev-prepare
-```
-
-O comando lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc` e aplica `migrations/0000` a `0004` em `.wrangler/state/v3/d1`. Equivalente explícito: `npm run wrangler -- d1 migrations apply boltlink-db --local`.
-
-Com o banco sem schema, a API e os redirects respondem `503 Database schema is not initialized`; aplique as migrations e o mesmo isolate volta a funcionar sem restart.
+O runtime não cria schema. Com o banco sem schema, a API e os redirects respondem `503 Database schema is not initialized`; aplique as migrations e o mesmo isolate volta a funcionar sem restart.
 
 Para inspecionar dados manualmente com um SQLite auxiliar:
 
@@ -97,7 +91,31 @@ Para inspecionar dados manualmente com um SQLite auxiliar:
 npm run dev-init
 ```
 
-Esse comando cria `.dev-env/db.sqlite3` (migrations + seed) apenas para exploração local com `sqlite3`. Ele **não** é o D1 usado pelo Worker; para o Worker, use `npm run dev-prepare`. O diretório `.dev-env/` é ignorado pelo Git e não vai para o GitHub.
+Esse comando cria `.dev-env/db.sqlite3` (migrations + seed) apenas para exploração local com `sqlite3`. Ele **não** é o D1 usado pelo Worker. O diretório `.dev-env/` é ignorado pelo Git e não vai para o GitHub.
+
+#### Ambiente local de desenvolvimento (Phase 2 local)
+
+No baseline local da Fase 2 (`23353a1`, não publicado) existe o script `npm run dev-prepare`, que lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc` e aplica a cadeia de migrations no D1 local usado pelo `wrangler dev` (`.wrangler/state/v3/d1`):
+
+```bash
+npm run dev-prepare
+npm run dev
+```
+
+Nessa base, `dev-prepare` aplica `migrations/0000` a `0004` e habilita o Split Test A/B.
+
+`npm run dev-prepare` **não existe** no checkout da tag `v2.2.1`. Lá, use `npm run wrangler -- d1 migrations apply ... --local`, como no fluxo publicado acima.
+
+#### Ambiente local de desenvolvimento (Unreleased / Fase 3)
+
+Nesta branch de desenvolvimento, `npm run dev-prepare` aplica a cadeia até `migrations/0005`, fonte autoritativa de `links.smart_routing_rules`:
+
+```bash
+npm run dev-prepare
+npm run dev
+```
+
+Sem a `0005` (por exemplo num checkout da tag), o produto funciona normalmente e apenas o recurso de roteamento fica indisponível.
 
 ### 2. Operação guiada por IA
 
@@ -149,12 +167,15 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 - mantém slug imutável
 - protege links opcionais com senha
 - permite grupos, tags, QR code, ativação e expiração
-- permite Split Test A/B com distribuição stateless e apenas contadores agregados
+- permite Split Test A/B com distribuição stateless e apenas contadores agregados (Phase 2 local, não publicado)
+- permite Smart Routing por país e dispositivo, com a primeira regra compatível vencendo e fallback no destino principal (Unreleased / Fase 3)
 - conta cliques de forma agregada sem eventos detalhados
 - permite zerar a estatística agregada de um link ativo
 - inclui orientações para reduzir tráfego desnecessário no plano gratuito da Cloudflare
 
 ## Upgrade para v2.2.1
+
+Procedimento da **release publicada (tag `v2.2.1`)**, que termina na migration `0003_lgpd_minimization.sql`:
 
 ```bash
 git pull --ff-only
@@ -172,24 +193,70 @@ npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote
 
 Para instalações já alinhadas com `2.0.0`, o upgrade base não exige migration nova nem bindings novos.
 
-O Split Test A/B adiciona a migration `0004_ab_testing.sql`, que é a fonte autoritativa das colunas A/B. O runtime **não** cria nem altera colunas: uma instalação existente precisa aplicar a `0004` para habilitar A/B e uma instalação nova precisa aplicar a cadeia completa de migrations. O `schema.sql` é apenas o baseline da `0000` para ferramentas manuais e não é executado pelo runtime.
-
 Procedimento recomendado:
 
 1. backup conforme o procedimento da instância;
-2. aplicar as migrations (`npm run wrangler -- d1 migrations apply ...`);
+2. aplicar as migrations pendentes (`npm run wrangler -- d1 migrations apply ...`);
 3. atualizar/publicar o Worker;
-4. validar o painel (o Admin mostra A/B somente quando a capability está disponível).
+4. validar um redirect normal.
 
-Sem a migration, links normais continuam criando, editando, duplicando e redirecionando normalmente; apenas o Split Test A/B fica indisponível.
+O `schema.sql` é apenas o baseline da `0000` para ferramentas manuais e não é executado pelo runtime.
 
-## Split Test A/B
+## Split Test A/B e migration 0004 (Phase 2 local)
+
+> Escopo: **baseline local da Fase 2** (`23353a1`, não publicado). A tag publicada `v2.2.1` não contém a `0004` nem o Split Test A/B.
+
+O Split Test A/B adiciona a migration `0004_ab_testing.sql`, que é a fonte autoritativa das colunas A/B. O runtime **não** cria nem altera colunas: uma instalação existente precisa aplicar as migrations pendentes para habilitar A/B, e uma instalação nova precisa aplicar a cadeia completa de migrations.
+
+Procedimento recomendado (baseline local da Fase 2):
+
+1. backup conforme o procedimento da instância;
+2. aplicar as migrations pendentes (`npm run wrangler -- d1 migrations apply ...`);
+3. atualizar/publicar o Worker;
+4. validar um redirect normal e o Split Test A/B (o Admin mostra A/B somente quando a capability está disponível).
+
+Sem a `0004`, links normais continuam criando, editando, duplicando e redirecionando normalmente; apenas o Split Test A/B fica indisponível.
+
+## Unreleased / Fase 3 (próxima release)
+
+Esta branch de desenvolvimento adiciona o Smart Routing e a migration `0005_smart_routing.sql`, fonte autoritativa de `links.smart_routing_rules`. Um checkout da tag `v2.2.1` **não** contém Smart Routing nem a `0005`; use esta seção apenas na branch de desenvolvimento.
+
+No fluxo local desta branch, `npm run dev-prepare` também aplica a `0005_smart_routing.sql`; isso não acontece no checkout da tag `v2.2.1`.
+
+Procedimento recomendado (Unreleased / Fase 3):
+
+1. backup conforme o procedimento da instância;
+2. aplicar as migrations pendentes, incluindo `0005` (`npm run wrangler -- d1 migrations apply ...`);
+3. atualizar/publicar o Worker;
+4. validar `GET /api/capabilities` (`smartRouting: true`) e um redirect normal;
+5. configurar Smart Routing no Admin quando desejado.
+
+Sem a `0005`, links normais e o Split Test A/B continuam funcionando; apenas o Smart Routing fica indisponível.
+
+## Split Test A/B (Phase 2 local)
+
+> Escopo: **baseline local da Fase 2**. A tag publicada `v2.2.1` não tem Split Test A/B.
 
 Um link pode dividir tráfego entre Control A (destino principal) e Variant B (destino alternativo). A escolha é feita por requisição, sem cookie, sem visitor ID e sem fingerprint; qualquer automação reconhecida (bots, crawlers, previews, prefetch/prerender) recebe sempre o Control A.
 
 Links com A/B ativo usam sempre redirect temporário `302` com `Cache-Control: no-store`; `301` é incompatível com A/B. Mudanças de configuração avançam a geração do experimento, então métricas atrasadas não contaminam o novo teste, e `reset-clicks` funciona como corte explícito das métricas.
 
 O produto expõe apenas distribuição de cliques (`Cliques A`, `Cliques B`, `Distribuição observada`, `Traffic Allocation`). Conversão continua sendo medida por ferramentas externas.
+
+## Smart Routing (Unreleased / Fase 3)
+
+Smart Routing permite escolher o destino de um link por país e/ou tipo de dispositivo, sem criar regras de analytics. O editor fica no painel e usa uma lista ordenada de regras:
+
+- cada regra tem país (opcional), dispositivo (opcional) e destino;
+- as regras são avaliadas de cima para baixo: a primeira compatível vence;
+- sem regra compatível, o visitante segue para o destino principal do link (fallback);
+- o destino precisa ser http ou https;
+- máximo de 20 regras por link;
+- a ordem exibida no painel é exatamente a prioridade enviada ao backend.
+
+O país vem apenas do metadado aproximado da Cloudflare (`request.cf.country`). O dispositivo é derivado do `User-Agent` da requisição. Nada disso é armazenado por visitante: country, User-Agent, dispositivo derivado e regra escolhida não são persistidos. A métrica continua sendo somente `clicks_total` agregado.
+
+Links com Smart Routing configurado usam sempre redirect temporário `302` com `Cache-Control: no-store`; `301` é incompatível. Bots, crawlers, previews e prefetch/prerender recebem sempre o destino principal, mesmo quando há regras. Split Test A/B e Smart Routing são mutuamente exclusivos.
 
 ## Tráfego e estatísticas
 

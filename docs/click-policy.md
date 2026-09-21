@@ -16,7 +16,9 @@ Regras principais:
 
 O filtro decide somente a métrica. Bots, previews sociais, crawlers de busca, prefetches e automação reconhecida continuam recebendo o redirect quando o link está ativo; eles apenas não incrementam `clicks_total`.
 
-## Split Test A/B
+## Split Test A/B (Phase 2 local)
+
+> Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não tem Split Test A/B.
 
 Quando o link tem Split Test A/B ativo:
 
@@ -28,6 +30,21 @@ Quando o link tem Split Test A/B ativo:
 - bots, crawlers, previews sociais, prefetch e prerender ficam sempre no Control A e não incrementam `clicks_total` nem contadores de variante
 - o filtro continua sendo exclusivamente métrico: nenhum bot é bloqueado por ser bot
 
+## Smart Routing (Unreleased / Fase 3)
+
+> Escopo: release publicada/baseline = **v2.2.1**. A seção abaixo descreve o estado Unreleased da branch de desenvolvimento.
+
+Quando o link tem Smart Routing configurado (`smart_routing_rules` não nulo):
+
+- a seleção de destino usa país (`request.cf.country`) e dispositivo (`User-Agent`), com first-match-wins e fallback em `target_url`
+- requests humanas contáveis incrementam **somente** `clicks_total = clicks_total + 1`; não existe contador por regra, país ou dispositivo
+- bots, crawlers, previews sociais, prefetch e prerender recebem sempre `target_url` e não incrementam nenhuma métrica
+- o redirect é sempre `302` com `Cache-Control: no-store`; Smart Routing nunca emite redirect permanente cacheável
+- estado híbrido/corrompido (`ab_enabled = 1` + `smart_routing_rules` não nulo, inclusive com regras inválidas) falha seguro: `target_url`, `302`/`no-store`, zero RNG, zero contador A/B, somente `clicks_total` para humano contável
+- a escrita assíncrona usa o mesmo fence de `metric_epoch`: um clique originado antes de um `reset-clicks` não reaparece depois do corte
+- o filtro continua sendo exclusivamente métrico: nenhum bot é bloqueado por ser bot
+- privacidade: nenhum país, dispositivo derivado ou regra selecionada é persistido; não existe cookie de roteamento, visitor ID ou fingerprint, e país/`User-Agent`/dispositivo são usados apenas em memória para escolher o destino
+
 ## Zerar estatísticas
 
 O admin pode zerar a contagem agregada de um link ativo.
@@ -35,15 +52,21 @@ O admin pode zerar a contagem agregada de um link ativo.
 Essa ação:
 
 - define `links.clicks_total = 0`
-- em link com Split Test A/B, também define `ab_clicks_a = 0` e `ab_clicks_b = 0`, avança geração/epóque e renova `ab_started_at`
 - funciona como corte explícito: um clique originado antes do reset não reaparece em nenhum contador depois do reset
 - não altera slug, destino, tags, grupo, senha, agenda ou expiração
 - não apaga eventos individuais, porque eventos individuais não existem mais no modelo atual da linha `2.0.x`
+
+### Split Test A/B no reset (Phase 2 local)
+
+> Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não tem Split Test A/B.
+
+- em link com Split Test A/B, a ação também define `ab_clicks_a = 0` e `ab_clicks_b = 0`, avança geração/epóque e renova `ab_started_at`
 
 ## O que não existe mais
 
 - tabela `stats`
 - país por clique
+- contador por regra de routing
 - hash de IP
 - último clique
 - purge de analytics
@@ -53,8 +76,13 @@ Essa ação:
 - nenhum `Referer` é persistido
 - nenhum `User-Agent` é persistido
 - nenhum IP é persistido
-- o Split Test A/B é stateless: não existe cookie de experimento, visitor ID, fingerprint ou registro de qual visitante recebeu A ou B
 - a contagem é apenas agregada no registro do link
+
+### Split Test A/B e privacidade (Phase 2 local)
+
+> Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não tem Split Test A/B.
+
+- a escolha da variante é stateless: não existe cookie de experimento, visitor ID, fingerprint ou registro de qual visitante recebeu A ou B
 
 ---
 

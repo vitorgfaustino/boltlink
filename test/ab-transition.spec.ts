@@ -121,7 +121,11 @@ async function setupLegacyLink() {
 }
 
 async function startClick(handle: D1Database, state: GateState) {
-	state.gateFrom = state.count + 2;
+	// The public redirect classifies no capability and runs no PRAGMA, so the
+	// next schema probe on this handle is the delayed metric write revalidating
+	// the schema before it picks its SQL. Suspending exactly that probe is what
+	// lets the migration land between the click capture and the SQL choice.
+	state.gateFrom = state.count + 1;
 	const request = new Request("https://example.com/transition-link", { headers: { "user-agent": HUMAN_UA } });
 	const ctx = createExecutionContext();
 	const response = await worker.fetch(request, { ...env, db_boltlink: handle }, ctx);
