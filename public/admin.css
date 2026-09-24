@@ -387,6 +387,35 @@ label small {
   margin: 0;
 }
 
+.expired-redirect {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.expired-redirect legend {
+  padding: 0 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.radio-row input[type="radio"] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+
 .help-tip {
   position: relative;
   display: inline-flex;

@@ -2,13 +2,13 @@
 
 ## Unreleased
 
-> Este bloco cobre o baseline local da **Fase 2** (Split Test A/B, migration `0004`) e o estado **Unreleased da Fase 3** (Smart Routing, migration `0005`). A tag publicada `v2.2.1` termina na `0003` e não contém nenhum dos dois. Nenhum bump de versão está associado a estas correções.
+> Este bloco cobre o baseline local da **Fase 2** (Split Test A/B, migration `0004`), o estado **Unreleased da Fase 3** (Smart Routing, migration `0005`) e a working tree **Unreleased da Fase 4** (destino de expiração + `ROOT_REDIRECT_URL`, migration `0006`). A tag publicada `v2.2.1` termina na `0003` e não contém nenhum deles. Nenhum bump de versão está associado a estas correções.
 
 ### Adicionado
 
 - Split Test A/B por link com Control A (`target_url`) e Variant B (`ab_target_url`), distribuição stateless por requisição e contadores agregados `ab_clicks_a`/`ab_clicks_b`
 - migration `0004_ab_testing.sql` como fonte autoritativa das colunas A/B; o runtime não pré-aplica a migration e mantém links normais funcionando em banco pré-0004
-- migrations como única autoridade do schema: instalação limpa = aplicar `0000` a `0005`; `schema.sql` passa a ser apenas o baseline da `0000` para ferramentas manuais
+- migrations como única autoridade do schema: instalação limpa = aplicar `0000` a `0006`; `schema.sql` passa a ser apenas o baseline da `0000` para ferramentas manuais
 - UI de Split Test A/B no admin (toggle, Variant B, presets de Traffic Allocation) e exibição de Cliques A/B e Distribuição observada, inclusive após o teste ser encerrado
 - validação fail-fast de `abEnabled`/`abTargetUrl`/`abWeightB` (1 a 99) sem partial mutation
 - `ab_generation`/`metric_epoch` para fencing de métricas atrasadas e concorrência otimista (`version`) nos updates administrativos
@@ -20,6 +20,15 @@
 - exclusão mútua entre Smart Routing e Split Test A/B, e bloqueio de `301` quando Smart Routing está ativo, com transição atômica em um único `PATCH`
 - redirect público integrado: Smart Routing usa sempre `302` + `Cache-Control: no-store`, bot/preview/prefetch sempre no fallback, e estado híbrido/corrompido falha seguro em `target_url` com métrica somente `clicks_total`
 - hot path sem SELECT adicional, sem tabela auxiliar, sem API externa e sem PRAGMA por clique; testes de SQL instrumentado (cold vs warm) e provas de zero parse/classificação/RNG em bots e híbridos
+- destino de expiração por link (`expiredRedirectUrl` / `links.expired_redirect_url`): opcional, requer `expiresAt`, URL http/https; link expirado com destino válido responde `302` + `no-store`, sem destino responde `410` + `no-store`
+- lifecycle vence senha, A/B e Smart Routing: request de link expirado não exibe gate de senha, não roda RNG, não avalia regras, não classifica bot/humano e executa zero escritas — nunca conta clique
+- destino de expiração revalidado em read-time pela política compartilhada de destinos: valor persistido inválido, não http/https ou self-loop direto responde `410`, sem fallback para `target_url` e sem reescrever o valor armazenado
+- migration `0006_expired_redirect.sql` como fonte autoritativa de `links.expired_redirect_url` (additive, nullable, sem rewrite e sem rebuild); instalação limpa = aplicar `0000` a `0006`; banco pré-`0006` mantém o CRUD normal com `expiredRedirectUrl` recusado (`400`)
+- `ROOT_REDIRECT_URL`, variável opcional e não secreta: `GET /` com valor válido responde `302` + `no-store` sem consultar D1; ausente/inválida/auto-referente serve a landing (fail-safe silencioso); unknown slugs, `/admin`, `/api`, `/health`, `/privacidade` e assets não mudam
+- UI de destino de expiração no Admin: seção "Após expirar" com `Resposta padrão (410)` e `Redirecionar para URL`, disponível apenas com expiração preenchida, oculta quando `expiredRedirect=false` (pré-`0006`), com limpeza atômica de expiração + destino na mesma edição
+- `GET /api/capabilities` informa `expiredRedirect` ao Admin (indicador de schema da `0006`, não feature flag de produto)
+- `PATCH` de destino de expiração com invariante de estado final: campo ausente preserva, `null` limpa, URL válida substitui; limpar `expiresAt` mantendo o destino retorna `400`; limpar os dois juntos é permitido
+- duplicar um link continua nascendo ativo: não copia `expiresAt`, `goLiveAt`, senha nem `expiredRedirectUrl`; `reset-clicks` preserva expiração e destino de expiração
 
 ### Corrigido
 

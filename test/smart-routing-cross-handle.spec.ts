@@ -176,7 +176,7 @@ describe("Phase 3: Smart Routing cross-handle convergence (BL-SR-GLOBAL-001)", (
 
 		// B: an unrelated handle validates the capability and enables Smart Routing.
 		const capabilities = await fetchWorker("http://127.0.0.1/api/capabilities", undefined, handleB);
-		expect(await capabilities.json()).toEqual({ abTesting: true, smartRouting: true });
+		expect(await capabilities.json()).toEqual({ abTesting: true, smartRouting: true, expiredRedirect: false });
 		const enabled = await patchLink("xh-converge", { smartRoutingRules: COUNTRY_RULE }, handleB);
 		expect(enabled.status).toBe(200);
 

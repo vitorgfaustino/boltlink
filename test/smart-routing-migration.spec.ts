@@ -85,12 +85,12 @@ describe("Smart Routing migration/schema", () => {
 
 		const handle = cloneDbHandle(env.db_boltlink);
 		const pre = await fetchWorker("http://127.0.0.1/api/capabilities", handle);
-		expect(await pre.json()).toEqual({ abTesting: true, smartRouting: false });
+		expect(await pre.json()).toEqual({ abTesting: true, smartRouting: false, expiredRedirect: false });
 
 		await applySchema(migration0005);
 
 		const post = await fetchWorker("http://127.0.0.1/api/capabilities", handle);
-		expect(await post.json()).toEqual({ abTesting: true, smartRouting: true });
+		expect(await post.json()).toEqual({ abTesting: true, smartRouting: true, expiredRedirect: false });
 	});
 
 	it("runtime never creates the smart_routing_rules column", async () => {
@@ -112,7 +112,7 @@ describe("Smart Routing migration/schema", () => {
 
 		const handle = cloneDbHandle(env.db_boltlink);
 		const capability = await fetchWorker("http://127.0.0.1/api/capabilities", handle);
-		expect(await capability.json()).toEqual({ abTesting: false, smartRouting: true });
+		expect(await capability.json()).toEqual({ abTesting: false, smartRouting: true, expiredRedirect: false });
 
 		const columns = await tableColumns();
 		expect(columns.has("smart_routing_rules")).toBe(true);

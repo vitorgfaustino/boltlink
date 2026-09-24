@@ -210,6 +210,12 @@ O sistema usa camadas com transparência e blur, não sombras pesadas. A profund
 - **Copy:** `País`, `Dispositivo`, `Destino`, `Fallback`, `Qualquer país`, `Qualquer dispositivo`. UI-only fields (id de linha) nunca são enviados à API.
 - **Restraint:** no máximo 20 regras, sem país/device analytics, sem contador por regra, sem UTM injection e sem sticky routing.
 
+### Após expirar (destino de expiração, Unreleased / Fase 4)
+- **Container:** fieldset `Após expirar` dentro do bloco de agendamento/expiração do formulário, com radios `Resposta padrão (410)` e `Redirecionar para URL` e input de URL habilitado apenas na segunda opção. Quando a capability `expiredRedirect` é falsa (instalação pré-`0006`), a seção fica oculta com uma nota curta apontando a migration pendente e o payload não recebe o campo.
+- **Coupling:** o destino só existe com expiração preenchida. Sem "Expira em", os radios ficam desabilitados/ocultos e a limpeza da expiração remove o destino junto (limpeza atômica na mesma edição, sem request intermediário).
+- **Copy:** `Após expirar`, `Resposta padrão (410)`, `Redirecionar para URL`, `Destino após expiração`. Sem nomes de coluna (`expired_redirect_url`) na UI; o nome técnico do campo (`expiredRedirectUrl`) aparece apenas em contexto de API.
+- **Restraint:** um único destino, sem variance por país/dispositivo (isso é Smart Routing, feature separada e mutuamente independente), sem preview de métrica de expiração — requests expirados não geram métrica.
+
 ## 6. Do's and Don'ts
 
 ### Do:

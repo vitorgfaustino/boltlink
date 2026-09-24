@@ -15,15 +15,16 @@ Este guia cobre as três formas de operar o BoltLink v2.2.1:
 - não existe mais `IP_HASH_SECRET`
 - a contagem é apenas agregada em `clicks_total`
 
-## Três bases de código
+## Quatro bases de código
 
 | Base | Migrations | Recursos extras |
 | --- | --- | --- |
 | Publicada (tag `v2.2.1`, `8b3895e`) | `0000` a `0003` | — |
 | Fase 2 local (`23353a1`, não publicado) | `0000` a `0004` | Split Test A/B |
-| Fase 3 working tree (esta branch) | `0000` a `0005` | Split Test A/B + Smart Routing |
+| Fase 3 congelada (`548f179`) | `0000` a `0005` | Split Test A/B + Smart Routing |
+| Fase 4 working tree (esta working tree sobre `548f179`) | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
 
-Os fluxos publicados abaixo usam apenas comandos que existem na tag. `npm run dev-prepare`, `0004` e `0005` pertencem às seções locais.
+Os fluxos publicados abaixo usam apenas comandos que existem na tag. `npm run dev-prepare`, `0004`, `0005` e `0006` pertencem às seções locais.
 
 ## Fluxo A: Wrangler local (release publicada v2.2.1)
 
@@ -75,7 +76,16 @@ npm run dev
 
 ## Fluxo local de desenvolvimento (Unreleased / Fase 3)
 
-Nesta branch de desenvolvimento, o mesmo `npm run dev-prepare` aplica a cadeia até `migrations/0005`:
+No HEAD congelado da Fase 3 (`548f179`), o mesmo `npm run dev-prepare` aplica a cadeia até `migrations/0005`:
+
+```bash
+npm run dev-prepare
+npm run dev
+```
+
+## Fluxo local de desenvolvimento (Unreleased / Fase 4)
+
+Na working tree atual da Fase 4 (sobre `548f179`), o mesmo `npm run dev-prepare` aplica a cadeia até `migrations/0006`:
 
 ```bash
 npm run dev-prepare
@@ -115,6 +125,16 @@ Na branch de desenvolvimento:
 - aplique também a `0005_smart_routing.sql` antes de configurar Smart Routing;
 - valide `GET /api/capabilities` com `smartRouting: true`;
 - configure Smart Routing no Admin.
+
+## Unreleased / Fase 4 (working tree)
+
+> Escopo: release publicada/baseline = **v2.2.1**. Esta seção descreve somente a working tree da Fase 4 (sobre o HEAD congelado da Fase 3 `548f179`); um checkout da tag `v2.2.1` não contém o destino de expiração nem a migration `0006_expired_redirect.sql`.
+
+Na working tree da Fase 4:
+
+- aplique também a `0006_expired_redirect.sql` antes de configurar destino de expiração (a API recusa `expiredRedirectUrl` com `400` em banco pré-`0006`);
+- valide `GET /api/capabilities` com `expiredRedirect: true`;
+- opcionalmente configure `ROOT_REDIRECT_URL` (variável `Text`, não é secret) para redirecionar `GET /`; ausente ou inválida, a landing normal é servida — valide a configuração após o deploy.
 
 ## Fluxo C: Deploy to Cloudflare Workers
 
@@ -159,6 +179,7 @@ Para quem já está em produção e recebe atualização por GitHub/Deploy Butto
 - aplique as migrations pendentes no D1 remoto (a `0003_lgpd_minimization.sql` remove `stats`, `last_clicked_at` e `notes` e é a última migration da release publicada `v2.2.1`): `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`
 - **Phase 2 local:** a `0004_ab_testing.sql` habilita o Split Test A/B e não existe no checkout da tag `v2.2.1`
 - **Unreleased / Fase 3:** a `0005_smart_routing.sql` habilita Smart Routing e também não existe no checkout da tag `v2.2.1`
+- **Unreleased / Fase 4:** a `0006_expired_redirect.sql` habilita o destino de expiração e também não existe no checkout da tag `v2.2.1`
 - deploy sozinho não deixa a instalação operacional: até aplicar as migrations, API e redirects respondem `503 Database schema is not initialized`
 - `wrangler.local.jsonc` não participa desse fluxo e não sobrescreve variáveis do ambiente de GitHub/Workers Builds
 
@@ -166,6 +187,7 @@ Para quem já está em produção e recebe atualização por GitHub/Deploy Butto
 
 - `TEAM_DOMAIN` e `POLICY_AUD` sao `Text`
 - `API_KEY` e `PASSWORD_SESSION_SECRET` sao `Secret`
+- `ROOT_REDIRECT_URL` (Unreleased / Fase 4) e opcional, do tipo `Text`, e **nao** e secret
 - `PASSWORD_SESSION_SECRET` não é obrigatório para a instância inteira, mas é obrigatório para criar, adicionar senha ou servir links protegidos; links legados sem esse secret respondem HTTP 503
 
 ## Operacao no plano gratuito

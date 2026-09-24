@@ -1,6 +1,6 @@
 # Desenvolvimento Local
 
-> Escopo: release publicada = **v2.2.1** (tag real, migrations até `0003`; sem `npm run dev-prepare`). Este documento descreve as **bases locais**: o baseline da Fase 2 (`0004`, Split Test A/B) e o estado Unreleased / Fase 3 (`0005`, Smart Routing).
+> Escopo: release publicada = **v2.2.1** (tag real, migrations até `0003`; sem `npm run dev-prepare`). Este documento descreve as **bases locais**: o baseline da Fase 2 (`0004`, Split Test A/B), o estado Unreleased / Fase 3 (`0005`, Smart Routing) e a working tree Unreleased / Fase 4 (`0006`, destino de expiração).
 
 Este projeto suporta desenvolvimento local com banco SQLite isolado para teste manual e validação rápida.
 
@@ -21,7 +21,7 @@ Esse diretório **não vai para o GitHub**.
 
 ## Fluxo rápido (Unreleased / Fase 3)
 
-Vale para as duas bases locais; no baseline da Fase 2 a cadeia para na `0004` e no estado Unreleased / Fase 3 ela vai até a `0005`.
+Vale para as bases locais; no baseline da Fase 2 a cadeia para na `0004`, no estado Unreleased / Fase 3 (HEAD congelado `548f179`) ela vai até a `0005` e na working tree da Fase 4 ela vai até a `0006`.
 
 1. Instale dependências:
 
@@ -41,7 +41,7 @@ npm run setup
 npm run dev-prepare
 ```
 
-`npm run dev-prepare` lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc` e aplica a cadeia de migrations em `.wrangler/state/v3/d1`: `0000` a `0004` no baseline da Fase 2 e `0000` a `0005` no estado Unreleased / Fase 3. Sem isso o Worker responde `503 Database schema is not initialized`.
+`npm run dev-prepare` lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc` e aplica a cadeia de migrations em `.wrangler/state/v3/d1`: `0000` a `0004` no baseline da Fase 2, `0000` a `0005` no estado Unreleased / Fase 3 e `0000` a `0006` na working tree da Fase 4. Sem isso o Worker responde `503 Database schema is not initialized`.
 
 O script `dev-prepare` **não existe** no checkout da tag `v2.2.1`, que termina na `0003`; lá o comando é `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
 
@@ -67,7 +67,7 @@ npm test
 
 - cria `.dev-env/`
 - cria `.dev-env/db.sqlite3` (auxiliar, não usado pelo Worker)
-- aplica a cadeia de migrations (`migrations/0000` a `0005`) nesse arquivo
+- aplica a cadeia de migrations (`migrations/0000` a `0006` nesta working tree da Fase 4) nesse arquivo
 - insere links fictícios para navegação local
 
 Para o Worker, o comando correto nas bases locais é `npm run dev-prepare`. `npm run dev-init` também existe na tag `v2.2.1`, mas lá a cadeia disponível termina na `0003`.

@@ -171,12 +171,12 @@ beforeEach(async () => {
 describe("Smart Routing API: capability", () => {
 	it("exposes smartRouting=true after 0005 and omits the field pre-0005", async () => {
 		const capabilities = await fetchWorker("http://127.0.0.1/api/capabilities");
-		expect(await capabilities.json()).toEqual({ abTesting: true, smartRouting: true });
+		expect(await capabilities.json()).toEqual({ abTesting: true, smartRouting: true, expiredRedirect: false });
 
 		await resetAll();
 		await applyChain(PRE_0005);
 		const pre = await fetchWorker("http://127.0.0.1/api/capabilities");
-		expect(await pre.json()).toEqual({ abTesting: true, smartRouting: false });
+		expect(await pre.json()).toEqual({ abTesting: true, smartRouting: false, expiredRedirect: false });
 	});
 });
 

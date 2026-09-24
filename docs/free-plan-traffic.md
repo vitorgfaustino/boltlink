@@ -89,6 +89,25 @@ crawler/preview em link Smart Routing:
 
 As regras vivem em uma coluna JSON na própria linha do link, então não há tabela secundária, JOIN auxiliar, SELECT adicional nem API externa de geolocalização. O país vem do metadado da Cloudflare e o dispositivo é derivado do `User-Agent` em memória. O pior caso do teste de capability é uma sondagem de schema por isolate, não por clique.
 
+## Destino de expiração e redirect da raiz no caminho crítico (Unreleased / Fase 4)
+
+> Escopo: release publicada/baseline = **v2.2.1**. Esta seção pertence ao estado Unreleased da working tree da Fase 4.
+
+O destino de expiração não adiciona lookup nem escrita:
+
+```text
+link expirado (com ou sem destino):
+1 invocação do Worker
++ 1 lookup principal no D1
++ 0 escrita de métrica
+
+redirect da raiz (ROOT_REDIRECT_URL válida):
+1 invocação do Worker
++ 0 leitura de D1
+```
+
+O destino é uma coluna da própria linha lida pelo SELECT existente, decidido no lifecycle antes de qualquer classificação ou métrica. O redirect da raiz decide antes de qualquer acesso a D1. Nenhuma quota ou preço novo é introduzido por esta fase; os limites listados no topo do documento continuam os mesmos.
+
 ## O que o código faz
 
 BoltLink aplica duas protecoes gratuitas dentro da aplicacao:

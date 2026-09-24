@@ -112,7 +112,7 @@ describe("Schema installation contract", () => {
 		}
 
 		const capabilities = await fetchWorker("http://127.0.0.1/api/capabilities");
-		expect(await capabilities.json()).toEqual({ abTesting: true, smartRouting: true });
+		expect(await capabilities.json()).toEqual({ abTesting: true, smartRouting: true, expiredRedirect: false });
 
 		const createResponse = await fetchWorker("http://127.0.0.1/api/links", {
 			method: "POST",
@@ -146,6 +146,6 @@ describe("Schema installation contract", () => {
 
 		const handle = cloneDbHandle(env.db_boltlink);
 		const capabilities = await fetchWorker("http://127.0.0.1/api/capabilities", undefined, { db_boltlink: handle });
-		expect(await capabilities.json()).toEqual({ abTesting: true, smartRouting: true });
+		expect(await capabilities.json()).toEqual({ abTesting: true, smartRouting: true, expiredRedirect: false });
 	});
 });

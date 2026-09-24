@@ -4,7 +4,7 @@ BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel ad
 
 **Versão 2.2.1 - AGPL-3.0**
 
-> Release publicada: **v2.2.1**. O Smart Routing (Fase 3, migration `0005_smart_routing.sql`) descrito neste documento está em **Unreleased** nesta branch de desenvolvimento e ainda não faz parte da release/tag publicada. Um checkout da tag `v2.2.1` não contém Smart Routing nem a migration `0005`.
+> Release publicada: **v2.2.1**. O Smart Routing (Fase 3, migration `0005_smart_routing.sql`) e o destino de expiração + `ROOT_REDIRECT_URL` (Fase 4, migration `0006_expired_redirect.sql`) descritos neste documento estão em **Unreleased** nesta branch de desenvolvimento e ainda não fazem parte da release/tag publicada. Um checkout da tag `v2.2.1` não contém nenhum desses recursos nem as migrations `0005`/`0006`.
 
 Ele funciona como encurtador de URLs, mas o objetivo real do projeto é maior: manter links públicos estáveis, simples de operar e independentes de plataformas terceiras, com controle do redirect, proteção do painel e uma baseline de privacidade mais rígida do que a maioria das ferramentas desse tipo.
 
@@ -108,7 +108,7 @@ Nessa base, `dev-prepare` aplica `migrations/0000` a `0004` e habilita o Split T
 
 #### Ambiente local de desenvolvimento (Unreleased / Fase 3)
 
-Nesta branch de desenvolvimento, `npm run dev-prepare` aplica a cadeia até `migrations/0005`, fonte autoritativa de `links.smart_routing_rules`:
+No HEAD congelado da Fase 3 (`548f179`), `npm run dev-prepare` aplica a cadeia até `migrations/0005`, fonte autoritativa de `links.smart_routing_rules`:
 
 ```bash
 npm run dev-prepare
@@ -116,6 +116,17 @@ npm run dev
 ```
 
 Sem a `0005` (por exemplo num checkout da tag), o produto funciona normalmente e apenas o recurso de roteamento fica indisponível.
+
+#### Ambiente local de desenvolvimento (Unreleased / Fase 4)
+
+Na working tree atual da Fase 4 (sobre `548f179`), `npm run dev-prepare` aplica a cadeia até `migrations/0006`, fonte autoritativa de `links.expired_redirect_url`:
+
+```bash
+npm run dev-prepare
+npm run dev
+```
+
+Sem a `0006`, o produto funciona normalmente; apenas o destino de expiração fica indisponível (a API recusa o campo com `400` e o Admin oculta a seção).
 
 ### 2. Operação guiada por IA
 
@@ -169,6 +180,8 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 - permite grupos, tags, QR code, ativação e expiração
 - permite Split Test A/B com distribuição stateless e apenas contadores agregados (Phase 2 local, não publicado)
 - permite Smart Routing por país e dispositivo, com a primeira regra compatível vencendo e fallback no destino principal (Unreleased / Fase 3)
+- permite configurar um destino usado depois da expiração do link: com destino válido o link expirado responde `302`, sem destino responde `410`; requests expirados não contam clique (Unreleased / Fase 4)
+- permite redirecionar a raiz (`GET /`) para uma URL operacional via `ROOT_REDIRECT_URL`, sem consultar D1 (Unreleased / Fase 4)
 - conta cliques de forma agregada sem eventos detalhados
 - permite zerar a estatística agregada de um link ativo
 - inclui orientações para reduzir tráfego desnecessário no plano gratuito da Cloudflare
@@ -257,6 +270,75 @@ Smart Routing permite escolher o destino de um link por país e/ou tipo de dispo
 O país vem apenas do metadado aproximado da Cloudflare (`request.cf.country`). O dispositivo é derivado do `User-Agent` da requisição. Nada disso é armazenado por visitante: country, User-Agent, dispositivo derivado e regra escolhida não são persistidos. A métrica continua sendo somente `clicks_total` agregado.
 
 Links com Smart Routing configurado usam sempre redirect temporário `302` com `Cache-Control: no-store`; `301` é incompatível. Bots, crawlers, previews e prefetch/prerender recebem sempre o destino principal, mesmo quando há regras. Split Test A/B e Smart Routing são mutuamente exclusivos.
+
+## Destino de expiração e redirect da raiz (Unreleased / Fase 4)
+
+> Escopo: **working tree da Fase 4** (Unreleased, sobre o HEAD congelado da Fase 3 `548f179`). A tag publicada `v2.2.1` não contém a migration `0006` nem nenhum recurso desta seção.
+
+### Destino após expiração
+
+Um link com expiração pode definir um destino usado depois que ele expira:
+
+- o campo é opcional e só faz sentido com a expiração preenchida: criar ou manter um destino sem `expiresAt` retorna `400`
+- o destino precisa ser uma URL `http`/`https` válida
+- a expiração vence senha, Split Test A/B e Smart Routing: um link expirado nunca pede senha, nunca sorteia variante e nunca avalia regras de roteamento
+- expirado com destino válido responde `302` com `Cache-Control: no-store`
+- expirado sem destino responde `410` com `Cache-Control: no-store`
+- requests de link expirado não contam clique e não gravam nada no banco
+- um destino que aponta de volta para a própria URL do link responde `410`
+- um valor persistido inválido (gravado manualmente no banco) também responde `410`; ele é lido e revalidado a cada request, nunca reescrito
+- link ativo ignora o destino de expiração: ele só passa a valer quando o link expira
+
+No Admin, a seção **Após expirar** do formulário oferece duas opções: **Resposta padrão (410)** e **Redirecionar para URL**. O destino só fica disponível quando "Expira em" está preenchido; limpar a expiração também remove o destino de expiração — os dois são limpos juntos na mesma edição.
+
+Na API, o campo é `expiredRedirectUrl`. Omitir ou enviar `null` no CREATE cria o link sem destino; URL válida com `expiresAt` configura o destino. No PATCH: campo ausente preserva, `null` limpa, URL válida substitui. Limpar apenas a expiração mantendo o destino retorna `400`; limpar os dois na mesma requisição (`expiresAt: null` + `expiredRedirectUrl: null`) é a limpeza atômica permitida.
+
+`GET /api/capabilities` expõe `expiredRedirect: boolean`. `true` significa que a migration `0006` está disponível nesta instalação; `false` significa que o banco ainda não suporta o campo. É um indicador de schema, não um feature flag de produto.
+
+Duplicar um link não copia expiração, ativação, senha nem destino de expiração: o duplicado nasce ativo. Zerar estatísticas preserva a expiração e o destino configurados.
+
+### Migration 0006
+
+`migrations/0006_expired_redirect.sql` adiciona a coluna `expired_redirect_url TEXT`:
+
+```sql
+ALTER TABLE links ADD COLUMN expired_redirect_url TEXT;
+```
+
+A mudança é additive: coluna nullable, sem default, sem reescrita de dados e sem rebuild de tabela. Linhas existentes permanecem `NULL`, o que preserva o comportamento anterior à `0006`.
+
+Procedimento recomendado (Unreleased / Fase 4):
+
+1. backup conforme o procedimento da instância;
+2. aplicar as migrations pendentes, incluindo a `0006` (`npm run wrangler -- d1 migrations apply ...`);
+3. atualizar/publicar o Worker;
+4. validar `GET /api/capabilities` (`expiredRedirect: true`) e um redirect normal;
+5. configurar destinos de expiração no Admin quando desejado.
+
+Compatibilidade:
+
+- banco em `0005` + código da Fase 4: o produto continua operando normalmente; o destino de expiração não pode ser usado antes da migration (a API responde `400` e o Admin oculta a seção)
+- banco em `0006` + código da Fase 3: rollback benigno — a coluna extra é ignorada
+- o runtime nunca aplica migrations nem cria colunas durante requests; migrations explícitas são a autoridade
+
+### ROOT_REDIRECT_URL
+
+`ROOT_REDIRECT_URL` é uma variável opcional e não secreta que define o destino de `GET /`:
+
+- ausente ou inválida: a landing normal do BoltLink é servida (fail-safe silencioso — valide a configuração após o deploy)
+- válida: `GET /` responde `302` com `Cache-Control: no-store`, sem consultar D1 e sem métrica
+- afeta somente a raiz: unknown slugs continuam `404`, e `/admin`, `/api`, `/health`, `/privacidade` e assets não mudam de comportamento
+- o valor precisa ser uma URL `http`/`https` absoluta; um valor que aponta de volta para a própria raiz da instância cai na landing
+
+O template público `wrangler.jsonc` não define `ROOT_REDIRECT_URL`. O config público usa `keep_vars = true`, que preserve as variáveis configuradas no dashboard durante deploys, então o valor vive no painel da Cloudflare (tipo `Text`) em fluxos de dashboard/GitHub auto-deploy, ou no `wrangler.local.jsonc`/`.dev.vars` em desenvolvimento e deploy Wrangler local. Não é secret e não pertence a listas de segredos.
+
+### O que a Fase 4 não muda
+
+- unknown slugs continuam respondendo `404`; `ROOT_REDIRECT_URL` não substitui o 404 e não existe redirect global de 404 nem página custom de 404
+- links futuros continuam `404` antes do go-live; não existe `future_redirect_url`
+- links desabilitados continuam `404`; não existe `disabled_redirect_url`
+- expiração por contagem de cliques continua fora de escopo
+- nenhuma métrica individual nova: requests expirados e o redirect da raiz não contam clique
 
 ## Tráfego e estatísticas
 

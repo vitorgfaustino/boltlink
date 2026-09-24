@@ -166,6 +166,30 @@
                 <input id="expires-at" type="datetime-local" />
               </label>
 
+              <fieldset class="expired-redirect" id="expired-redirect-section" hidden>
+                <legend>Após expirar</legend>
+                <label class="radio-row">
+                  <input id="expired-redirect-mode-response" name="expired-redirect-mode" type="radio" value="410" checked />
+                  Resposta padrão (410)
+                </label>
+                <label class="radio-row">
+                  <input id="expired-redirect-mode-url" name="expired-redirect-mode" type="radio" value="redirect" />
+                  Redirecionar para URL
+                </label>
+                <p class="field-help">O destino após a expiração só pode ser configurado quando "Expira em" está preenchido. Sem ele, o link expirado responde 410.</p>
+                <label id="expired-redirect-url-field" hidden>
+                  <span class="field-label">
+                    Destino após expiração
+                    <span class="help-tip">
+                      <button type="button" class="help-tip-btn" aria-label="Ajuda sobre destino após expiração">i</button>
+                      <span class="help-tip-text">Destino usado depois que o link expira. Precisa ser uma URL http ou https válida.</span>
+                    </span>
+                  </span>
+                  <input id="expired-redirect-url" type="url" placeholder="https://exemplo.com/expirado" />
+                </label>
+              </fieldset>
+              <p class="field-help" id="expired-redirect-unavailable" hidden>Destino após expiração requer a migration 0006_expired_redirect.sql aplicada nesta instalação.</p>
+
               <label>
                 <span class="field-label">
                   Senha do link (opcional)
@@ -315,6 +339,7 @@
 
   <script src="/ab-display.js"></script>
   <script src="/smart-routing-ui.js"></script>
+  <script src="/expired-redirect-ui.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>

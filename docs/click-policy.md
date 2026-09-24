@@ -45,6 +45,14 @@ Quando o link tem Smart Routing configurado (`smart_routing_rules` não nulo):
 - o filtro continua sendo exclusivamente métrico: nenhum bot é bloqueado por ser bot
 - privacidade: nenhum país, dispositivo derivado ou regra selecionada é persistido; não existe cookie de roteamento, visitor ID ou fingerprint, e país/`User-Agent`/dispositivo são usados apenas em memória para escolher o destino
 
+## Destino de expiração e redirect da raiz (Unreleased / Fase 4)
+
+> Escopo: release publicada/baseline = **v2.2.1**. A seção abaixo descreve o estado Unreleased da working tree da Fase 4.
+
+- request de link expirado **não conta clique**, com ou sem destino configurado: o lifecycle é decidido antes da classificação bot/humano, então a resposta é `302` (destino válido) ou `410` (sem destino) para todos os clientes, sem exceção para humanos
+- o redirect da raiz (`ROOT_REDIRECT_URL`) não conta clique e não consulta D1
+- nenhuma métrica individual nova existe: nem por request expirado, nem por redirect de raiz
+
 ## Zerar estatísticas
 
 O admin pode zerar a contagem agregada de um link ativo.

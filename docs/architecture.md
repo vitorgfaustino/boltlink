@@ -11,12 +11,14 @@ BoltLink é um gerenciador de links orientado a edge:
 
 ## Fluxo público
 
+A rota raiz (`GET /`) fica fora do slug hot path: com `ROOT_REDIRECT_URL` válida (Unreleased / Fase 4), o Worker responde `302` + `Cache-Control: no-store` sem nenhuma leitura de D1, sem schema detection e sem métrica; sem a variável (ou com valor inválido/auto-referente) a landing estática é servida. Isso não afeta unknown slugs (`404`), `/admin`, `/api`, `/health`, `/privacidade` nem assets.
+
 1. A requisição chega em `/:slug`.
 2. O Worker rejeita slugs reservados ou fora do padrão antes de consultar D1.
 3. O Worker aplica um rate limit em memória para poupar D1 em rajadas públicas.
 4. O Worker garante uma vez por handle/isolate que o banco foi preparado (bootstrap + projeção de fence), sem PRAGMA por request no steady state e sem classificar capability no caminho público.
 5. O Worker faz **um único `SELECT`** da linha principal, com projeção `SELECT *` (schema-neutral): a query não nomeia coluna de feature, então é válida em qualquer nível de migration, e a presença da coluna na linha é a resposta de schema daquele request. Um handle aquecido antes de uma migration converge sozinho no request público seguinte — sem `PRAGMA`, sem cache negativo e sem depender de um request Admin/API cair no mesmo handle.
-6. O Worker valida lifecycle: desativado (`disabled_at`), futuro (`go_live_at`) e expirado (`expires_at`) antes de qualquer roteamento.
+6. O Worker valida lifecycle: desativado (`disabled_at`), futuro (`go_live_at`) e expirado (`expires_at`) antes de qualquer roteamento. Na Fase 4 (Unreleased), um link expirado é decidido direto no lifecycle: com destino válido em `expired_redirect_url` responde `302` + `no-store`; sem destino (ou com valor persistido inválido/auto-referente) responde `410` + `no-store`. Em ambos os casos não há gate de senha, classificação bot/humano, Smart/A-B nem escrita de métrica — a mesma resposta para todos os clientes.
 7. O Worker resolve o gate de senha quando o link é protegido (sem sessão/senha válida não há roteamento, classificação nem métrica).
 8. O Worker classifica a requisição como clique humano contável ou bot/preview/prefetch (o filtro é apenas métrico).
 9. Com o destino ainda não construído, o Worker decide entre Smart Routing, Split Test A/B ou fallback (`target_url`):
@@ -60,6 +62,7 @@ Não existe mais persistência de evento por clique e nenhum dado de visitante (
 - `ab_clicks_b`
 - `ab_started_at`
 - `smart_routing_rules` (JSON em linha; `NULL` = desativado, array ordenado = ativado)
+- `expired_redirect_url` (destino administrativo usado quando o link expira; `NULL` = sem destino. Introduzida pela migration `0006`, Unreleased / Fase 4)
 - `version`
 
 ### Tabela `link_groups`
@@ -89,7 +92,8 @@ Escopo: **baseline local da Fase 2**. A tag publicada `v2.2.1` não tem Split Te
 - Um clique capturado antes da `0004` executa sempre um UPDATE cujo fence é avaliado na própria escrita, nunca com base apenas numa leitura anterior: a migration, um reset ou uma configuração A/B podem acontecer entre a revalidação e o `run()`. Antes da `0004` o fence lê a projeção `boltlink_metric_fence`, que reporta o epóque implícito 0; a migration `0004` promove essa projeção para a coluna real `metric_epoch`. A projeção é monotônica: o runtime só usa `CREATE VIEW IF NOT EXISTS` (shim ou real) e nunca executa `DROP VIEW`; a promoção `SHIM → REAL` pertence exclusivamente à migration. Por isso um bootstrap iniciado antes da `0004` que termine depois da migration não consegue rebaixar a view real: sua manutenção vira no-op. Assim um reset ocorrido nesse intervalo nunca é ressuscitado, um clique válido continua contando quando só a migration chega e nenhum clique retroativo é associado a A/B. A projeção não cria colunas A/B: `metric_epoch` continua sendo propriedade da migration.
 ### Capabilities expostas ao Admin
 
-- `GET /api/capabilities` expõe `{ "abTesting": boolean, "smartRouting": boolean }` para o Admin, sem detalhes internos de schema. O Admin só mostra e envia campos A/B quando `abTesting=true` e só mostra e envia Smart Routing quando `smartRouting=true`; instalações pré-`0004`/pré-`0005` mantêm o payload normal da Fase 1.
+- `GET /api/capabilities` expõe `{ "abTesting": boolean, "smartRouting": boolean, "expiredRedirect": boolean }` para o Admin, sem detalhes internos de schema. O Admin só mostra e envia campos A/B quando `abTesting=true`, só mostra e envia Smart Routing quando `smartRouting=true` e só mostra a seção "Após expirar" quando `expiredRedirect=true`; instalações pré-`0004`/pré-`0005`/pré-`0006` mantêm o payload normal sem os campos da feature ausente.
+- `expiredRedirect` indica disponibilidade de schema (migration `0006` aplicada), não um feature flag de produto. A API continua aceitando o restante do CRUD normalmente em banco pré-`0006`; apenas `expiredRedirectUrl` é recusado com `400`.
 - A classificação de estado persistido (`smartRoutingStatus`) é adicional e só existe quando a coluna existe; ela não substitui a capability, que continua sendo a fonte de disponibilidade da feature.
 
 ### Semântica do Smart Routing (Unreleased / Fase 3)
@@ -107,6 +111,29 @@ Escopo: **baseline local da Fase 2**. A tag publicada `v2.2.1` não tem Split Te
 - Um valor persistido não nulo e ilegível é **corrupção preservada**, não "desativado": a API expõe `smartRoutingRules: null` com `smartRoutingStatus: "invalid"` (nunca o conteúdo cru), o Admin não reenvia o campo em edições não relacionadas e só uma ação explícita de limpeza grava `NULL`. Sem essa distinção, editar apenas as tags apagaria a corrupção e mudaria o roteamento público.
 - A métrica pública continua sendo somente `clicks_total` agregado, com o mesmo fence de `metric_epoch`. Não há contador por regra, país ou dispositivo.
 - Máximo de 20 regras, JSON serializado limitado a 8 KiB, sem duplicatas de matcher e sem regra totalmente coberta por uma anterior.
+
+### Semântica do destino de expiração (Unreleased / Fase 4)
+
+> Escopo: working tree da Fase 4 (sobre o HEAD congelado da Fase 3 `548f179`). A tag publicada `v2.2.1` não contém esta feature nem a migration `0006`.
+
+- `links.expired_redirect_url` guarda um destino administrativo opcional usado somente depois que `expires_at` passa. `NULL` preserva o comportamento anterior à `0006` (link expirado responde `410`).
+- O campo requer `expiresAt`: CREATE/PATCH que produzam uma linha com destino e sem expiração são recusados com `400` (invariante de estado final). Limpar `expiresAt` mantendo o destino é recusado; limpar os dois na mesma requisição é a limpeza atômica permitida.
+- O lifecycle é avaliado antes do gate de senha, da classificação bot/humano, do Smart Routing e do A/B: link expirado nunca pede senha, nunca roda RNG e nunca avalia regras. A precedência é lifecycle > password > Smart/A-B.
+- Link expirado com destino válido responde `302` + `Cache-Control: no-store`; sem destino responde `410` + `Cache-Control: no-store`. Requests expirados executam zero escritas: nenhuma métrica, nenhum contador.
+- O destino é revalidado em read-time pela mesma política de `target_url` (`normalizeTargetUrl`): valor não-string, não parseável, scheme não http/https ou self-loop direto (mesma origem e mesmo path da request) respondem `410`. `target_url` nunca é fallback de um link expirado: uma vez expirado, o link não volta ao roteamento normal. O valor persistido é apenas lido, nunca reescrito nem ecoado.
+- Link ativo ignora `expired_redirect_url` por completo; o campo só passa a valer quando o link expira.
+- Duplicar um link não copia `expires_at`, `go_live_at`, `password_hash` nem `expired_redirect_url`: o duplicado nasce ativo sem configuração de lifecycle. `reset-clicks` preserva expiração e destino.
+- A coluna é adicionada somente pela migration `0006_expired_redirect.sql` (additive, nullable, sem rewrite). Em banco pré-`0006` o CRUD continua normal, a API recusa `expiredRedirectUrl` com `400` e `GET /api/capabilities` reporta `expiredRedirect: false`.
+- `expired_redirect_url` é configuração administrativa, não dado de visitante. O destino de expiração não é regra de Smart Routing nem variante de A/B.
+
+### Rota raiz e `ROOT_REDIRECT_URL` (Unreleased / Fase 4)
+
+> Escopo: working tree da Fase 4. A tag publicada `v2.2.1` não contém esta configuração.
+
+- `GET /` decide antes de qualquer outra etapa: zero chamadas de `prepare`, zero schema detection, zero capability probe, zero cookie e zero métrica.
+- Valor válido: `302` + `Cache-Control: no-store` (sempre temporário — é configuração mutável por ambiente; `301` reteria um destino que pode mudar).
+- Valor ausente, inválido (não http/https, relativo, `javascript:`, `data:` etc.) ou com self-loop direto para a própria raiz: a landing é servida (fail-safe silencioso; não há erro de startup nem log do valor rejeitado).
+- Não afeta unknown slugs (`404`), `/admin`, `/api`, `/health`, `/privacidade` nem assets. A validação reusa `normalizeTargetUrl`, sem exceção específica da raiz.
 
 ### Migrações e runtime (release publicada v2.2.1)
 
@@ -128,6 +155,10 @@ Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não con
 
 Na branch de desenvolvimento, a instalação limpa e o upgrade aplicam também a `0005_smart_routing.sql`. Um checkout da tag `v2.2.1` não contém essa migration.
 
+#### Instalação limpa e upgrade (Unreleased / Fase 4)
+
+Na working tree da Fase 4, a instalação limpa e o upgrade aplicam também a `0006_expired_redirect.sql`. Banco em `0005` com código da Fase 4 continua operando normalmente (o destino de expiração fica bloqueado até a migration); banco em `0006` com código da Fase 3 é um rollback benigno — a coluna extra é ignorada. Não há downtime obrigatório: a mudança é additive e nullable.
+
 ## Decisões preservadas
 
 - slug continua imutável após criação
@@ -135,6 +166,8 @@ Na branch de desenvolvimento, a instalação limpa e o upgrade aplicam também a
 - links deletados continuam em exclusão lógica
 - zerar estatísticas é uma ação explícita e não acontece automaticamente na exclusão
 - Split Test A/B é stateless: nenhuma escolha de variante é persistida por visitante; somente contadores agregados existem na linha do link
+- o destino de expiração é decisão de lifecycle, não de roteamento: expirado com destino responde `302`/`no-store`, sem destino `410`/`no-store`, sempre com zero escritas e zero métrica (Fase 4)
+- unknown slugs continuam `404`; o redirect da raiz não substitui o 404 (Fase 4)
 - nenhuma persistência de IP, hash de IP, país, referrer, user-agent, `stats`, `last_clicked_at` ou `notes`
 
 ## Operação Cloudflare

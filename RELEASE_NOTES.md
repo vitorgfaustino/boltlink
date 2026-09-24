@@ -1,3 +1,20 @@
+## Unreleased - Fase 4 (destino de expiração e redirect da raiz)
+
+Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.
+
+> Escopo: este bloco cobre a **working tree da Fase 4** (sobre o HEAD congelado da Fase 3 `548f179`): destino de expiração, migration `0006` e `ROOT_REDIRECT_URL`. Nada disso está na tag publicada `v2.2.1`, que termina na `0003`.
+
+### Destaques
+
+- **Destino após expiração**: um link com expiração pode responder `302` para uma URL escolhida pelo operador depois que expira, em vez do `410` padrão. O campo é opcional, requer expiração preenchida e aceita URL http/https.
+- **Lifecycle acima de tudo**: link expirado não pede senha, não sorteia A/B, não avalia Smart Routing e não conta clique — a mesma resposta para humanos, bots e previews, com zero escritas no banco.
+- **`410`/`302` sempre com `no-store`**: expiração é estado mutável; nenhum dos dois status é retido por cache.
+- **Fail-safe em leitura**: valor persistido inválido (gravado manualmente) ou self-loop direto responde `410`, sem fallback para o destino principal e sem reescrever o valor.
+- **`ROOT_REDIRECT_URL`**: variável opcional e não secreta que redireciona `GET /` com `302` + `no-store` sem consultar D1. Ausente ou inválida, a landing normal é servida; unknown slugs continuam `404`.
+- **Migration 0006**: `0006_expired_redirect.sql` adiciona `expired_redirect_url TEXT` (additive, nullable, sem rewrite). Sem ela, o produto funciona e apenas o destino fica bloqueado (`400` na API, seção oculta no Admin); com banco em `0006` e código da Fase 3, o rollback é benigno.
+- **Admin**: seção "Após expirar" com `Resposta padrão (410)` / `Redirecionar para URL`, oculta em instalações pré-`0006`; limpar a expiração remove o destino junto (limpeza atômica).
+- **O que não muda**: unknown slugs continuam `404` (sem custom 404 e sem redirect global), links futuros e desabilitados continuam `404`, expiração por contagem de cliques continua fora de escopo e nenhuma métrica individual é adicionada.
+
 ## Unreleased - Smart Routing (Fase 3)
 
 Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.

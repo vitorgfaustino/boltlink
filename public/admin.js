@@ -27,9 +27,16 @@ const state = {
   // be collapsed into "off", otherwise an unrelated edit would erase it.
   smartRoutingCorrupt: false,
   smartClearInvalid: false,
+  expiredRedirect: false,
 };
 
 const smartRoutingUi = window.BoltLinkSmartRouting || null;
+const expiredRedirectUi = window.BoltLinkExpiredRedirect || null;
+// Loaded before this script, and pinned by an order test. The local fallback only
+// keeps the controls inert instead of throwing if the module is ever absent; a
+// submission that actually needs the rules fails closed in the payload builder.
+const EXPIRED_MODE_RESPONSE = expiredRedirectUi ? expiredRedirectUi.MODE_RESPONSE : "410";
+const EXPIRED_MODE_REDIRECT = expiredRedirectUi ? expiredRedirectUi.MODE_REDIRECT : "redirect";
 const MAX_SMART_RULES = smartRoutingUi ? smartRoutingUi.MAX_RULES : 20;
 
 const ICONS = {
@@ -103,6 +110,12 @@ const createGroupButton = document.getElementById("create-group-button");
 const newGroupNameInput = document.getElementById("new-group-name");
 const goLiveAtInput = document.getElementById("go-live-at");
 const expiresAtInput = document.getElementById("expires-at");
+const expiredRedirectSection = document.getElementById("expired-redirect-section");
+const expiredRedirectUnavailable = document.getElementById("expired-redirect-unavailable");
+const expiredRedirectModeResponse = document.getElementById("expired-redirect-mode-response");
+const expiredRedirectModeUrl = document.getElementById("expired-redirect-mode-url");
+const expiredRedirectUrlField = document.getElementById("expired-redirect-url-field");
+const expiredRedirectUrlInput = document.getElementById("expired-redirect-url");
 const passwordInput = document.getElementById("password");
 const abEnabledInput = document.getElementById("ab-enabled");
 const abTargetUrlInput = document.getElementById("ab-target-url");
@@ -555,6 +568,17 @@ abEnabledInput.addEventListener("change", () => {
   setSmartRoutingError("");
 });
 
+[expiredRedirectModeResponse, expiredRedirectModeUrl].forEach((input) => {
+  if (input) {
+    input.addEventListener("change", syncExpiredRedirectConstraint);
+  }
+});
+
+// `input` covers typing a date and `change` covers picking one, and both keep the
+// destination from outliving the expiration it depends on.
+expiresAtInput.addEventListener("input", syncExpiredRedirectConstraint);
+expiresAtInput.addEventListener("change", syncExpiredRedirectConstraint);
+
 function setSmartRoutingConflict(message) {
   if (!smartRoutingConflict) {
     return;
@@ -851,6 +875,10 @@ function resetForm() {
   setSmartRoutingError("");
   setSmartRoutingInvalidState(null);
   clearSmartRuleInvalidState();
+  // The expired destination belongs to one record only: the default selection is
+  // restored so nothing from the previous link can survive into the next save.
+  setExpiredRedirectMode(EXPIRED_MODE_RESPONSE);
+  syncExpiredRedirectConstraint();
   syncRedirectConstraint();
   renderSmartRules();
   slugInput.readOnly = false;
@@ -879,6 +907,9 @@ function beginEdit(link) {
   groupIdInput.value = link.group_id == null ? "" : String(link.group_id);
   goLiveAtInput.value = toLocalInputDateTime(link.go_live_at);
   expiresAtInput.value = toLocalInputDateTime(link.expires_at);
+  // Populated before anything else can recompute it, so a link that already has a
+  // destination reloads that destination and an unrelated edit re-sends it as is.
+  applyExpiredRedirectSelection(link);
   passwordInput.value = "";
   abEnabledInput.checked = link.ab_enabled === 1;
   abTargetUrlInput.value = link.ab_target_url || "";
@@ -1110,13 +1141,16 @@ async function loadCapabilities() {
     const payload = await request("/api/capabilities", { method: "GET" });
     state.abTesting = payload?.abTesting === true;
     state.smartRouting = payload?.smartRouting === true;
+    state.expiredRedirect = payload?.expiredRedirect === true;
   } catch {
     state.abTesting = false;
     state.smartRouting = false;
+    state.expiredRedirect = false;
   }
 
   applyAbCapabilityToUi();
   applySmartRoutingCapabilityToUi();
+  applyExpiredRedirectCapabilityToUi();
 }
 
 function applyAbCapabilityToUi() {
@@ -1161,6 +1195,87 @@ function applySmartRoutingCapabilityToUi() {
 
   renderSmartRules();
   syncRedirectConstraint();
+}
+
+function selectedExpiredRedirectMode() {
+  if (!expiredRedirectModeUrl) {
+    return EXPIRED_MODE_RESPONSE;
+  }
+  return expiredRedirectModeUrl.checked ? EXPIRED_MODE_REDIRECT : EXPIRED_MODE_RESPONSE;
+}
+
+function setExpiredRedirectMode(mode) {
+  if (!expiredRedirectModeUrl || !expiredRedirectModeResponse) {
+    return;
+  }
+
+  const isRedirect = mode === EXPIRED_MODE_REDIRECT;
+  expiredRedirectModeUrl.checked = isRedirect;
+  expiredRedirectModeResponse.checked = !isRedirect;
+}
+
+/**
+ * Keeps the expired-destination controls coherent with the rest of the form.
+ *
+ * The API refuses a destination on a link without an expiration, so the redirect
+ * option only exists while "Expira em" is filled: the option and the destination
+ * field are disabled otherwise and the default response is selected. Clearing the
+ * expiration also empties the destination, which is the visible half of the
+ * atomic update the payload builder enforces, so the form can never show a
+ * redirect while sending `expiresAt: null`.
+ */
+function syncExpiredRedirectConstraint() {
+  if (!expiredRedirectModeUrl || !expiredRedirectUrlInput) {
+    return;
+  }
+
+  const canRedirect = expiredRedirectUi
+    ? expiredRedirectUi.canRedirectAfterExpiration({
+        capability: state.expiredRedirect,
+        expiresAt: toIsoDateTime(expiresAtInput.value),
+      })
+    : false;
+
+  if (!canRedirect) {
+    setExpiredRedirectMode(EXPIRED_MODE_RESPONSE);
+    expiredRedirectUrlInput.value = "";
+  }
+
+  const isRedirect = canRedirect && selectedExpiredRedirectMode() === EXPIRED_MODE_REDIRECT;
+  expiredRedirectModeUrl.disabled = !canRedirect;
+  expiredRedirectUrlInput.disabled = !isRedirect;
+  if (expiredRedirectUrlField) {
+    expiredRedirectUrlField.hidden = !isRedirect;
+  }
+}
+
+/** Loads the persisted expired-destination selection of one link, without loss. */
+function applyExpiredRedirectSelection(link) {
+  const selection = expiredRedirectUi
+    ? expiredRedirectUi.expiredRedirectFromLink(link, state.expiredRedirect)
+    : { mode: EXPIRED_MODE_RESPONSE, url: "" };
+  setExpiredRedirectMode(selection.mode);
+  expiredRedirectUrlInput.value = selection.url;
+  syncExpiredRedirectConstraint();
+}
+
+function applyExpiredRedirectCapabilityToUi() {
+  const available = state.expiredRedirect;
+
+  if (expiredRedirectSection) {
+    expiredRedirectSection.hidden = !available;
+  }
+  if (expiredRedirectUnavailable) {
+    expiredRedirectUnavailable.hidden = available;
+  }
+  if (expiredRedirectModeResponse) {
+    expiredRedirectModeResponse.disabled = !available;
+  }
+
+  // Also the reset path for an unavailable capability: the constraint disables
+  // the redirect option and drops the destination, so the field is never read
+  // and never sent on a database without the 0006 column.
+  syncExpiredRedirectConstraint();
 }
 
 async function loadVersion() {
@@ -1283,6 +1398,9 @@ linkForm.addEventListener("submit", async (event) => {
   // Clear any stale Smart error before a new attempt. The empty string does not
   // produce an announcement, so this cannot duplicate the next message.
   setSmartRoutingError("");
+  // Re-applied here because an expiration cleared by keyboard may not have fired a
+  // change event yet, and the payload must not contradict what the form shows.
+  syncExpiredRedirectConstraint();
 
   // The final payload is composed exclusively by the shared builder used here
   // and in the integrated tests. This listener never rebuilds A/B, Smart or
@@ -1290,14 +1408,18 @@ linkForm.addEventListener("submit", async (event) => {
   const input = {
     mode: state.editingSlug ? "edit" : "create",
     editingSlug: state.editingSlug,
-    capabilities: { abTesting: state.abTesting, smartRouting: state.smartRouting },
+    capabilities: { abTesting: state.abTesting, smartRouting: state.smartRouting, expiredRedirect: state.expiredRedirect },
     slug: slugInput.value.trim() || undefined,
     targetUrl: urlWithUtm,
     redirectType: redirectTypeInput.value,
     tags: parseTags(tagsInput.value),
     groupId: groupIdInput.value ? Number(groupIdInput.value) : null,
     goLiveAt: toIsoDateTime(goLiveAtInput.value),
-    expiresAt: toIsoDateTime(expiresAtInput.value),
+    // An emptied "Expira em" is an explicit `null`, not an omitted field: omitting
+    // it would keep the stored expiration while the destination is cleared, which
+    // is the one combination the API refuses. Sending both as null together is the
+    // documented repair path.
+    expiresAt: toIsoDateTime(expiresAtInput.value) ?? null,
     password: passwordInput.value.trim() || undefined,
     ab: {
       enabled: abEnabledInput.checked,
@@ -1312,12 +1434,24 @@ linkForm.addEventListener("submit", async (event) => {
       preserveInvalid: state.smartRoutingCorrupt,
       clearInvalid: state.smartClearInvalid,
     },
+    expired: {
+      mode: selectedExpiredRedirectMode(),
+      url: expiredRedirectUrlInput.value.trim(),
+    },
   };
 
   try {
     const result = await smartRoutingUi.submitLinkForm(input);
 
     if (!result.ok) {
+      // The destination is a plain form requirement, not a Smart Routing failure,
+      // so it is announced once through the polite form status.
+      if (expiredRedirectUi && result.code === expiredRedirectUi.MISSING_DESTINATION_CODE) {
+        setStatus(formStatus, expiredRedirectUi.expiredRedirectErrorMessage(result.code), "error");
+        expiredRedirectUrlInput.focus();
+        return;
+      }
+
       // A Smart Routing failure is announced only by the assertive
       // #smart-routing-error region. #form-status stays empty to avoid a
       // duplicate screen-reader announcement.

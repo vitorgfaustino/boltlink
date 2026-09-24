@@ -1,14 +1,15 @@
 # Upgrading
 
-## Escopo das três bases (Unreleased / Fase 3)
+## Escopo das três bases e da Fase 4 (Unreleased / Fase 4)
 
-Os documentos abaixo descrevem três estados de código diferentes. Confirme em qual você está antes de seguir um procedimento:
+Os documentos abaixo descrevem quatro estados de código diferentes. Confirme em qual você está antes de seguir um procedimento:
 
 | Base | Como identificar | Migrations | Recursos de produto |
 | --- | --- | --- | --- |
 | Publicada | tag `v2.2.1` (`git rev-parse v2.2.1` → `8b3895e`) | `0000` a `0003` | links, grupos, tags, QR code, senha, agenda/expiração |
 | Fase 2 local | baseline local `23353a1`, não publicado | `0000` a `0004` | base publicada + Split Test A/B |
-| Fase 3 (working tree) | esta branch de desenvolvimento | `0000` a `0005` | Fase 2 + Smart Routing |
+| Fase 3 congelada | HEAD `548f179`, Unreleased | `0000` a `0005` | Fase 2 + Smart Routing |
+| Fase 4 (working tree) | working tree atual sobre `548f179` | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
 
 Nenhum bump de versão acompanha estas correções: a tag publicada continua sendo `v2.2.1` e termina na `0003`.
 
@@ -50,6 +51,26 @@ O Smart Routing adiciona a migration `0005_smart_routing.sql`, fonte autoritativ
 - Um isolate iniciado antes da migration revalida a capability no request seguinte; o restart não é obrigatório.
 - Smart Routing e Split Test A/B são mutuamente exclusivos e links com Smart Routing usam sempre `302` com `Cache-Control: no-store`.
 - Links configurados antes do upgrade permanecem com `smart_routing_rules = NULL` (desativado) até serem configurados no Admin.
+
+## Destino de expiração e migration 0006 (Unreleased / Fase 4)
+
+> Escopo: **working tree da Fase 4** (sobre o HEAD congelado da Fase 3 `548f179`). A tag publicada `v2.2.1` não contém esta migration nem o destino de expiração.
+
+O destino de expiração adiciona a migration `0006_expired_redirect.sql`, fonte autoritativa da coluna `links.expired_redirect_url` (TEXT, nullable). A mudança é additive: sem default, sem reescrita de dados e sem rebuild de tabela; linhas existentes permanecem `NULL`, o que preserva o comportamento anterior (link expirado responde `410`). Instalações limpas nesta working tree aplicam a cadeia `0000` a `0006`.
+
+- Em banco pré-0006, links normais continuam funcionando integralmente; tentar configurar `expiredRedirectUrl` retorna `400` pedindo a migration, `GET /api/capabilities` reporta `expiredRedirect: false` e o Admin oculta a seção "Após expirar".
+- Aplique a `0006` pelo fluxo normal **antes** de tentar configurar destino de expiração em produção.
+- Ordem recomendada: backup → aplicar migrations pendentes (`0006`) → publicar/atualizar o Worker → validar `GET /api/capabilities` (`expiredRedirect: true`) → validar um redirect normal → configurar destinos no Admin quando desejado.
+- Não há downtime obrigatório: a coluna é nullable e additive.
+- Rollback benigno: banco em `0006` com código da Fase 3 ignora a coluna extra; nenhum dado é perdido e nenhum comportamento muda.
+- O deploy não aplica migrations automaticamente; a aplicação é uma etapa operacional explícita, e o runtime nunca cria a coluna durante requests.
+
+```bash
+npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
+npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc
+```
+
+A Fase 4 também introduz a variável opcional `ROOT_REDIRECT_URL` (redirect da raiz), que não depende de migration nem de bindings novos: veja `README.md` e `docs/cloudflare-setup.md`.
 
 ## PASSWORD_SESSION_SECRET e links protegidos por senha
 

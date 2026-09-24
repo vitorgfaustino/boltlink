@@ -100,6 +100,27 @@ function cloneDbHandle(db: D1Database): D1Database {
 	}) as D1Database;
 }
 
+/**
+ * A distinct handle identity that records every statement it executes. Used to
+ * prove a request path performs no database work at all, which a status-code
+ * assertion alone cannot show.
+ */
+function recordingDbHandle(db: D1Database): { handle: D1Database; statements: string[] } {
+	const statements: string[] = [];
+	const handle = new Proxy(db, {
+		get(target, prop) {
+			if (prop !== "prepare") {
+				return passThrough(target, prop);
+			}
+			return (sql: string) => {
+				statements.push(sql);
+				return target.prepare(sql);
+			};
+		},
+	}) as D1Database;
+	return { handle, statements };
+}
+
 async function resetDatabase() {
 	for (const statement of SCHEMA_STATEMENTS) {
 		await env.db_boltlink.prepare(statement).run();
@@ -815,5 +836,166 @@ describe("URL shortener worker", () => {
 		expect(response.status).toBe(400);
 		const payload = (await response.json()) as { error: string };
 		expect(payload.error).toBe("Invalid JSON body");
+	});
+});
+
+/**
+ * `ROOT_REDIRECT_URL` is operational environment configuration, so it is not part
+ * of the generated `Env` type in this checkout.
+ */
+type RootRedirectEnv = Partial<Env> & { ROOT_REDIRECT_URL?: string };
+
+const ROOT_ORIGIN = "https://links.example.com";
+
+describe("Phase 4: root redirect configuration (Gate 4.3)", () => {
+	async function fetchRoot(rootRedirectUrl?: string, path = "/", init?: RequestInit) {
+		const overrides: RootRedirectEnv = rootRedirectUrl === undefined ? {} : { ROOT_REDIRECT_URL: rootRedirectUrl };
+		return fetchWorker(`${ROOT_ORIGIN}${path}`, init, overrides as Partial<Env>);
+	}
+
+	it("serves the landing page when ROOT_REDIRECT_URL is absent", async () => {
+		const response = await fetchRoot();
+		const body = await response.text();
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toContain("text/html");
+		expect(body).toContain('href="/admin"');
+		expect(body).toContain("BoltLink");
+	});
+
+	it("serves the landing page when ROOT_REDIRECT_URL is empty", async () => {
+		const response = await fetchRoot("");
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("location")).toBeNull();
+		expect(await response.text()).toContain("BoltLink");
+	});
+
+	it("redirects with 302 and no-store when ROOT_REDIRECT_URL is an https URL", async () => {
+		const response = await fetchRoot("https://example.com/");
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe("https://example.com/");
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		// Operational, mutating configuration: never pinned as a permanent redirect.
+		expect(response.status).not.toBe(301);
+	});
+
+	it("redirects with 302 for a valid http URL, following the shared destination policy", async () => {
+		const response = await fetchRoot("http://example.com/landing");
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe("http://example.com/landing");
+		expect(response.headers.get("cache-control")).toBe("no-store");
+	});
+
+	it("falls back to the landing page for a rejected value and never echoes it", async () => {
+		const rejected = [
+			"javascript:alert(1)",
+			"data:text/html,<script>alert(1)</script>",
+			"ftp://example.com/",
+			"/relative",
+			"not a url",
+			"https://localhost/",
+			"https://links.example.com%%%/",
+		];
+
+		for (const value of rejected) {
+			const response = await fetchRoot(value);
+			const body = await response.text();
+
+			expect(response.status, `status for ${value}`).toBe(200);
+			expect(response.headers.get("location"), `location for ${value}`).toBeNull();
+			expect(body, `body for ${value}`).toContain("BoltLink");
+			expect(body, `echo of ${value}`).not.toContain("alert(1)");
+		}
+	});
+
+	it("falls back to the landing page on a direct self-loop to the same origin root", async () => {
+		const selfLoops = [
+			`${ROOT_ORIGIN}/`,
+			`${ROOT_ORIGIN}`,
+			`${ROOT_ORIGIN}/?x=1`,
+			`${ROOT_ORIGIN}/#section`,
+			`${ROOT_ORIGIN}/?x=1#section`,
+		];
+
+		for (const value of selfLoops) {
+			const response = await fetchRoot(value);
+
+			expect(response.status, `status for ${value}`).toBe(200);
+			expect(response.headers.get("location"), `location for ${value}`).toBeNull();
+		}
+	});
+
+	it("redirects to another path on the same origin", async () => {
+		const response = await fetchRoot(`${ROOT_ORIGIN}/some-page`);
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe(`${ROOT_ORIGIN}/some-page`);
+	});
+
+	it("redirects to the root of a different origin", async () => {
+		const response = await fetchRoot("https://example.com/");
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe("https://example.com/");
+	});
+
+	it("uses strict-origin on the root redirect and keeps no-referrer on the landing page", async () => {
+		const redirect = await fetchRoot("https://example.com/");
+		expect(redirect.headers.get("referrer-policy")).toBe("strict-origin");
+
+		const landing = await fetchRoot();
+		expect(landing.headers.get("referrer-policy")).toBe("no-referrer");
+	});
+
+	it("sets no cookie on the root redirect", async () => {
+		const response = await fetchRoot("https://example.com/");
+
+		expect(response.headers.get("set-cookie")).toBeNull();
+	});
+
+	it("runs zero D1 operations on a configured root redirect", async () => {
+		const recorder = recordingDbHandle(env.db_boltlink);
+		const response = await fetchWorker(
+			`${ROOT_ORIGIN}/`,
+			undefined,
+			{ db_boltlink: recorder.handle, ROOT_REDIRECT_URL: "https://example.com/" } as Partial<Env>,
+		);
+
+		expect(response.status).toBe(302);
+		expect(recorder.statements).toEqual([]);
+	});
+
+	it("changes only GET / and leaves unknown slugs and reserved routes untouched", async () => {
+		const rootRedirect = "https://example.com/";
+
+		const missing = await fetchRoot(rootRedirect, "/missing-slug");
+		expect(missing.status).toBe(404);
+		expect(missing.headers.get("location")).toBeNull();
+		expect(await missing.text()).toBe("Not found");
+
+		// The Access gate and the reserved routes answer exactly as before: the root
+		// configuration never turns one of them into a redirect.
+		const admin = await fetchRoot(rootRedirect, "/admin");
+		expect(admin.status).toBe(401);
+		expect(admin.headers.get("location")).toBeNull();
+
+		const api = await fetchRoot(rootRedirect, "/api/capabilities");
+		expect(api.status).toBe(401);
+		expect(api.headers.get("location")).toBeNull();
+
+		const privacy = await fetchRoot(rootRedirect, "/privacidade");
+		expect(privacy.status).toBe(200);
+		expect(privacy.headers.get("location")).toBeNull();
+
+		const posted = await fetchRoot(rootRedirect, "/", { method: "POST" });
+		expect(posted.status).toBe(404);
+		expect(posted.headers.get("location")).toBeNull();
+
+		const health = await fetchRoot(rootRedirect, "/health");
+		expect(health.status).toBe(200);
+		expect(health.headers.get("location")).toBeNull();
 	});
 });

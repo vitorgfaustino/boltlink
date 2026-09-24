@@ -20,7 +20,7 @@
     "dev-validate-phase-1": "npm run test -- --testNamePattern 'Phase 1' --passWithNoTests",
     "dev-validate-phase-2": "npm run test -- --testNamePattern 'Phase 2' --passWithNoTests",
     "dev-validate-phase-3": "npm run test -- --testNamePattern 'Phase 3' --passWithNoTests",
-    "dev-validate-phase-4": "vitest run test/link-lifecycle-and-management.spec.ts",
+    "dev-validate-phase-4": "vitest run test/link-lifecycle-and-management.spec.ts test/expired-redirect-migration.spec.ts test/expired-redirect-admin.spec.ts test/index.spec.ts",
     "dev-validate-phase-5": "npm run test -- --testNamePattern 'Phase 5' --passWithNoTests"
   },
   "cloudflare": {
@@ -33,6 +33,9 @@
       },
       "APP_TIMEZONE": {
         "description": "Application timezone used to interpret scheduling fields (`Ativa em`/`Expira em`) when values are submitted without explicit timezone offset. Default: `America/Sao_Paulo`."
+      },
+      "ROOT_REDIRECT_URL": {
+        "description": "Optional, non-secret operational variable (Unreleased / Phase 4). When set to a valid absolute http(s) URL, GET / answers 302 with Cache-Control: no-store without querying D1; when absent or invalid, the normal landing page is served. Configure it in the Cloudflare dashboard (Text) or in wrangler.local.jsonc/.dev.vars for local development. It does not affect unknown slugs (still 404), /admin, /api, /health or /privacidade."
       },
       "API_KEY": {
         "description": "Optional secret for internal API automation only. Store it as a secret, not as a public `vars` value."

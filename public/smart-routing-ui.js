@@ -310,6 +310,19 @@
   }
 
   /**
+   * The expired-destination rules live in their own DOM-free module. The lookup
+   * is explicit and fail-closed: a missing helper aborts the submission instead
+   * of silently dropping the field, because dropping it would erase a persisted
+   * destination the operator never touched.
+   */
+  function expiredRedirectHelper() {
+    if (typeof window !== "undefined" && window.BoltLinkExpiredRedirect) {
+      return window.BoltLinkExpiredRedirect;
+    }
+    return null;
+  }
+
+  /**
    * Single frontend authority for the final link request. Builds the exact
    * payload, applies the fail-closed guards (A/B x Smart exclusivity, 301 never
    * combined with a dynamic mode, basic rule validation) and returns the target
@@ -321,6 +334,7 @@
     var capabilities = source.capabilities || {};
     var ab = source.ab || {};
     var smart = source.smart || {};
+    var expired = source.expired || {};
 
     var abEnabled = Boolean(capabilities.abTesting && ab.enabled);
     var smartEnabled = Boolean(capabilities.smartRouting && smart.enabled);
@@ -355,6 +369,29 @@
     var isEdit = source.mode === "edit";
     if (!isEdit) {
       payload.slug = source.slug;
+    }
+
+    // The field is mentioned only on a database that carries the 0006 column:
+    // pre-0006 the API rejects any request that names it, so omitting it is what
+    // keeps normal create and edit working there.
+    if (capabilities.expiredRedirect) {
+      var expiredUi = expiredRedirectHelper();
+      if (!expiredUi) {
+        return { ok: false, code: "EXPIRED_REDIRECT_UNAVAILABLE" };
+      }
+
+      // Resolved against the expiration already normalized for this payload, so
+      // the destination and `expiresAt` can never disagree in one request.
+      var expiredFields = expiredUi.resolveExpiredRedirectFields({
+        mode: expired.mode,
+        url: expired.url,
+        expiresAt: payload.expiresAt,
+      });
+      if (!expiredFields.ok) {
+        return { ok: false, code: expiredFields.code };
+      }
+
+      payload.expiredRedirectUrl = expiredFields.value;
     }
 
     if (capabilities.abTesting) {

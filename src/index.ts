@@ -51,6 +51,13 @@ type Bindings = {
 	TEAM_DOMAIN: string;
 	POLICY_AUD: string;
 	APP_TIMEZONE?: string;
+	/**
+	 * Optional operational override for `GET /`. It is deliberately not a
+	 * database setting and has no Admin UI: the operator sets it per
+	 * environment (dashboard var or `wrangler.local.jsonc`). Absent, empty and
+	 * invalid all keep serving the bundled landing page.
+	 */
+	ROOT_REDIRECT_URL?: string;
 	API_KEY?: string;
 	PASSWORD_SESSION_SECRET?: string;
 };
@@ -84,6 +91,7 @@ type LinkRow = {
 	ab_clicks_b: number;
 	ab_started_at: string | null;
 	smart_routing_rules?: string | null;
+	expired_redirect_url?: string | null;
 	version: number;
 };
 
@@ -109,6 +117,7 @@ type RedirectRow = {
 	ab_clicks_b?: number;
 	ab_started_at?: string | null;
 	smart_routing_rules?: string | null;
+	expired_redirect_url?: string | null;
 };
 
 type CreateLinkPayload = {
@@ -125,6 +134,7 @@ type CreateLinkPayload = {
 	abTargetUrl?: string | null;
 	abWeightB?: number;
 	smartRoutingRules?: unknown;
+	expiredRedirectUrl?: string | null;
 };
 
 type UpdateLinkPayload = {
@@ -141,6 +151,7 @@ type UpdateLinkPayload = {
 	abTargetUrl?: string | null;
 	abWeightB?: number;
 	smartRoutingRules?: unknown;
+	expiredRedirectUrl?: string | null;
 };
 
 type LinkGroupRow = {
@@ -170,8 +181,17 @@ const accessJwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>()
 const databaseSchemaBootstrap = new WeakMap<D1Database, Promise<void>>();
 const databaseAbReady = new WeakMap<D1Database, boolean>();
 const databaseSmartRoutingReady = new WeakMap<D1Database, boolean>();
+const databaseExpiredRedirectReady = new WeakMap<D1Database, boolean>();
 const SMART_ROUTING_COLUMN = "smart_routing_rules";
 const SMART_ROUTING_MIGRATION_HINT = "Smart Routing requires migration 0005_smart_routing.sql to be applied";
+const EXPIRED_REDIRECT_COLUMN = "expired_redirect_url";
+const EXPIRED_REDIRECT_MIGRATION_HINT = "Expired redirect requires migration 0006_expired_redirect.sql to be applied";
+/**
+ * Administrative invariant of the expired destination. The destination is only
+ * ever reachable after `expires_at` elapses, so storing one on a link without an
+ * expiration would persist a dormant configuration nobody can observe.
+ */
+const EXPIRED_REDIRECT_REQUIRES_EXPIRATION = "expiredRedirectUrl requires expiresAt";
 /**
  * Primary (and only) public redirect read. The wildcard projection is what makes
  * the redirect schema-neutral: it names no feature column, so it is valid on
@@ -294,8 +314,28 @@ app.use("/api", requireAdmin);
 app.use("/api/*", requireAdmin);
 app.use("/api/*", ensureDatabaseReady);
 
+/**
+ * Root entry point. `ROOT_REDIRECT_URL` is optional operational configuration,
+ * not a database setting and not a secret.
+ *
+ * The redirect is decided before touching anything else, which is what keeps the
+ * root path free of D1: a configured deployment runs zero `prepare` calls, no
+ * schema detection, no capability probe, no cookie and no click metric on `GET /`.
+ * The landing page stays the fallback for every value that cannot be honored, so
+ * a typo in the environment degrades the site instead of failing it.
+ */
 app.get("/", (c) => {
-	return c.html(renderHomePage());
+	const rootRedirect = resolveRootRedirectUrl(c.env.ROOT_REDIRECT_URL, c.req.url);
+	if (!rootRedirect) {
+		return c.html(renderHomePage());
+	}
+
+	// Always 302, never 301: this is mutable per-environment configuration, so a
+	// permanent redirect retained by a client or intermediary cache would outlive
+	// the value that produced it.
+	const response = c.redirect(rootRedirect, 302);
+	response.headers.set("Cache-Control", "no-store");
+	return response;
 });
 
 app.get("/health", (c) => {
@@ -318,7 +358,8 @@ app.get("/privacidade", servePrivacyAsset);
 app.get("/api/capabilities", async (c) => {
 	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
 	const smartRouting = await ensureSmartRoutingCapability(c.env.db_boltlink);
-	return c.json({ abTesting: schema.abReady, smartRouting });
+	const expiredRedirect = await ensureExpiredRedirectCapability(c.env.db_boltlink);
+	return c.json({ abTesting: schema.abReady, smartRouting, expiredRedirect });
 });
 
 app.get("/api/links", async (c) => {
@@ -361,6 +402,7 @@ app.get("/api/links", async (c) => {
 
 	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
 	const smartRouting = await ensureSmartRoutingCapability(c.env.db_boltlink);
+	const expiredRedirect = await ensureExpiredRedirectCapability(c.env.db_boltlink);
 	const abColumns = schema.abReady
 		? `,
 				links.ab_enabled,
@@ -373,6 +415,7 @@ app.get("/api/links", async (c) => {
 				links.ab_started_at`
 		: "";
 	const smartColumns = smartRouting ? ", links.smart_routing_rules" : "";
+	const expiredColumns = expiredRedirect ? ", links.expired_redirect_url" : "";
 
 	const baseSql = `SELECT
 				links.id,
@@ -389,7 +432,7 @@ app.get("/api/links", async (c) => {
 				links.has_qrcode,
 				links.group_id,
 				link_groups.name AS group_name,
-				CASE WHEN links.password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${abColumns}${smartColumns},
+				CASE WHEN links.password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${abColumns}${smartColumns}${expiredColumns},
 				links.version
 			FROM links
 			LEFT JOIN link_groups ON link_groups.id = links.group_id
@@ -401,7 +444,7 @@ app.get("/api/links", async (c) => {
 		: c.env.db_boltlink.prepare(baseSql);
 	const result = await statement.all<LinkRow>();
 
-	const links = (result.results ?? []).map((row) => exposeSmartRoutingRules(row));
+	const links = (result.results ?? []).map((row) => exposeLinkRow(row));
 	return c.json({ links, search });
 });
 
@@ -467,6 +510,23 @@ app.post("/api/links", async (c) => {
 		return c.json({ error: smartConfig.error }, 400);
 	}
 
+	const expiredReady = await ensureExpiredRedirectCapability(c.env.db_boltlink);
+	const hasExpiredPayload = payload.expiredRedirectUrl !== undefined;
+	if (hasExpiredPayload && !expiredReady) {
+		return c.json({ error: EXPIRED_REDIRECT_MIGRATION_HINT }, 400);
+	}
+
+	const expiredRedirect = resolveExpiredRedirectUrl(payload.expiredRedirectUrl);
+	if (!expiredRedirect.ok) {
+		return c.json({ error: expiredRedirect.error }, 400);
+	}
+
+	// Final-state invariant: a freshly created row has no other source for
+	// `expires_at`, so the payload alone decides whether the destination is dormant.
+	if (expiredRedirect.value !== null && !expiresAt) {
+		return c.json({ error: EXPIRED_REDIRECT_REQUIRES_EXPIRATION }, 400);
+	}
+
 	if (!schema.abReady && (payload.abEnabled !== undefined || payload.abTargetUrl !== undefined || payload.abWeightB !== undefined)) {
 		return c.json({ error: "A/B testing requires migration 0004_ab_testing.sql to be applied" }, 400);
 	}
@@ -508,6 +568,9 @@ app.post("/api/links", async (c) => {
 	const smartPlaceholders = smartReady ? ", ?" : "";
 	const smartReturning = smartReady ? ", smart_routing_rules" : "";
 	const smartValue = smartConfig.serialized;
+	const expiredColumns = expiredReady ? ", expired_redirect_url" : "";
+	const expiredPlaceholders = expiredReady ? ", ?" : "";
+	const expiredReturning = expiredReady ? ", expired_redirect_url" : "";
 
 	const createdLink = schema.abReady
 		? await c.env.db_boltlink
@@ -525,9 +588,9 @@ app.post("/api/links", async (c) => {
 					ab_target_url,
 					ab_weight_b,
 					ab_generation,
-					ab_started_at${smartColumns}
+					ab_started_at${smartColumns}${expiredColumns}
 				)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${smartPlaceholders})
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${smartPlaceholders}${expiredPlaceholders})
 				RETURNING
 					id,
 					slug,
@@ -550,7 +613,7 @@ app.post("/api/links", async (c) => {
 					metric_epoch,
 					ab_clicks_a,
 					ab_clicks_b,
-					ab_started_at${smartReturning},
+					ab_started_at${smartReturning}${expiredReturning},
 					version`,
 			)
 			.bind(
@@ -568,6 +631,7 @@ app.post("/api/links", async (c) => {
 				abConfig.enabled ? 1 : 0,
 				abStartedAt,
 				...(smartReady ? [smartValue] : []),
+				...(expiredReady ? [expiredRedirect.value] : []),
 			)
 			.first<LinkRow>()
 		: await c.env.db_boltlink
@@ -580,9 +644,9 @@ app.post("/api/links", async (c) => {
 					redirect_type,
 					tags,
 					group_id,
-					password_hash${smartColumns}
+					password_hash${smartColumns}${expiredColumns}
 				)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?${smartPlaceholders})
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?${smartPlaceholders}${expiredPlaceholders})
 				RETURNING
 					id,
 					slug,
@@ -597,7 +661,7 @@ app.post("/api/links", async (c) => {
 					tags,
 					has_qrcode,
 					group_id,
-					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${smartReturning},
+					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${smartReturning}${expiredReturning},
 					version`,
 			)
 			.bind(
@@ -610,10 +674,11 @@ app.post("/api/links", async (c) => {
 				groupId ?? null,
 				passwordHash,
 				...(smartReady ? [smartValue] : []),
+				...(expiredReady ? [expiredRedirect.value] : []),
 			)
 			.first<LinkRow>();
 
-	return c.json({ link: createdLink ? exposeSmartRoutingRules(createdLink) : createdLink }, 201);
+	return c.json({ link: createdLink ? exposeLinkRow(createdLink) : createdLink }, 201);
 });
 
 app.patch("/api/links/:slug", updateLink);
@@ -745,6 +810,7 @@ app.post("/api/links/:slug/duplicate", async (c) => {
 	const slug = c.req.param("slug");
 	const schema = await ensureDatabaseSchema(c.env.db_boltlink);
 	const smartReady = await ensureSmartRoutingCapability(c.env.db_boltlink);
+	const expiredReady = await ensureExpiredRedirectCapability(c.env.db_boltlink);
 	const abSelect = schema.abReady ? ", ab_enabled, ab_target_url, ab_weight_b" : "";
 	const smartSelect = smartReady ? ", smart_routing_rules" : "";
 	const source = await c.env.db_boltlink
@@ -781,6 +847,11 @@ app.post("/api/links/:slug/duplicate", async (c) => {
 	const smartColumns = smartReady ? ", smart_routing_rules" : "";
 	const smartPlaceholders = smartReady ? ", ?" : "";
 	const smartReturning = smartReady ? ", smart_routing_rules" : "";
+	const expiredReturning = expiredReady ? ", expired_redirect_url" : "";
+	// Closed decision: a duplicate is born active, so it never inherits the
+	// lifecycle configuration. Copying `expired_redirect_url` without `expires_at`
+	// would persist a dormant destination and break the final-state invariant, so
+	// the source value is not copied and the source row stays untouched.
 	const duplicateSlug = await suggestDuplicateSlug(c.env.db_boltlink, slug);
 	const created = schema.abReady
 		? await c.env.db_boltlink
@@ -790,7 +861,7 @@ app.post("/api/links/:slug/duplicate", async (c) => {
 				RETURNING id, slug, target_url, clicks_total, created_at, updated_at, disabled_at,
 					expires_at, go_live_at, redirect_type, tags, has_qrcode, group_id,
 					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
-					ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch, ab_clicks_a, ab_clicks_b, ab_started_at${smartReturning}, version`,
+					ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch, ab_clicks_a, ab_clicks_b, ab_started_at${smartReturning}${expiredReturning}, version`,
 			)
 			.bind(
 				duplicateSlug,
@@ -812,7 +883,7 @@ app.post("/api/links/:slug/duplicate", async (c) => {
 				VALUES (?, ?, ?, ?, ?${smartPlaceholders})
 				RETURNING id, slug, target_url, clicks_total, created_at, updated_at, disabled_at,
 					expires_at, go_live_at, redirect_type, tags, has_qrcode, group_id,
-					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${smartReturning}, version`,
+					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${smartReturning}${expiredReturning}, version`,
 			)
 			.bind(
 				duplicateSlug,
@@ -824,7 +895,7 @@ app.post("/api/links/:slug/duplicate", async (c) => {
 			)
 			.first<LinkRow>();
 
-	return c.json({ link: created ? exposeSmartRoutingRules(created) : created }, 201);
+	return c.json({ link: created ? exposeLinkRow(created) : created }, 201);
 });
 
 app.get("/api/groups", async (c) => {
@@ -991,7 +1062,8 @@ app.get("/:slug", async (c) => {
 	}
 
 	if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
-		return c.text("Link expired", 410);
+		const capabilities = readPublicRowCapabilities(link);
+		return respondExpiredLifecycle(c, resolveExpiredLifecycle(link, capabilities, c.req.raw));
 	}
 
 	if (link.password_hash) {
@@ -1045,7 +1117,8 @@ app.post("/:slug", async (c) => {
 	}
 
 	if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
-		return c.text("Link expired", 410);
+		const expiredCapabilities = readPublicRowCapabilities(link);
+		return respondExpiredLifecycle(c, resolveExpiredLifecycle(link, expiredCapabilities, c.req.raw));
 	}
 
 	const capabilities = readPublicRowCapabilities(link);
@@ -1133,6 +1206,17 @@ async function updateLink(c: Context<AppContext>) {
 		return c.json({ error: smartConfig.error }, 400);
 	}
 
+	const expiredReady = await ensureExpiredRedirectCapability(c.env.db_boltlink);
+	const hasExpiredPayload = payload.expiredRedirectUrl !== undefined;
+	if (hasExpiredPayload && !expiredReady) {
+		return c.json({ error: EXPIRED_REDIRECT_MIGRATION_HINT }, 400);
+	}
+
+	const expiredRedirect = resolveExpiredRedirectUrl(payload.expiredRedirectUrl);
+	if (!expiredRedirect.ok) {
+		return c.json({ error: expiredRedirect.error }, 400);
+	}
+
 	const hasAbPayload = payload.abEnabled !== undefined || payload.abTargetUrl !== undefined || payload.abWeightB !== undefined;
 	if (!schema.abReady && hasAbPayload) {
 		return c.json({ error: "A/B testing requires migration 0004_ab_testing.sql to be applied" }, 400);
@@ -1180,8 +1264,9 @@ async function updateLink(c: Context<AppContext>) {
 
 	const abReadColumns = schema.abReady ? ", ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch" : "";
 	const smartReadColumns = smartReady ? ", smart_routing_rules" : "";
+	const expiredReadColumns = expiredReady ? ", expired_redirect_url" : "";
 	const existingLink = await c.env.db_boltlink
-		.prepare(`SELECT target_url, group_id, expires_at, go_live_at, redirect_type, version${abReadColumns}${smartReadColumns} FROM links WHERE slug = ? AND disabled_at IS NULL`)
+		.prepare(`SELECT target_url, group_id, expires_at, go_live_at, redirect_type, version${abReadColumns}${smartReadColumns}${expiredReadColumns} FROM links WHERE slug = ? AND disabled_at IS NULL`)
 		.bind(slug)
 		.first<{
 			target_url: string;
@@ -1196,6 +1281,7 @@ async function updateLink(c: Context<AppContext>) {
 			ab_generation?: number;
 			metric_epoch?: number;
 			smart_routing_rules?: string | null;
+			expired_redirect_url?: string | null;
 		}>();
 
 	if (!existingLink) {
@@ -1266,6 +1352,20 @@ async function updateLink(c: Context<AppContext>) {
 		}
 	}
 
+	// Final-state invariant for the expired destination: the row that would exist
+	// after this request is what has to satisfy it, so clearing `expiresAt` while a
+	// stored destination survives is refused, while clearing both in the same
+	// request is a legitimate repair and is accepted.
+	const finalExpiresAt = expiresAt === undefined ? existingLink.expires_at : expiresAt;
+	const finalExpiredRedirectUrl = hasExpiredPayload
+		? expiredRedirect.value
+		: expiredReady
+			? existingLink.expired_redirect_url ?? null
+			: null;
+	if (finalExpiredRedirectUrl !== null && finalExpiresAt === null) {
+		return c.json({ error: EXPIRED_REDIRECT_REQUIRES_EXPIRATION }, 400);
+	}
+
 	const updates: string[] = [];
 	const values: Array<string | number | null> = [];
 	const now = isoNow();
@@ -1329,6 +1429,10 @@ async function updateLink(c: Context<AppContext>) {
 		updates.push("smart_routing_rules = ?");
 		values.push(finalSmartSerialized);
 	}
+	if (hasExpiredPayload) {
+		updates.push("expired_redirect_url = ?");
+		values.push(expiredRedirect.value);
+	}
 
 	if (!updates.length) {
 		return c.json({ error: "No updatable fields provided" }, 400);
@@ -1348,6 +1452,7 @@ async function updateLink(c: Context<AppContext>) {
 				ab_started_at`
 		: "";
 	const smartReturning = smartReady ? ", smart_routing_rules" : "";
+	const expiredReturning = expiredReady ? ", expired_redirect_url" : "";
 	const updatedLink = await c.env.db_boltlink
 		.prepare(
 			`UPDATE links
@@ -1367,7 +1472,7 @@ async function updateLink(c: Context<AppContext>) {
 				tags,
 				has_qrcode,
 				group_id,
-				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${abReturning}${smartReturning},
+				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${abReturning}${smartReturning}${expiredReturning},
 				version`,
 		)
 		.bind(...values, slug, existingLink.version)
@@ -1381,7 +1486,7 @@ async function updateLink(c: Context<AppContext>) {
 		await cleanupEmptyGroup(c.env.db_boltlink, existingLink.group_id);
 	}
 
-	return c.json({ link: updatedLink ? exposeSmartRoutingRules(updatedLink) : updatedLink });
+	return c.json({ link: updatedLink ? exposeLinkRow(updatedLink) : updatedLink });
 }
 
 async function serveAdminAsset(c: Context<AppContext>) {
@@ -1453,6 +1558,7 @@ async function ensureDatabaseSchema(database: D1Database): Promise<SchemaCapabil
 		return {
 			abReady: true,
 			smartRoutingReady: databaseSmartRoutingReady.get(database) === true,
+			expiredRedirectReady: databaseExpiredRedirectReady.get(database) === true,
 		};
 	}
 
@@ -1469,6 +1575,7 @@ async function ensureDatabaseSchema(database: D1Database): Promise<SchemaCapabil
 type SchemaCapabilities = {
 	abReady: boolean;
 	smartRoutingReady: boolean;
+	expiredRedirectReady: boolean;
 };
 
 class DatabaseSchemaNotInitializedError extends Error {
@@ -1541,9 +1648,14 @@ async function detectSchemaCapabilities(database: D1Database): Promise<SchemaCap
 	if (smartRoutingReady) {
 		databaseSmartRoutingReady.set(database, true);
 	}
+	const expiredRedirectReady = columns.has(EXPIRED_REDIRECT_COLUMN);
+	if (expiredRedirectReady) {
+		databaseExpiredRedirectReady.set(database, true);
+	}
 	return {
 		abReady: AB_SCHEMA_COLUMNS.every((column) => columns.has(column)),
 		smartRoutingReady,
+		expiredRedirectReady,
 	};
 }
 
@@ -1564,6 +1676,28 @@ async function ensureSmartRoutingCapability(database: D1Database): Promise<boole
 	const ready = columns.has(SMART_ROUTING_COLUMN);
 	if (ready) {
 		databaseSmartRoutingReady.set(database, true);
+	}
+	return ready;
+}
+
+/**
+ * Administrative expired-destination capability. Positive results are cached;
+ * negative results are revalidated so applying migration 0006 needs no restart.
+ * This helper answers administrative requests only: the public redirect never
+ * calls it and never probes the schema, because it derives the same answer from
+ * the shape of the row it already fetched.
+ */
+async function ensureExpiredRedirectCapability(database: D1Database): Promise<boolean> {
+	const schema = await ensureDatabaseSchema(database);
+	if (schema.expiredRedirectReady || databaseExpiredRedirectReady.get(database) === true) {
+		return true;
+	}
+
+	const info = await database.prepare("PRAGMA table_info(links)").all<{ name: string }>();
+	const columns = new Set((info.results ?? []).map((column) => column.name));
+	const ready = columns.has(EXPIRED_REDIRECT_COLUMN);
+	if (ready) {
+		databaseExpiredRedirectReady.set(database, true);
 	}
 	return ready;
 }
@@ -2436,6 +2570,59 @@ function copyPersistedSmartRoutingRules(raw: string | null): string | null {
 	return persisted.status === "valid" ? JSON.stringify(persisted.rules) : null;
 }
 
+type ResolvedExpiredRedirectUrl =
+	| { ok: true; value: string | null }
+	| { ok: false; error: string };
+
+/**
+ * Normalizes the administrative `expiredRedirectUrl` field. Absence and `null`
+ * both mean "no expired destination"; telling them apart is the caller's job
+ * (field presence), because a database without migration 0006 must reject any
+ * request that mentions the field. The URL policy is exactly the one used by
+ * `targetUrl` and `abTargetUrl`: a non-empty absolute http/https URL with a
+ * registrable hostname. Empty strings, wrong JSON types and every other scheme
+ * are rejected, so this field can never carry executable or relative content.
+ */
+function resolveExpiredRedirectUrl(value: unknown): ResolvedExpiredRedirectUrl {
+	if (value === undefined || value === null) {
+		return { ok: true, value: null };
+	}
+
+	if (typeof value !== "string") {
+		return { ok: false, error: "Invalid expiredRedirectUrl" };
+	}
+
+	const normalized = normalizeTargetUrl(value);
+	if (!normalized) {
+		return { ok: false, error: "Invalid expiredRedirectUrl" };
+	}
+
+	return { ok: true, value: normalized };
+}
+
+/** Administrative mapping for the expired destination; omitted when not selected. */
+function exposeExpiredRedirectUrl<T extends { expired_redirect_url?: string | null }>(
+	row: T,
+): Omit<T, "expired_redirect_url"> & { expiredRedirectUrl?: string | null } {
+	if (!Object.prototype.hasOwnProperty.call(row, "expired_redirect_url")) {
+		return row as Omit<T, "expired_redirect_url">;
+	}
+
+	const { expired_redirect_url: value, ...rest } = row;
+	return { ...rest, expiredRedirectUrl: value ?? null };
+}
+
+/**
+ * Administrative row mapping shared by every link response. A capability-backed
+ * property is only present when its column was selected, so a pre-migration
+ * database never fakes support by reporting a `null` value.
+ */
+function exposeLinkRow<T extends { smart_routing_rules?: string | null; expired_redirect_url?: string | null }>(
+	row: T,
+) {
+	return exposeExpiredRedirectUrl(exposeSmartRoutingRules(row));
+}
+
 /**
  * Pure split decision: returns true when the request should go to Variant B.
  * `roll` is an integer in [0, 100). No cryptographic requirement here, only a
@@ -2483,13 +2670,128 @@ type PublicRedirectDecision = {
  * about the migration level. A handle warmed before migration 0005 therefore
  * converges on its next public request even when no admin/API request ever
  * reaches it, and a non-null `smart_routing_rules` is never hidden by a cache.
+ * The same rule answers for the expired destination: a database at 0005 returns
+ * a row without the key at all, which is the feature being unavailable rather
+ * than configured as `null`.
  */
-function readPublicRowCapabilities(link: RedirectRow): Pick<SchemaCapabilities, "abReady" | "smartRoutingReady"> {
+function readPublicRowCapabilities(
+	link: RedirectRow,
+): Pick<SchemaCapabilities, "abReady" | "smartRoutingReady" | "expiredRedirectReady"> {
 	return {
 		abReady: AB_SCHEMA_COLUMNS.every((column) => Object.prototype.hasOwnProperty.call(link, column)),
 		smartRoutingReady: Object.prototype.hasOwnProperty.call(link, SMART_ROUTING_COLUMN),
+		expiredRedirectReady: Object.prototype.hasOwnProperty.call(link, EXPIRED_REDIRECT_COLUMN),
 	};
 }
+
+type ExpiredLifecycleDecision =
+	| { kind: "redirect"; destination: string }
+	| { kind: "gone" };
+
+/**
+ * Direct self-loop guard: a destination equal to the URL being served would send
+ * the visitor back to the very slug it came from. Query string and fragment are
+ * ignored because they do not break the loop. Only the current request is
+ * compared — `slug A -> slug B -> slug A` is a chain, not a self-loop, and
+ * resolving it would need a second query, a fetch or a traversal, all of which
+ * this path must not do. Origin comparison uses URL semantics, so it is never a
+ * string-prefix accident, and the request origin is whatever host is serving the
+ * slug instead of an invented list of custom domains.
+ *
+ * A destination that cannot be parsed is reported as a loop so the caller falls
+ * back to the fail-closed answer.
+ */
+function isDirectSelfLoop(destination: string, requestUrl: string): boolean {
+	try {
+		const target = new URL(destination);
+		const current = new URL(requestUrl);
+		return target.origin === current.origin && target.pathname === current.pathname;
+	} catch {
+		return true;
+	}
+}
+
+/**
+ * Operational destination for `GET /`.
+ *
+ * Validation reuses the shared destination policy (`normalizeTargetUrl`), so a
+ * relative value, `javascript:`, `data:` or any other non-http(s) scheme is
+ * rejected by the same rule that already governs link destinations; there is no
+ * root-only exception. Returning `null` means "serve the landing page", never an
+ * error and never an echo of the rejected value.
+ *
+ * The direct self-loop guard is the one the expired lifecycle already uses:
+ * origin plus pathname, so `https://<current-host>/` is a fallback regardless of
+ * query string or fragment, while another path on the same origin is a normal
+ * redirect. No network probe is performed to detect it.
+ */
+function resolveRootRedirectUrl(candidate: string | undefined, requestUrl: string): string | null {
+	const destination = normalizeTargetUrl(candidate);
+	if (!destination || isDirectSelfLoop(destination, requestUrl)) {
+		return null;
+	}
+
+	return destination;
+}
+
+/**
+ * Public expired lifecycle, evaluated after the future gate and before password,
+ * click classification, Smart Routing, A/B and the metric write. Because it runs
+ * first, an expired link never shows a password gate, never rolls the A/B RNG,
+ * never classifies country/device and never writes a counter — the same answer
+ * for bots, previews, prefetch and browsers.
+ *
+ * The destination is revalidated at read time instead of trusted: the column can
+ * be written by hand, so a value that is not a string, not parseable under the
+ * shared destination policy (the one `targetUrl` and `abTargetUrl` already use)
+ * or that loops back to the current URL answers 410. `target_url` is never a
+ * fallback in any of those cases: once a link has expired it does not return to
+ * normal routing. The stored value is only read, never rewritten, and it is never
+ * echoed in a body or a log.
+ */
+function resolveExpiredLifecycle(
+	link: RedirectRow,
+	capabilities: Pick<SchemaCapabilities, "expiredRedirectReady">,
+	request: Request,
+): ExpiredLifecycleDecision {
+	if (!capabilities.expiredRedirectReady) {
+		return { kind: "gone" };
+	}
+
+	const destination = normalizeTargetUrl(
+		typeof link.expired_redirect_url === "string" ? link.expired_redirect_url : undefined,
+	);
+	if (!destination || isDirectSelfLoop(destination, request.url)) {
+		return { kind: "gone" };
+	}
+
+	return { kind: "redirect", destination };
+}
+
+/**
+ * Expired lifecycle response, shared by GET and POST so both handles answer
+ * identically. The status is always 302: the displayed `redirect_type` describes
+ * the main destination, and an expiration is mutable configuration that must not
+ * be pinned permanently in a client or intermediary cache.
+ *
+ * `Cache-Control: no-store` is a deliberate contract, not a defensive extra.
+ * Expiration is state that changes with `expires_at` and with the stored
+ * destination, so a retained 410 could outlive the fix and a retained 302 could
+ * outlive the destination it points to. The header is added here only; 404 for
+ * missing, future and disabled slugs is untouched.
+ */
+function respondExpiredLifecycle(c: Context<AppContext>, decision: ExpiredLifecycleDecision) {
+	if (decision.kind === "redirect") {
+		const response = c.redirect(decision.destination, 302);
+		response.headers.set("Cache-Control", "no-store");
+		return response;
+	}
+
+	const response = c.text("Link expired", 410);
+	response.headers.set("Cache-Control", "no-store");
+	return response;
+}
+
 
 /**
  * Public redirect decision shared by GET and authenticated POST.

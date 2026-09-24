@@ -12,17 +12,20 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 - contagem agregada em `links.clicks_total`
 - Split Test A/B stateless (**Phase 2 local**; migration `0004_ab_testing.sql`, ausente da tag publicada)
 - Smart Routing stateless por país/dispositivo em `links.smart_routing_rules` (**Unreleased / Fase 3**; migration `0005`, ausente da tag publicada)
+- destino opcional para links expirados em `links.expired_redirect_url` (**Unreleased / Fase 4**; migration `0006_expired_redirect.sql`, ausente da tag publicada)
+- redirect opcional da raiz (`GET /`) via variável `ROOT_REDIRECT_URL` (**Unreleased / Fase 4**, sem D1)
 - autenticação administrativa via Cloudflare Access
 
-### Três bases de código que não podem ser confundidas
+### Quatro bases de código que não podem ser confundidas
 
 | Base | Como identificar | Migrations | Recursos extras |
 | --- | --- | --- | --- |
 | Publicada | tag `v2.2.1` (`git rev-parse v2.2.1` → `8b3895e`) | `0000` a `0003` | — |
 | Fase 2 local | baseline local `23353a1`, não publicado | `0000` a `0004` | Split Test A/B |
-| Fase 3 working tree | branch de desenvolvimento, Unreleased | `0000` a `0005` | Split Test A/B + Smart Routing |
+| Fase 3 congelada | HEAD `548f179`, Unreleased | `0000` a `0005` | Split Test A/B + Smart Routing |
+| Fase 4 working tree | working tree atual sobre `548f179`, Unreleased | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
 
-A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
+A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4. Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
 
 ## Regra obrigatória para tarefas Cloudflare
 
@@ -44,7 +47,7 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - se bindings mudarem, rode `npm run cf-typegen`
 - se schema mudar, crie uma nova migration; `schema.sql` é apenas o baseline da `0000_initial_schema.sql` e não deve receber colunas de features
 - o runtime não pode executar `schema.sql`, criar/alterar colunas, aplicar migrations implicitamente nem reconstruir tabelas durante requests; banco não preparado deve falhar fechado com `503`
-- desenvolvimento local do Worker exige migrations no D1 do Wrangler; nas bases locais (Fase 2 e Fase 3) isso é `npm run dev-prepare`, que **não existe** no checkout da tag `v2.2.1` (lá use `npm run wrangler -- d1 migrations apply ... --local`); `npm run dev-init` prepara apenas o SQLite auxiliar `.dev-env/db.sqlite3`, que o Worker não usa
+- desenvolvimento local do Worker exige migrations no D1 do Wrangler; nas bases locais (Fase 2, Fase 3 e Fase 4) isso é `npm run dev-prepare`, que **não existe** no checkout da tag `v2.2.1` (lá use `npm run wrangler -- d1 migrations apply ... --local`); `npm run dev-init` prepara apenas o SQLite auxiliar `.dev-env/db.sqlite3`, que o Worker não usa
 
 ## Restrições funcionais que devem ser preservadas
 
@@ -58,6 +61,9 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - Smart Routing e Split Test A/B são mutuamente exclusivos
 - links com Smart Routing configurado usam sempre `302` + `Cache-Control: no-store`
 - Smart Routing não deve adicionar SELECT adicional, tabela auxiliar, JOIN, API externa nem contador por regra
+- o lifecycle vence senha, A/B e Smart Routing: link expirado com destino válido responde `302` + `no-store`, sem destino responde `410` + `no-store`, e requests expirados não contam clique nem gravam no banco (Fase 4)
+- `expiredRedirectUrl` requer `expiresAt`; limpar a expiração mantendo o destino é recusado, limpar os dois na mesma edição é a limpeza atômica permitida (Fase 4)
+- `ROOT_REDIRECT_URL` é opcional e não secreta: válida faz `GET /` responder `302` + `no-store` sem tocar D1; ausente/inválida serve a landing; unknown slugs continuam `404` (Fase 4)
 - redirects públicos usam `Referrer-Policy: strict-origin`
 - admin, API, home, gate de senha e respostas não redirect usam `Referrer-Policy: no-referrer`
 

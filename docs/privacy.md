@@ -63,6 +63,16 @@ Stateless A/B testing distributes each eligible request independently without bu
 - não existe cookie de roteamento, visitor ID, fingerprint nem registro da regra selecionada por visita.
 - quando o link usa essa feature, apenas `clicks_total` é incrementado; não há contador por regra.
 
+## Destino de expiração e redirect da raiz (Unreleased / Fase 4)
+
+> Escopo: release publicada/baseline = **v2.2.1**. Esta seção descreve features Unreleased da branch de desenvolvimento; a release publicada não as processa.
+
+- `links.expired_redirect_url` é configuração administrativa (a URL de destino usada depois que o link expira), no mesmo plano de `target_url`: não é dado de visitante.
+- requests de link expirado não gravam nada: zero escritas, zero métrica, sem classificação bot/humano e sem avaliação de país/dispositivo.
+- `ROOT_REDIRECT_URL` é variável de ambiente de configuração operacional, não um secret e não um dado pessoal. O redirect da raiz não consulta D1 e não gera métrica.
+- A Fase 4 não adiciona nenhuma persistência nova de visitante: sem IP, sem `User-Agent`, sem país, sem dispositivo, sem visitor ID, sem eventos de referrer e sem clickstream.
+- A minimização de dados e a privacidade por arquitetura apoiam a adequação LGPD do operador, mas não a substituem: quem implanta e opera a instância continua sendo o controlador dos tratamentos que realizar.
+
 ## Referrer
 
 Nos redirects públicos, BoltLink envia `Referrer-Policy: strict-origin`.

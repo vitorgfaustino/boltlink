@@ -22,17 +22,18 @@ Leia nesta ordem antes de agir:
 5. `docs/admin-auth.md`
 6. `docs/privacy.md`
 
-## Três bases de código (não confundir)
+## Quatro bases de código (não confundir)
 
-Existem três estados distintos. A tag publicada **não** é igual ao baseline local:
+Existem quatro estados distintos. A tag publicada **não** é igual ao baseline local:
 
 | Base | Como identificar | Migrations | Recursos extras |
 | --- | --- | --- | --- |
 | **Publicada** (`v2.2.1`) | tag real: `git rev-parse v2.2.1` → `8b3895e` | `0000` a `0003` | — |
 | **Fase 2 local** | baseline local `23353a1`, **não publicado** | `0000` a `0004` | Split Test A/B |
-| **Fase 3 working tree** | esta branch de desenvolvimento, **Unreleased** | `0000` a `0005` | Split Test A/B + Smart Routing |
+| **Fase 3 congelada** | HEAD `548f179`, **Unreleased** | `0000` a `0005` | Split Test A/B + Smart Routing |
+| **Fase 4 working tree** | working tree atual sobre `548f179`, **Unreleased** | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
 
-Não chame o baseline local da Fase 2 de "v2.2.1 publicada": a tag publicada não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`.
+Não chame o baseline local da Fase 2 de "v2.2.1 publicada": a tag publicada não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4.
 
 Publicada (v2.2.1):
 
@@ -52,6 +53,12 @@ Unreleased / Fase 3 (somente nesta branch de desenvolvimento):
 
 - Smart Routing por país/dispositivo com primeira regra compatível vencendo e fallback no destino principal
 - migration `0005_smart_routing.sql`
+
+Unreleased / Fase 4 (working tree atual sobre o HEAD congelado da Fase 3 `548f179`):
+
+- destino opcional para links expirados (`expiredRedirectUrl` / `links.expired_redirect_url`): link expirado com destino válido responde `302` + `no-store`, sem destino responde `410` + `no-store`, sem gate de senha, sem roteamento e sem contagem
+- redirect opcional da raiz via variável de ambiente `ROOT_REDIRECT_URL` (`GET /` → `302` + `no-store` sem consultar D1)
+- migration `0006_expired_redirect.sql`
 
 O produto não mantém:
 
@@ -86,7 +93,9 @@ O produto não mantém:
 - Smart Routing usa `links.smart_routing_rules` (JSON em linha), com um único SELECT e sem tabela auxiliar, JOIN ou API externa
 - país, User-Agent, dispositivo derivado e regra selecionada nunca são persistidos; Smart Routing não tem contador por regra
 - configuração Smart Routing persistida e ilegível é corrupção **preservada**, não "desativada": a API informa `smartRoutingStatus: "invalid"` (sem expor o valor cru), edições não relacionadas não podem apagá-la e só uma ação explícita de limpeza grava `NULL`
-- para desenvolvimento local do Worker **nas bases locais (Fase 2 e Fase 3)**, rode `npm run dev-prepare` (migrations no D1 do Wrangler) antes de `npm run dev`; no checkout da tag `v2.2.1` esse script não existe, use `npm run wrangler -- d1 migrations apply ... --local`
+- o lifecycle vence senha, A/B e Smart Routing: link expirado com destino válido responde `302` + `no-store`, sem destino responde `410` + `no-store`, e requests expirados não contam clique nem gravam no banco (Fase 4)
+- `ROOT_REDIRECT_URL` é opcional e não secreta: válida faz `GET /` responder `302` + `no-store` sem tocar D1; ausente/inválida serve a landing; unknown slugs continuam `404` (Fase 4)
+- para desenvolvimento local do Worker **nas bases locais (Fase 2, Fase 3 e Fase 4)**, rode `npm run dev-prepare` (migrations no D1 do Wrangler) antes de `npm run dev`; no checkout da tag `v2.2.1` esse script não existe, use `npm run wrangler -- d1 migrations apply ... --local`
 
 ## Como interpretar pedidos
 
@@ -147,7 +156,7 @@ Fluxo para `Iniciar o Projeto`:
 4. rodar `npm install`
 5. rodar `npm run setup`
 6. se o usuário quiser banco explícito, criar D1 com `npm run wrangler -- d1 create ... --update-config`
-7. aplicar migrations locais (nas bases locais da Fase 2/Fase 3: `npm run dev-prepare`; no checkout da tag `v2.2.1`: `npm run wrangler -- d1 migrations apply ... --local`)
+7. aplicar migrations locais (nas bases locais da Fase 2/Fase 3/Fase 4: `npm run dev-prepare`; no checkout da tag `v2.2.1`: `npm run wrangler -- d1 migrations apply ... --local`)
 8. se o destino for remoto, aplicar as migrations no D1 (`--remote -c wrangler.local.jsonc`) antes de publicar/validar; no Deploy Button, o provisionamento inicial **não** substitui esse passo
 9. rodar `npm test`
 10. parar antes da criação final do Access
@@ -155,7 +164,7 @@ Fluxo para `Iniciar o Projeto`:
 Se o pedido for iniciar o projeto apenas localmente para testes manuais, a IA deve preparar o D1 local do Worker **antes** de `npm run dev`:
 
 ```bash
-npm run dev-prepare   # existe apenas nas bases locais (Fase 2 e Fase 3)
+npm run dev-prepare   # existe apenas nas bases locais (Fase 2, Fase 3 e Fase 4)
 ```
 
 `npm run dev-prepare` aplica as migrations no D1 local usado pelo `wrangler dev` (`.wrangler/state/v3/d1`). Sem isso o Worker responde `503 Database schema is not initialized`. No checkout da tag `v2.2.1` esse script não existe; use `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
@@ -300,7 +309,7 @@ npm install
 npm run setup
 ```
 
-Setup local com banco SQLite de apoio (bases locais da Fase 2 e Fase 3):
+Setup local com banco SQLite de apoio (bases locais da Fase 2, Fase 3 e Fase 4):
 
 ```bash
 npm install

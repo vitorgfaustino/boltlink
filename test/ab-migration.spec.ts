@@ -218,7 +218,7 @@ describe("A/B schema migration", () => {
 		}
 
 		const capabilitiesPre = await worker.fetch(new Request("http://127.0.0.1/api/capabilities"), env, createExecutionContext());
-		expect(await capabilitiesPre.json()).toEqual({ abTesting: false, smartRouting: false });
+		expect(await capabilitiesPre.json()).toEqual({ abTesting: false, smartRouting: false, expiredRedirect: false });
 
 		// Real admin payload for a normal link: no A/B fields at all.
 		const normalCreateCtx = createExecutionContext();
@@ -268,7 +268,7 @@ describe("A/B schema migration", () => {
 		}
 
 		const capabilitiesPost = await worker.fetch(new Request("http://127.0.0.1/api/capabilities"), env, createExecutionContext());
-		expect(await capabilitiesPost.json()).toEqual({ abTesting: true, smartRouting: false });
+		expect(await capabilitiesPost.json()).toEqual({ abTesting: true, smartRouting: false, expiredRedirect: false });
 
 		const legacyRow = await env.db_boltlink
 			.prepare("SELECT clicks_total, ab_enabled, ab_target_url, ab_weight_b, ab_generation, metric_epoch, ab_clicks_a, ab_clicks_b, ab_started_at FROM links WHERE slug = ?")
@@ -331,7 +331,7 @@ describe("A/B schema migration", () => {
 		const capabilityCtx = createExecutionContext();
 		const capability = await worker.fetch(new Request("http://127.0.0.1/api/capabilities"), { ...env, db_boltlink: handle }, capabilityCtx);
 		await waitOnExecutionContext(capabilityCtx);
-		expect(await capability.json()).toEqual({ abTesting: true, smartRouting: true });
+		expect(await capability.json()).toEqual({ abTesting: true, smartRouting: true, expiredRedirect: false });
 	});
 
 	it("treats a partial A/B column set as not ready without adding columns or losing data", async () => {
@@ -381,7 +381,7 @@ describe("A/B schema migration", () => {
 			{ ...env, db_boltlink: dbHandle },
 			createExecutionContext(),
 		);
-		expect(await capabilitiesPartial.json()).toEqual({ abTesting: false, smartRouting: false });
+		expect(await capabilitiesPartial.json()).toEqual({ abTesting: false, smartRouting: false, expiredRedirect: false });
 	});
 
 	it("re-detects capabilities on an existing handle after 0004 is applied", async () => {
@@ -438,7 +438,7 @@ describe("A/B schema migration", () => {
 			{ ...env, db_boltlink: handle },
 			capabilityCtx,
 		);
-		expect(await capability.json()).toEqual({ abTesting: true, smartRouting: false });
+		expect(await capability.json()).toEqual({ abTesting: true, smartRouting: false, expiredRedirect: false });
 
 		const clickCtx = createExecutionContext();
 		const click = await worker.fetch(
