@@ -182,6 +182,7 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 - permite Smart Routing por país e dispositivo, com a primeira regra compatível vencendo e fallback no destino principal (Unreleased / Fase 3)
 - permite configurar um destino usado depois da expiração do link: com destino válido o link expirado responde `302`, sem destino responde `410`; requests expirados não contam clique (Unreleased / Fase 4)
 - permite redirecionar a raiz (`GET /`) para uma URL operacional via `ROOT_REDIRECT_URL`, sem consultar D1 (Unreleased / Fase 4)
+- organiza links em grupos hierárquicos, com prevenção de ciclos, limite de 16 níveis, movimentação com detecção de concorrência e exclusão só de grupo realmente vazio (Unreleased / Fase 5)
 - conta cliques de forma agregada sem eventos detalhados
 - permite zerar a estatística agregada de um link ativo
 - inclui orientações para reduzir tráfego desnecessário no plano gratuito da Cloudflare
@@ -339,6 +340,24 @@ O template público `wrangler.jsonc` não define `ROOT_REDIRECT_URL`. O config p
 - links desabilitados continuam `404`; não existe `disabled_redirect_url`
 - expiração por contagem de cliques continua fora de escopo
 - nenhuma métrica individual nova: requests expirados e o redirect da raiz não contam clique
+
+## Hierarquia de grupos (Unreleased / Fase 5)
+
+> Escopo: **working tree da Fase 5** (Unreleased, sobre o HEAD congelado da Fase 4 `cdb9f83`). A hierarquia de grupos **existe** na tag publicada `v2.2.1` — a tabela `link_groups` com `parent_id` chega na migration `0002`. O que a Fase 5 acrescenta é a integridade: a tag não tem prevenção de ciclo, limite de profundidade, delete protegido nem precondição de concorrência.
+
+A Fase 5 **não adiciona migration**: ela usa `link_groups.parent_id`, com a FK auto-referente e o índice que já existem desde a `0002`. Não há closure table, materialized path, nested sets, tabela auxiliar nem coluna `version` em grupos.
+
+Como a árvore se comporta:
+
+- **`parentId` na escrita.** Em `POST /api/groups`, ausente ou `null` cria na raiz e um inteiro positivo cria sob o grupo informado. Em `PATCH /api/groups/:id`, ausente preserva o pai, `null` move para a raiz e um inteiro positivo move sob esse grupo. Grupo pai inexistente responde `404`.
+- **Sem ciclos.** Auto-parentesco e qualquer ciclo indireto (`A → B → A`, `A → B → C → A`) respondem `409` e nada é escrito. O backend é a autoridade; a UI não é proteção suficiente.
+- **Limite de profundidade.** A raiz é profundidade 1 e o máximo é 16. Criar sob profundidade 16 responde `409`; mover considera a subárvore inteira, não só o nó movido. Uma árvore legada já acima de 16 continua legível e pode ser reparada para cima, mas uma operação que mantém ou aumenta a violação responde `409`.
+- **Movimentação com concorrência.** Toda mudança de pai é um único `UPDATE` condicional com CTE recursiva: ciclo, profundidade e a precondição do pai observado são decididos na mesma instrução que grava. `expectedParentId` é obrigatório sempre que `parentId` é enviado e representa o pai que o cliente viu (`null` = raiz). Se outro operador moveu o grupo nesse meio-tempo, a resposta é `409` e o Admin recarrega a árvore em vez de sobrescrever o move alheio. Renomear sem `parentId` continua *last-write-wins*.
+- **Exclusão.** `DELETE /api/groups/:id` só remove um grupo sem subgrupos e sem nenhum link, **incluindo links desabilitados**. Com subgrupos ou links responde `409`; inexistente responde `404`. Não há cascade nem reparent automático.
+- **Sem exclusão automática.** Mover ou excluir o último link de um grupo deixa o grupo no banco. O comportamento antigo (`cleanupEmptyGroup`) apagava grupos ignorando subgrupos e links desabilitados e foi removido. Remover um grupo é sempre uma decisão explícita do operador.
+- **Grafo corrompido falha fechado.** Se um SQL externo gravar um ciclo, `GET /api/groups` responde `409` e o Admin mostra o erro sem montar árvore parcial e sem reparo automático.
+- **Leitura.** `GET /api/groups` continua devolvendo linhas planas com `parent_id`; o Admin monta a árvore, mostra o caminho completo (`Clientes / Brasil / Campinas`) e permite expandir, recolher, criar, mover e excluir. O filtro por grupo continua significando **associação direta** ao grupo escolhido, sem incluir subgrupos.
+- **Redirect inalterado.** `GET /:slug` continua com a mesma leitura de `links`, sem `JOIN` em `link_groups`, sem consulta ao grupo e sem custo adicional por clique.
 
 ## Tráfego e estatísticas
 

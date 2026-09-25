@@ -28,7 +28,16 @@ Excluir um link é uma exclusão lógica.
 
 O registro continua em `links`, com `disabled_at` preenchido. Isso preserva o slug como já usado e evita que um slug antigo seja reaproveitado por acidente.
 
-Como a linha `2.0.x` não possui tabela `stats`, a exclusão do link não precisa limpar eventos de clique. O único cleanup automático relacionado é remover um grupo vazio quando o último link ativo sai dele.
+Como a linha `2.0.x` não possui tabela `stats`, a exclusão do link não precisa limpar eventos de clique.
+
+## Grupos e hierarquia (Unreleased / Fase 5)
+
+> Escopo: working tree da Fase 5 (sobre o HEAD congelado da Fase 4 `cdb9f83`). A tag publicada `v2.2.1` não contém esta semântica.
+
+- Não existe exclusão automática de grupos. Mover ou excluir o último link de um grupo — inclusive o último link ativo — deixa o grupo no banco, porque ele pode ainda ter subgrupos ou links desabilitados. O helper `cleanupEmptyGroup` foi removido do runtime.
+- Um grupo só sai do banco por `DELETE /api/groups/:id`, e apenas quando não tem subgrupos e nenhum link, desabilitado ou não.
+- A hierarquia (`link_groups.parent_id`) é configuração administrativa do operador. Nenhum dado de visitante entra nela e a Fase 5 não introduz nenhuma retenção nova: a árvore é lida uma vez para o Admin e as operações de mover/excluir são leituras e escritas limitadas.
+- Grupos não guardam dados de visitante, então a hierarquia não muda a política de retenção de cliques e links descrita acima.
 
 ## Destino de expiração (Unreleased / Fase 4)
 

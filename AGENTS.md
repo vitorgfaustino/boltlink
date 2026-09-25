@@ -14,18 +14,20 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 - Smart Routing stateless por país/dispositivo em `links.smart_routing_rules` (**Unreleased / Fase 3**; migration `0005`, ausente da tag publicada)
 - destino opcional para links expirados em `links.expired_redirect_url` (**Unreleased / Fase 4**; migration `0006_expired_redirect.sql`, ausente da tag publicada)
 - redirect opcional da raiz (`GET /`) via variável `ROOT_REDIRECT_URL` (**Unreleased / Fase 4**, sem D1)
+- hierarquia de grupos em `link_groups.parent_id` (**Unreleased / Fase 5**, sem migration nova: a coluna existe desde a `0002`)
 - autenticação administrativa via Cloudflare Access
 
-### Quatro bases de código que não podem ser confundidas
+### Cinco bases de código que não podem ser confundidas
 
 | Base | Como identificar | Migrations | Recursos extras |
 | --- | --- | --- | --- |
 | Publicada | tag `v2.2.1` (`git rev-parse v2.2.1` → `8b3895e`) | `0000` a `0003` | — |
 | Fase 2 local | baseline local `23353a1`, não publicado | `0000` a `0004` | Split Test A/B |
 | Fase 3 congelada | HEAD `548f179`, Unreleased | `0000` a `0005` | Split Test A/B + Smart Routing |
-| Fase 4 working tree | working tree atual sobre `548f179`, Unreleased | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
+| Fase 4 congelada | HEAD `cdb9f83`, Unreleased | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
+| Fase 5 working tree | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos |
 
-A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4. Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
+A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
 
 ## Regra obrigatória para tarefas Cloudflare
 
@@ -64,6 +66,16 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - o lifecycle vence senha, A/B e Smart Routing: link expirado com destino válido responde `302` + `no-store`, sem destino responde `410` + `no-store`, e requests expirados não contam clique nem gravam no banco (Fase 4)
 - `expiredRedirectUrl` requer `expiresAt`; limpar a expiração mantendo o destino é recusado, limpar os dois na mesma edição é a limpeza atômica permitida (Fase 4)
 - `ROOT_REDIRECT_URL` é opcional e não secreta: válida faz `GET /` responder `302` + `no-store` sem tocar D1; ausente/inválida serve a landing; unknown slugs continuam `404` (Fase 4)
+- a hierarquia de grupos usa somente `link_groups.parent_id`: sem migration, sem tabela auxiliar, sem closure table, sem materialized path e sem coluna `version` em grupos (Fase 5)
+- `parentId` é o nome na escrita; `GET /api/groups` continua plano com `parent_id` e o Admin monta a árvore no cliente (Fase 5)
+- grupo pai inexistente responde `404`; auto-parentesco e qualquer ciclo indireto respondem `409` sem escrita (Fase 5)
+- `MAX_GROUP_DEPTH` é 16 com raiz em profundidade 1; `MOVE` mede a subárvore inteira e árvore legada acima do limite continua legível e reparável para cima (Fase 5)
+- mudança de pai é um único `UPDATE` condicional com CTE recursiva: ciclo, profundidade e `expectedParentId` são decididos na mesma instrução que escreve, nunca com `SELECT` seguido de `UPDATE` (Fase 5)
+- `expectedParentId` é obrigatório sempre que `parentId` é enviado; renomear sem `parentId` continua last-write-wins (Fase 5)
+- `DELETE /api/groups/:id` é um `DELETE` condicional atômico: só remove grupo sem subgrupos e sem nenhum link, desabilitado inclusive; sem cascade e sem reparent automático (Fase 5)
+- não existe exclusão automática de grupos: mover ou excluir o último link deixa o grupo no banco (Fase 5)
+- grafo de grupos corrompido por SQL externo falha fechado com `409`, sem árvore parcial e sem reparo automático (Fase 5)
+- o redirect público nunca consulta `link_groups` nem adiciona `JOIN`, CTE ou `PRAGMA` ao hot path (Fase 5)
 - redirects públicos usam `Referrer-Policy: strict-origin`
 - admin, API, home, gate de senha e respostas não redirect usam `Referrer-Policy: no-referrer`
 
@@ -71,6 +83,7 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 
 - UI: `public/admin.html`
 - API ou auth: `src/index.ts`
+- hierarquia de grupos: `src/group-hierarchy.ts` (helpers de grafo e os statements atômicos) e `public/group-hierarchy-ui.js` (helpers de apresentação da árvore)
 - rate limiting: `src/rate-limit.ts`
 - banco: `migrations/` (autoridade); `schema.sql` (baseline da `0000` para ferramentas manuais)
 - operação: `docs/`

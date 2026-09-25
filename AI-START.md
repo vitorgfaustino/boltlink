@@ -22,18 +22,19 @@ Leia nesta ordem antes de agir:
 5. `docs/admin-auth.md`
 6. `docs/privacy.md`
 
-## Quatro bases de código (não confundir)
+## Cinco bases de código (não confundir)
 
-Existem quatro estados distintos. A tag publicada **não** é igual ao baseline local:
+Existem cinco estados distintos. A tag publicada **não** é igual ao baseline local:
 
 | Base | Como identificar | Migrations | Recursos extras |
 | --- | --- | --- | --- |
 | **Publicada** (`v2.2.1`) | tag real: `git rev-parse v2.2.1` → `8b3895e` | `0000` a `0003` | — |
 | **Fase 2 local** | baseline local `23353a1`, **não publicado** | `0000` a `0004` | Split Test A/B |
 | **Fase 3 congelada** | HEAD `548f179`, **Unreleased** | `0000` a `0005` | Split Test A/B + Smart Routing |
-| **Fase 4 working tree** | working tree atual sobre `548f179`, **Unreleased** | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
+| **Fase 4 congelada** | HEAD `cdb9f83`, **Unreleased** | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
+| **Fase 5 working tree** | working tree atual sobre `cdb9f83`, **Unreleased** | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos |
 
-Não chame o baseline local da Fase 2 de "v2.2.1 publicada": a tag publicada não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4.
+Não chame o baseline local da Fase 2 de "v2.2.1 publicada": a tag publicada não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a integridade de hierarquia de grupos da Fase 5 (a tag tem a tabela `link_groups` desde a `0002`, mas sem validação de ciclo, profundidade, delete ou concorrência).
 
 Publicada (v2.2.1):
 
@@ -54,11 +55,17 @@ Unreleased / Fase 3 (somente nesta branch de desenvolvimento):
 - Smart Routing por país/dispositivo com primeira regra compatível vencendo e fallback no destino principal
 - migration `0005_smart_routing.sql`
 
-Unreleased / Fase 4 (working tree atual sobre o HEAD congelado da Fase 3 `548f179`):
+Unreleased / Fase 4 (HEAD congelado `cdb9f83`):
 
 - destino opcional para links expirados (`expiredRedirectUrl` / `links.expired_redirect_url`): link expirado com destino válido responde `302` + `no-store`, sem destino responde `410` + `no-store`, sem gate de senha, sem roteamento e sem contagem
 - redirect opcional da raiz via variável de ambiente `ROOT_REDIRECT_URL` (`GET /` → `302` + `no-store` sem consultar D1)
 - migration `0006_expired_redirect.sql`
+
+Unreleased / Fase 5 (working tree atual sobre o HEAD congelado da Fase 4 `cdb9f83`):
+
+- hierarquia de grupos em `link_groups.parent_id`, sem migration nova (a coluna existe desde a `0002`)
+- `parentId` é o nome na escrita; `GET /api/groups` continua plano com `parent_id` e o Admin monta a árvore no cliente
+- ciclo, profundidade, delete e concorrência decididos em um único statement condicional, nunca com `SELECT` seguido de `UPDATE`/`INSERT`
 
 O produto não mantém:
 

@@ -1355,3 +1355,130 @@ button.icon-btn {
     grid-column: 1 / -1;
   }
 }
+
+/* Group hierarchy panel (Unreleased / Phase 5, Gate 5.1).
+   The panel spans both layout columns so it never disturbs the existing
+   form/links grid. */
+.layout > .groups-panel {
+  grid-column: 1 / -1;
+}
+
+.group-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.group-tree {
+  margin-top: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.group-tree-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.group-tree ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 0;
+  display: grid;
+  gap: 4px;
+}
+
+/* Nesting is the indent: each level is a <ul> inside its parent <li>. */
+.group-tree li ul {
+  margin-left: 10px;
+  padding-left: 16px;
+  border-left: 1px solid var(--line);
+}
+
+.group-node {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: var(--surface-strong);
+}
+
+.group-node-toggle {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 6px;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.group-node-toggle-spacer {
+  display: inline-block;
+  min-width: 32px;
+}
+
+.group-node-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.group-node-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.group-node-path {
+  font-size: 0.76rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.group-node-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.group-node-actions button[data-group-action="delete"] {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.group-forms {
+  margin-top: 22px;
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .group-forms {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.group-form {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.group-form legend {
+  padding: 0 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.group-form button {
+  justify-self: start;
+}

@@ -355,7 +355,7 @@ describe("URL shortener worker", () => {
 		expect(payload.links[0].slug).toBe("without-group");
 	});
 
-	it("deletes an empty group after removing its last active link", async () => {
+	it("keeps an emptied group after removing its last active link", async () => {
 		const groupResponse = await fetchWorker("http://localhost/api/groups", {
 			method: "POST",
 			headers: {
@@ -383,14 +383,17 @@ describe("URL shortener worker", () => {
 
 		expect(deleteResponse.status).toBe(200);
 
+		// Unreleased / Phase 5: the group survives its last link. Automatic deletion
+		// ignored child groups and disabled links, so it was removed from the
+		// product; only an explicit DELETE removes a group now.
 		const groupsResponse = await fetchWorker("http://localhost/api/groups");
 		const groupsPayload = (await groupsResponse.json()) as { groups: Array<{ id: number; name: string }> };
 		expect(groupsPayload.groups).toEqual(
-			expect.not.arrayContaining([expect.objectContaining({ id: groupPayload.group.id, name: "Temporario" })]),
+			expect.arrayContaining([expect.objectContaining({ id: groupPayload.group.id, name: "Temporario" })]),
 		);
 	});
 
-	it("deletes the original group when the last link moves to another group", async () => {
+	it("keeps the original group when the last link moves to another group", async () => {
 		const sourceGroupResponse = await fetchWorker("http://localhost/api/groups", {
 			method: "POST",
 			headers: {
@@ -431,13 +434,15 @@ describe("URL shortener worker", () => {
 
 		expect(updateResponse.status).toBe(200);
 
+		// Unreleased / Phase 5: moving the link away leaves the source group in
+		// place, because it may still hold child groups or disabled links.
 		const groupsResponse = await fetchWorker("http://localhost/api/groups");
 		const groupsPayload = (await groupsResponse.json()) as { groups: Array<{ id: number; name: string }> };
 		expect(groupsPayload.groups).toEqual(
 			expect.arrayContaining([expect.objectContaining({ id: targetGroupPayload.group.id, name: "Destino" })]),
 		);
 		expect(groupsPayload.groups).toEqual(
-			expect.not.arrayContaining([expect.objectContaining({ id: sourceGroupPayload.group.id, name: "Origem" })]),
+			expect.arrayContaining([expect.objectContaining({ id: sourceGroupPayload.group.id, name: "Origem" })]),
 		);
 	});
 

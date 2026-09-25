@@ -28,10 +28,18 @@ const state = {
   smartRoutingCorrupt: false,
   smartClearInvalid: false,
   expiredRedirect: false,
+  // Group hierarchy snapshot, as returned by the API and laid out by
+  // BoltLinkGroupHierarchy. `collapsedGroups` holds the collapsed ids, so a group
+  // created meanwhile is visible without extra bookkeeping.
+  groupTree: null,
+  collapsedGroups: new Set(),
 };
 
 const smartRoutingUi = window.BoltLinkSmartRouting || null;
 const expiredRedirectUi = window.BoltLinkExpiredRedirect || null;
+// Loaded before this script, and pinned by an order test. The panel fails closed
+// with an explanatory status instead of throwing when the module is absent.
+const groupHierarchyUi = window.BoltLinkGroupHierarchy || null;
 // Loaded before this script, and pinned by an order test. The local fallback only
 // keeps the controls inert instead of throwing if the module is ever absent; a
 // submission that actually needs the rules fails closed in the payload builder.
@@ -106,8 +114,6 @@ const linkPreview = document.getElementById("link-preview");
 const redirectTypeInput = document.getElementById("redirect-type");
 const tagsInput = document.getElementById("tags");
 const groupIdInput = document.getElementById("group-id");
-const createGroupButton = document.getElementById("create-group-button");
-const newGroupNameInput = document.getElementById("new-group-name");
 const goLiveAtInput = document.getElementById("go-live-at");
 const expiresAtInput = document.getElementById("expires-at");
 const expiredRedirectSection = document.getElementById("expired-redirect-section");
@@ -146,6 +152,18 @@ const generateSlugButton = document.getElementById("generate-slug-button");
 const searchForm = document.getElementById("search-form");
 const searchTermInput = document.getElementById("search-term");
 const searchGroupIdInput = document.getElementById("search-group-id");
+const groupTreeContainer = document.getElementById("group-tree");
+const groupStatus = document.getElementById("group-status");
+const groupCreateNameInput = document.getElementById("group-create-name");
+const groupCreateParentSelect = document.getElementById("group-create-parent");
+const groupCreateButton = document.getElementById("group-create-button");
+const groupMoveSourceSelect = document.getElementById("group-move-source");
+const groupMoveTargetSelect = document.getElementById("group-move-target");
+const groupMovePath = document.getElementById("group-move-path");
+const groupMoveButton = document.getElementById("group-move-button");
+const groupExpandAllButton = document.getElementById("group-expand-all");
+const groupCollapseAllButton = document.getElementById("group-collapse-all");
+const groupRefreshButton = document.getElementById("group-refresh");
 const formTitle = document.getElementById("form-title");
 const formStatus = document.getElementById("form-status");
 const listStatus = document.getElementById("list-status");
@@ -448,32 +466,359 @@ function schedulePreviewLoad() {
   }, 350);
 }
 
-async function loadGroups() {
+/**
+ * Group requests never reuse the throwing helper: a refused move or delete must
+ * be shown as a message and must never be retried or applied optimistically, so
+ * the status travels back with the payload.
+ */
+async function groupRequest(path, options = {}) {
   try {
-    const payload = await request("/api/groups", { method: "GET" });
-    const currentFormGroup = groupIdInput.value;
-    const currentSearchGroup = searchGroupIdInput.value;
-    const formOptions = ['<option value="">Sem grupo</option>'];
-    const searchOptions = [
-      '<option value="">Todos os grupos</option>',
-      '<option value="__none__">Sem grupo</option>',
-    ];
-    (payload.groups || []).forEach((group) => {
-      const option = `<option value="${group.id}">${escapeHtml(group.name)}</option>`;
-      formOptions.push(option);
-      searchOptions.push(option);
+    const response = await fetch(path, {
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      ...options,
     });
-    groupIdInput.innerHTML = formOptions.join("");
-    searchGroupIdInput.innerHTML = searchOptions.join("");
-    if (currentFormGroup) {
-      groupIdInput.value = currentFormGroup;
+
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
     }
-    if (currentSearchGroup) {
-      searchGroupIdInput.value = currentSearchGroup;
+
+    if (!response.ok) {
+      return { ok: false, status: response.status, error: payload?.error || "Falha inesperada" };
     }
-  } catch {
-    // Non-blocking: group listing is optional for basic flow
+
+    return { ok: true, status: response.status, payload };
+  } catch (error) {
+    return { ok: false, status: 0, error: error.message };
   }
+}
+
+function groupOption(value, label) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  return option;
+}
+
+/**
+ * Rebuilds one select from `{ value, label }` pairs, keeping the previous
+ * selection when it still exists. Every label is written with `textContent`:
+ * group names and full paths are persisted data.
+ */
+function fillGroupSelect(select, placeholder, options, preferredValue) {
+  const previous = preferredValue === undefined ? select.value : preferredValue;
+  const next = [groupOption("", placeholder)];
+  (options || []).forEach((entry) => {
+    next.push(groupOption(entry.value, entry.label));
+  });
+  select.replaceChildren(...next);
+  select.value = next.some((option) => option.value === previous) ? previous : "";
+}
+
+function expandedGroupIds(tree) {
+  const expanded = new Set();
+  tree.byId.forEach((_group, id) => {
+    if (!state.collapsedGroups.has(id)) {
+      expanded.add(id);
+    }
+  });
+  return expanded;
+}
+
+function groupNodeButton(action, label, title, row) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "secondary compact";
+  button.dataset.groupAction = action;
+  button.textContent = label;
+  // The path, not the bare name, so repeated names stay distinguishable.
+  button.setAttribute("aria-label", `${title}: ${row.path}`);
+  button.title = button.getAttribute("aria-label");
+  return button;
+}
+
+/**
+ * One tree row. Built with `createElement`, `textContent` and `setAttribute` only:
+ * a group name or path never reaches an HTML sink.
+ */
+function buildGroupNode(row) {
+  const container = document.createElement("div");
+  container.className = "group-node";
+  container.dataset.groupId = String(row.group.id);
+
+  if (row.hasChildren) {
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "secondary compact group-node-toggle";
+    toggle.dataset.groupAction = "toggle";
+    toggle.setAttribute("aria-expanded", String(row.expanded));
+    toggle.setAttribute("aria-label", `${row.expanded ? "Recolher" : "Expandir"} subgrupos de ${row.path}`);
+    toggle.title = toggle.getAttribute("aria-label");
+    toggle.textContent = row.expanded ? "▾" : "▸";
+    container.append(toggle);
+  } else {
+    const spacer = document.createElement("span");
+    spacer.className = "group-node-toggle-spacer";
+    spacer.setAttribute("aria-hidden", "true");
+    container.append(spacer);
+  }
+
+  const main = document.createElement("div");
+  main.className = "group-node-main";
+  const name = document.createElement("span");
+  name.className = "group-node-name";
+  name.textContent = row.group.name;
+  const path = document.createElement("span");
+  path.className = "group-node-path";
+  path.textContent = row.path;
+  main.append(name, path);
+  container.append(main);
+
+  const actions = document.createElement("div");
+  actions.className = "group-node-actions";
+  actions.append(
+    groupNodeButton("move", "Mover", "Mover grupo", row),
+    groupNodeButton("delete", "Excluir", "Excluir grupo", row),
+  );
+  container.append(actions);
+
+  return container;
+}
+
+function renderGroupTree() {
+  const tree = state.groupTree;
+  groupTreeContainer.replaceChildren();
+
+  if (!tree) {
+    return;
+  }
+
+  const rows = groupHierarchyUi.flattenTree(tree, expandedGroupIds(tree));
+  if (!rows.length) {
+    const empty = document.createElement("p");
+    empty.className = "group-tree-empty";
+    empty.textContent = "Nenhum grupo criado ainda.";
+    groupTreeContainer.append(empty);
+    return;
+  }
+
+  // The host is a plain <div>, and an <li> is only valid inside <ul>/<ol>: the
+  // first level gets a list of its own. Every deeper level nests the same way, so
+  // the depth of each row decides which <ul> receives its <li> and the indent stays
+  // structural instead of a computed padding.
+  const rootList = document.createElement("ul");
+  groupTreeContainer.append(rootList);
+  const listStack = [rootList];
+  rows.forEach((row) => {
+    while (listStack.length > row.depth) {
+      listStack.pop();
+    }
+    const list = listStack[listStack.length - 1];
+    const item = document.createElement("li");
+    item.append(buildGroupNode(row));
+    const childList = document.createElement("ul");
+    item.append(childList);
+    list.append(item);
+    listStack.push(childList);
+  });
+}
+
+/** A governed failure: the panel explains it and never renders a partial tree. */
+function renderGroupTreeFailure(message) {
+  state.groupTree = null;
+  groupTreeContainer.replaceChildren();
+  const notice = document.createElement("p");
+  notice.className = "group-tree-empty error-text";
+  notice.textContent = message;
+  groupTreeContainer.append(notice);
+}
+
+function refreshGroupSelects() {
+  const tree = state.groupTree;
+  // The link form, the create form and the move source all list every group by
+  // full path so equal names stay distinguishable.
+  const options = tree ? groupHierarchyUi.parentOptions(tree, null) : [];
+
+  fillGroupSelect(groupIdInput, "Sem grupo", options, groupIdInput.value);
+  fillGroupSelect(groupCreateParentSelect, "Sem grupo pai (raiz)", options, groupCreateParentSelect.value);
+  fillGroupSelect(groupMoveSourceSelect, "Escolha um grupo", options, groupMoveSourceSelect.value);
+  // The filter keeps its own sentinel for "no group", restored when still offered.
+  fillGroupSelect(
+    searchGroupIdInput,
+    "Todos os grupos",
+    [groupOption("__none__", "Sem grupo")].concat(options),
+    searchGroupIdInput.value,
+  );
+
+  refreshMoveForm();
+}
+
+/** Full-path context for the selected group, plus its still-possible parents. */
+function refreshMoveForm() {
+  const tree = state.groupTree;
+  const sourceValue = groupMoveSourceSelect.value;
+  const groupId = sourceValue ? Number(sourceValue) : null;
+
+  if (!tree || !groupId) {
+    fillGroupSelect(groupMoveTargetSelect, "Sem grupo pai (raiz)", [], "");
+    groupMovePath.textContent = "Selecione um grupo para ver o caminho completo.";
+    return;
+  }
+
+  const path = groupHierarchyUi.groupPath(tree.byId, groupId);
+  const group = tree.byId.get(groupId);
+  const parentId = group ? group.parentId : null;
+  const currentParentPath = parentId === null
+    ? "raiz"
+    : groupHierarchyUi.groupPath(tree.byId, parentId);
+
+  // The group and its subtree are hidden from the target list: a display
+  // convenience, since the API refuses such a move regardless.
+  const options = groupHierarchyUi.parentOptions(tree, groupId);
+  fillGroupSelect(groupMoveTargetSelect, "Sem grupo pai (raiz)", options, parentId === null ? "" : String(parentId));
+
+  groupMovePath.textContent = `Caminho atual: ${path} (pai: ${currentParentPath}). Máximo de ${groupHierarchyUi.MAX_DEPTH} níveis.`;
+}
+
+async function loadGroups() {
+  if (!groupHierarchyUi) {
+    renderGroupTreeFailure("Módulo de hierarquia de grupos indisponível nesta página.");
+    return;
+  }
+
+  const result = await groupRequest("/api/groups", { method: "GET" });
+
+  if (!result.ok) {
+    // Includes the corrupt-hierarchy 409: the panel shows the failure instead of
+    // assembling a partial tree or repairing anything on its own.
+    renderGroupTreeFailure(groupHierarchyUi.groupErrorMessage(result.error));
+    refreshGroupSelects();
+    return;
+  }
+
+  const tree = groupHierarchyUi.buildTree(result.payload?.groups);
+  if (!tree.ok) {
+    renderGroupTreeFailure(groupHierarchyUi.ERROR_MESSAGES.CORRUPT);
+    refreshGroupSelects();
+    return;
+  }
+
+  state.groupTree = tree;
+  renderGroupTree();
+  refreshGroupSelects();
+}
+
+async function createGroupFromPanel() {
+  const name = groupCreateNameInput.value.trim();
+  if (!name) {
+    setStatus(groupStatus, "Informe o nome do grupo antes de criar.", "error");
+    return;
+  }
+
+  const parentValue = groupCreateParentSelect.value;
+  // `parentId` absent means root, which is the exact CREATE contract.
+  const body = parentValue ? { name, parentId: Number(parentValue) } : { name };
+  setBusy(groupCreateButton, true);
+  try {
+    const result = await groupRequest("/api/groups", { method: "POST", body: JSON.stringify(body) });
+    if (!result.ok) {
+      setStatus(groupStatus, groupHierarchyUi.groupErrorMessage(result.error), "error");
+      return;
+    }
+
+    groupCreateNameInput.value = "";
+    await loadGroups();
+    setStatus(groupStatus, `Grupo "${result.payload.group.name}" criado.`, "success");
+  } finally {
+    setBusy(groupCreateButton, false);
+  }
+}
+
+async function moveSelectedGroup() {
+  const tree = state.groupTree;
+  const sourceValue = groupMoveSourceSelect.value;
+  if (!tree || !sourceValue) {
+    setStatus(groupStatus, "Escolha o grupo que deve ser movido.", "error");
+    return;
+  }
+
+  const groupId = Number(sourceValue);
+  const group = tree.byId.get(groupId);
+  if (!group) {
+    setStatus(groupStatus, groupHierarchyUi.ERROR_MESSAGES.NOT_FOUND, "error");
+    return;
+  }
+
+  const targetValue = groupMoveTargetSelect.value;
+  const targetParentId = targetValue ? Number(targetValue) : null;
+  const path = groupHierarchyUi.groupPath(tree.byId, groupId);
+
+  setBusy(groupMoveButton, true);
+  try {
+    const result = await groupRequest(`/api/groups/${groupId}`, {
+      method: "PATCH",
+      // The parent observed in the loaded snapshot is the precondition, sent in
+      // the same request as the new one. A move that happened meanwhile makes the
+      // API answer 409 instead of overwriting it.
+      body: JSON.stringify({ parentId: targetParentId, expectedParentId: group.parentId }),
+    });
+
+    if (!result.ok) {
+      // No automatic retry: reload so the panel reflects the current state, then
+      // report why the move was refused.
+      await loadGroups();
+      setStatus(groupStatus, groupHierarchyUi.groupErrorMessage(result.error), "error");
+      return;
+    }
+
+    await loadGroups();
+    setStatus(groupStatus, `Grupo "${path}" movido.`, "success");
+  } finally {
+    setBusy(groupMoveButton, false);
+  }
+}
+
+async function deleteGroupFromPanel(groupId) {
+  const tree = state.groupTree;
+  const group = tree ? tree.byId.get(groupId) : null;
+  if (!tree || !group) {
+    setStatus(groupStatus, groupHierarchyUi.ERROR_MESSAGES.NOT_FOUND, "error");
+    return;
+  }
+
+  const path = groupHierarchyUi.groupPath(tree.byId, groupId);
+  const confirmed = window.confirm(
+    `Excluir o grupo "${path}"? A exclusão só é permitida quando o grupo não tem subgrupos nem links.`,
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  const result = await groupRequest(`/api/groups/${groupId}`, { method: "DELETE" });
+  if (!result.ok) {
+    // Nothing is removed from the panel: the API refused the deletion.
+    await loadGroups();
+    setStatus(groupStatus, groupHierarchyUi.groupErrorMessage(result.error), "error");
+    return;
+  }
+
+  await loadGroups();
+  setStatus(groupStatus, `Grupo "${path}" excluído.`, "success");
+}
+
+function toggleGroupExpansion(groupId) {
+  if (state.collapsedGroups.has(groupId)) {
+    state.collapsedGroups.delete(groupId);
+  } else {
+    state.collapsedGroups.add(groupId);
+  }
+  renderGroupTree();
 }
 
 async function markQrCodeGenerated(slug) {
@@ -1493,24 +1838,72 @@ generateSlugButton.addEventListener("click", () => {
   slugInput.setSelectionRange(slugInput.value.length, slugInput.value.length);
 });
 
-createGroupButton.addEventListener("click", async () => {
-  const name = newGroupNameInput.value.trim();
-  if (!name) {
-    setStatus(formStatus, "Informe o nome do grupo antes de criar.", "error");
+groupCreateButton.addEventListener("click", () => {
+  createGroupFromPanel();
+});
+
+groupMoveButton.addEventListener("click", () => {
+  moveSelectedGroup();
+});
+
+groupMoveSourceSelect.addEventListener("change", () => {
+  refreshMoveForm();
+});
+
+groupRefreshButton.addEventListener("click", async () => {
+  await loadGroups();
+  setStatus(groupStatus, "Grupos recarregados.");
+});
+
+groupExpandAllButton.addEventListener("click", () => {
+  state.collapsedGroups.clear();
+  renderGroupTree();
+});
+
+groupCollapseAllButton.addEventListener("click", () => {
+  const tree = state.groupTree;
+  if (!tree) {
+    return;
+  }
+  tree.byId.forEach((_group, id) => {
+    state.collapsedGroups.add(id);
+  });
+  renderGroupTree();
+});
+
+// One delegated listener for the whole tree: rows are rebuilt on every load, so
+// per-node handlers would be re-registered each time.
+groupTreeContainer.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-group-action]");
+  if (!button) {
     return;
   }
 
-  try {
-    const payload = await request("/api/groups", {
-      method: "POST",
-      body: JSON.stringify({ name }),
-    });
-    newGroupNameInput.value = "";
-    await loadGroups();
-    groupIdInput.value = String(payload.group.id);
-    setStatus(formStatus, `Grupo \"${payload.group.name}\" criado.`, "success");
-  } catch (error) {
-    setStatus(formStatus, error.message, "error");
+  const node = button.closest(".group-node");
+  const groupId = node ? Number(node.dataset.groupId) : Number.NaN;
+  if (!Number.isInteger(groupId)) {
+    return;
+  }
+
+  if (button.dataset.groupAction === "toggle") {
+    toggleGroupExpansion(groupId);
+    return;
+  }
+  if (button.dataset.groupAction === "move") {
+    groupMoveSourceSelect.value = String(groupId);
+    refreshMoveForm();
+    groupMoveTargetSelect.focus();
+    return;
+  }
+  if (button.dataset.groupAction === "delete") {
+    deleteGroupFromPanel(groupId);
+  }
+});
+
+groupCreateNameInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    createGroupFromPanel();
   }
 });
 

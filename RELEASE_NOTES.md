@@ -1,3 +1,21 @@
+## Unreleased - Fase 5 (hierarquia de grupos)
+
+Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.
+
+> Escopo: este bloco cobre a **working tree da Fase 5** (sobre o HEAD congelado da Fase 4 `cdb9f83`). A tabela `link_groups` com `parent_id` já existe na tag publicada `v2.2.1` (migration `0002`); o que não existe na tag é a integridade descrita aqui. A Fase 5 **não adiciona migration**.
+
+### Destaques
+
+- **Hierarquia sem migration nova**: a árvore usa apenas `link_groups.parent_id`, com a FK auto-referente e o índice que já existem desde a `0002`. Sem closure table, materialized path, nested sets, tabela auxiliar ou coluna `version` em grupos.
+- **Sem ciclos**: auto-parentesco e qualquer ciclo indireto (`A → B → A`, `A → B → C → A`) respondem `409` e nada é escrito. O backend é a autoridade; a UI não é proteção suficiente.
+- **Limite de 16 níveis**: raiz é profundidade 1. Criar sob profundidade 16 responde `409` sem linha parcial; mover mede a subárvore inteira, não só o nó movido. Árvore legada acima do limite continua legível e reparável para cima, mas manter ou aumentar a violação responde `409`.
+- **Movimentação atômica e concorrência**: toda mudança de pai é **um único `UPDATE` condicional com CTE recursiva** — ciclo, profundidade e a precondição do pai observado são decididos na mesma instrução que grava, sem `SELECT` seguido de `UPDATE` desprotegido. `expectedParentId` é obrigatório sempre que `parentId` é enviado e um pai que mudou desde a leitura responde `409`; renomear sem `parentId` continua last-write-wins.
+- **Exclusão só de grupo realmente vazio**: `DELETE /api/groups/:id` é um `DELETE` condicional atômico e remove apenas grupo sem subgrupos e sem nenhum link, **incluindo links desabilitados**. Com subgrupos ou links responde `409`, inexistente responde `404`, sem cascade e sem reparent automático.
+- **Fim da exclusão automática**: o runtime não apaga mais grupos ao sair o último link ativo (`cleanupEmptyGroup` foi removido). Mover ou excluir o último link deixa o grupo no banco; remover um grupo é sempre uma decisão explícita do operador.
+- **Falha fechado em grafo corrompido**: ciclo gravado por SQL externo faz `GET /api/groups` responder `409`, sem árvore parcial, sem loop e sem reparo automático.
+- **Admin**: painel `Grupos` com árvore expansível, indentação, caminho completo (`Clientes / Brasil / Campinas`), criação com grupo pai opcional, movimentação com contexto de caminho e exclusão bloqueada pelo backend com erro compreensível — sem drag-and-drop e sem sort manual.
+- **Redirect inalterado**: o hot path público continua com a mesma leitura de `links`, sem `JOIN` em `link_groups`, sem consulta ao grupo e sem custo adicional por clique.
+
 ## Unreleased - Fase 4 (destino de expiração e redirect da raiz)
 
 Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.

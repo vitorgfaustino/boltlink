@@ -41,6 +41,18 @@ import {
 	selectSmartRoutingTarget,
 } from "./smart-routing";
 import type { SmartRoutingPersistedResult, SmartRoutingRule } from "./smart-routing";
+import {
+	GROUP_DELETE_SQL,
+	GROUP_INSERT_SQL,
+	GROUP_MOVE_SQL,
+	MAX_GROUP_DEPTH,
+	analyzeGroupHierarchy,
+	groupDeleteBindings,
+	groupInsertBindings,
+	groupMoveBindings,
+	isWithinSubtree,
+} from "./group-hierarchy";
+import type { GroupHierarchyRow } from "./group-hierarchy";
 
 /** Persisted-state classification exposed to the Admin: disabled ≠ corrupt. */
 type SmartRoutingStatus = SmartRoutingPersistedResult["status"];
@@ -192,6 +204,18 @@ const EXPIRED_REDIRECT_MIGRATION_HINT = "Expired redirect requires migration 000
  * expiration would persist a dormant configuration nobody can observe.
  */
 const EXPIRED_REDIRECT_REQUIRES_EXPIRATION = "expiredRedirectUrl requires expiresAt";
+/**
+ * Administrative invariants of the group hierarchy (Unreleased / Phase 5). The
+ * tree columns come from `0002`; everything below is write-time policy, so Gate
+ * 5.1 adds no migration and no capability flag.
+ */
+const GROUP_HIERARCHY_CORRUPT_MESSAGE = "Group hierarchy is corrupt";
+const GROUP_SELF_PARENT_MESSAGE = "Group cannot be its own parent";
+const GROUP_PARENT_REQUIRED_MESSAGE = "expectedParentId is required when parentId changes";
+const GROUP_PARENT_CHANGED_MESSAGE = "Group parent changed. Reload the tree and try again";
+const GROUP_SUBTREE_MESSAGE = "Group cannot be moved into its own subtree";
+const GROUP_HAS_CHILDREN_MESSAGE = "Group has child groups";
+const GROUP_HAS_LINKS_MESSAGE = "Group still has links";
 /**
  * Primary (and only) public redirect read. The wildcard projection is what makes
  * the redirect schema-neutral: it names no feature column, so it is valid on
@@ -690,11 +714,6 @@ app.delete("/api/links/:slug", async (c) => {
 		return c.json({ error: "Reserved slug cannot be deleted" }, 400);
 	}
 
-	const existingLink = await c.env.db_boltlink
-		.prepare("SELECT group_id FROM links WHERE slug = ? AND disabled_at IS NULL")
-		.bind(slug)
-		.first<{ group_id: number | null }>();
-
 	const now = isoNow();
 	const deletedLink = await c.env.db_boltlink
 		.prepare(
@@ -710,10 +729,9 @@ app.delete("/api/links/:slug", async (c) => {
 		return c.json({ error: "Link not found" }, 404);
 	}
 
-	if (existingLink?.group_id !== null && existingLink?.group_id !== undefined) {
-		await cleanupEmptyGroup(c.env.db_boltlink, existingLink.group_id);
-	}
-
+	// The group is left alone. Removing or moving the last link never deletes a
+	// group: it may still hold child groups or disabled links, and only the
+	// operator, through a deliberate DELETE, decides that a group is gone.
 	return c.json({ ok: true, slug: deletedLink.slug });
 });
 
@@ -903,7 +921,15 @@ app.get("/api/groups", async (c) => {
 		.prepare("SELECT id, name, parent_id, created_at FROM link_groups ORDER BY name COLLATE NOCASE ASC")
 		.all<LinkGroupRow>();
 
-	return c.json({ groups: groups.results ?? [] });
+	const rows = groups.results ?? [];
+	// The response stays flat with `parent_id`: the Admin assembles the tree. A
+	// graph the reader cannot interpret is refused whole, never partially rendered
+	// and never silently repaired into roots.
+	if (!analyzeGroupHierarchy(rows).ok) {
+		return c.json({ error: GROUP_HIERARCHY_CORRUPT_MESSAGE }, 409);
+	}
+
+	return c.json({ groups: rows });
 });
 
 app.post("/api/groups", async (c) => {
@@ -918,14 +944,34 @@ app.post("/api/groups", async (c) => {
 		return c.json({ error: "Invalid parentId" }, 400);
 	}
 
-	if (parentId !== null && parentId !== undefined && !(await groupExists(c.env.db_boltlink, parentId))) {
-		return c.json({ error: "Parent group not found" }, 404);
+	if (parentId !== null && parentId !== undefined) {
+		// A requested parent must exist, and the graph must be interpretable. Both
+		// are preconditions of *describing* the write, and both are re-decided by the
+		// guarded insert below: a parent deleted after this read makes that statement
+		// match nothing instead of reaching the foreign key, and a parent moved
+		// meanwhile cannot produce a group past the depth ceiling. This read is
+		// therefore never the authority for integrity, only the fast path that keeps
+		// the common rejection cheap.
+		const rows = await readGroupRows(c.env.db_boltlink);
+		if (!rows.some((row) => row.id === parentId)) {
+			return c.json({ error: "Parent group not found" }, 404);
+		}
+		if (!analyzeGroupHierarchy(rows).ok) {
+			return c.json({ error: GROUP_HIERARCHY_CORRUPT_MESSAGE }, 409);
+		}
 	}
 
 	const created = await c.env.db_boltlink
-		.prepare("INSERT INTO link_groups (name, parent_id) VALUES (?, ?) RETURNING id, name, parent_id, created_at")
-		.bind(name, parentId ?? null)
+		.prepare(GROUP_INSERT_SQL)
+		.bind(...groupInsertBindings(name, parentId ?? null))
 		.first<LinkGroupRow>();
+
+	if (!created) {
+		// The guarded insert refused. Which condition it was is decided read-only,
+		// never by a second attempt.
+		const failure = await classifyGroupInsertFailure(c.env.db_boltlink, parentId ?? null);
+		return c.json({ error: failure.error }, failure.status);
+	}
 
 	return c.json({ group: created }, 201);
 });
@@ -936,48 +982,80 @@ app.patch("/api/groups/:id", async (c) => {
 		return c.json({ error: "Invalid group id" }, 400);
 	}
 
-	const payload = await parseJsonBody<{ name?: string; parentId?: number | null }>(c);
+	const payload = await parseJsonBody<{ name?: string; parentId?: number | null; expectedParentId?: number | null }>(c);
 	if (!payload) {
 		return c.json({ error: "Invalid JSON body" }, 400);
 	}
 
-	const updates: string[] = [];
-	const values: Array<string | number | null> = [];
+	let name: string | null = null;
 	if (payload.name !== undefined) {
-		const name = payload.name.trim();
-		if (!name) {
+		const trimmedName = payload.name.trim();
+		if (!trimmedName) {
 			return c.json({ error: "Group name cannot be empty" }, 400);
 		}
-		updates.push("name = ?");
-		values.push(name.slice(0, 120));
+		name = trimmedName.slice(0, 120);
 	}
 
-	if (payload.parentId !== undefined) {
-		const parentId = normalizeGroupId(payload.parentId);
-		if (parentId === undefined || parentId === id) {
-			return c.json({ error: "Invalid parentId" }, 400);
+	if (payload.parentId === undefined) {
+		// Rename only. Simultaneous renames stay last-write-wins: Gate 5.1 adds no
+		// version column to groups, so this path keeps the existing behaviour rather
+		// than inventing optimistic locking the tree does not need.
+		if (name === null) {
+			return c.json({ error: "No updatable fields provided" }, 400);
 		}
-		if (parentId !== null && !(await groupExists(c.env.db_boltlink, parentId))) {
-			return c.json({ error: "Parent group not found" }, 404);
+
+		const renamed = await c.env.db_boltlink
+			.prepare("UPDATE link_groups SET name = ? WHERE id = ? RETURNING id, name, parent_id, created_at")
+			.bind(name, id)
+			.first<LinkGroupRow>();
+
+		if (!renamed) {
+			return c.json({ error: "Group not found" }, 404);
 		}
-		updates.push("parent_id = ?");
-		values.push(parentId);
+
+		return c.json({ group: renamed });
 	}
 
-	if (!updates.length) {
-		return c.json({ error: "No updatable fields provided" }, 400);
+	const targetParentId = normalizeGroupId(payload.parentId);
+	if (targetParentId === undefined) {
+		return c.json({ error: "Invalid parentId" }, 400);
+	}
+	if (targetParentId === id) {
+		// Equality on the request, not a graph read: this creates no TOCTOU window
+		// and gives self-parenting its own explicit answer.
+		return c.json({ error: GROUP_SELF_PARENT_MESSAGE }, 409);
+	}
+	if (payload.expectedParentId === undefined) {
+		return c.json({ error: GROUP_PARENT_REQUIRED_MESSAGE }, 400);
+	}
+	const expectedParentId = normalizeGroupId(payload.expectedParentId);
+	if (expectedParentId === undefined) {
+		return c.json({ error: "Invalid expectedParentId" }, 400);
 	}
 
-	const updated = await c.env.db_boltlink
-		.prepare(`UPDATE link_groups SET ${updates.join(", ")} WHERE id = ? RETURNING id, name, parent_id, created_at`)
-		.bind(...values, id)
+	// Every move interprets the tree, so a corrupt graph fails closed before the
+	// statement is attempted.
+	const rows = await readGroupRows(c.env.db_boltlink);
+	if (targetParentId !== null && !rows.some((row) => row.id === targetParentId)) {
+		return c.json({ error: "Parent group not found" }, 404);
+	}
+	if (!analyzeGroupHierarchy(rows).ok) {
+		return c.json({ error: GROUP_HIERARCHY_CORRUPT_MESSAGE }, 409);
+	}
+
+	// One statement: cycle refusal, observed-parent precondition and write are a
+	// single atomic unit, so no concurrent move can be silently overwritten.
+	const moved = await c.env.db_boltlink
+		.prepare(GROUP_MOVE_SQL)
+		.bind(...groupMoveBindings(id, targetParentId, expectedParentId, name))
 		.first<LinkGroupRow>();
 
-	if (!updated) {
-		return c.json({ error: "Group not found" }, 404);
+	if (!moved) {
+		const failure = await classifyGroupMoveFailure(c.env.db_boltlink, id, targetParentId, expectedParentId);
+		return c.json({ error: failure.error }, failure.status);
 	}
 
-	return c.json({ group: updated });
+	return c.json({ group: moved });
 });
 
 app.delete("/api/groups/:id", async (c) => {
@@ -986,24 +1064,39 @@ app.delete("/api/groups/:id", async (c) => {
 		return c.json({ error: "Invalid group id" }, 400);
 	}
 
-	const usage = await c.env.db_boltlink
-		.prepare("SELECT COUNT(1) AS total FROM links WHERE group_id = ? AND disabled_at IS NULL")
-		.bind(id)
-		.first<{ total: number }>();
-	if ((usage?.total ?? 0) > 0) {
-		return c.json({ error: "Group is not empty" }, 409);
+	// One conditional statement: a group cannot lose its last child or its last
+	// link between the check and the removal, because there is no earlier check.
+	const deleted = await c.env.db_boltlink
+		.prepare(GROUP_DELETE_SQL)
+		.bind(...groupDeleteBindings(id))
+		.first<{ id: number; name: string }>();
+
+	if (deleted) {
+		return c.json({ ok: true });
 	}
 
-	const deleted = await c.env.db_boltlink
-		.prepare("DELETE FROM link_groups WHERE id = ? RETURNING id")
-		.bind(id)
-		.first<{ id: number }>();
+	const usage = await c.env.db_boltlink
+		.prepare(
+			`SELECT
+				(SELECT COUNT(1) FROM link_groups AS child WHERE child.parent_id = ?) AS children,
+				(SELECT COUNT(1) FROM links AS link WHERE link.group_id = ?) AS links,
+				(SELECT COUNT(1) FROM link_groups AS self WHERE self.id = ?) AS present`,
+		)
+		.bind(id, id, id)
+		.first<{ children: number; links: number; present: number }>();
 
-	if (!deleted) {
+	// Read only to explain an already-refused removal, never to authorize it.
+	if (!usage?.present) {
 		return c.json({ error: "Group not found" }, 404);
 	}
+	if (usage.children > 0) {
+		return c.json({ error: GROUP_HAS_CHILDREN_MESSAGE }, 409);
+	}
+	if (usage.links > 0) {
+		return c.json({ error: GROUP_HAS_LINKS_MESSAGE }, 409);
+	}
 
-	return c.json({ ok: true });
+	return c.json({ error: "Group could not be removed" }, 409);
 });
 
 app.get("/api/preview", async (c) => {
@@ -1482,10 +1575,8 @@ async function updateLink(c: Context<AppContext>) {
 		return c.json({ error: "Link was modified concurrently. Reload it and try again" }, 409);
 	}
 
-	if (groupId !== undefined && existingLink.group_id !== null && existingLink.group_id !== groupId) {
-		await cleanupEmptyGroup(c.env.db_boltlink, existingLink.group_id);
-	}
-
+	// Moving this link away never removes the group it left behind, even when it
+	// held nothing else. Groups outlive their links.
 	return c.json({ link: updatedLink ? exposeLinkRow(updatedLink) : updatedLink });
 }
 
@@ -2278,6 +2369,93 @@ function normalizeGroupId(value: number | null | undefined) {
 	return value;
 }
 
+function groupDepthLimitMessage(resultingDepth?: number) {
+	return typeof resultingDepth === "number"
+		? `Group depth limit of ${MAX_GROUP_DEPTH} exceeded (resulting depth ${resultingDepth})`
+		: `Group depth limit of ${MAX_GROUP_DEPTH} exceeded`;
+}
+
+/**
+ * The whole group adjacency list. Every operation that has to interpret the tree
+ * reads it in one statement: no recursion on the read path, no auxiliary table
+ * and, above all, no extra work on the public redirect.
+ */
+async function readGroupRows(database: D1Database) {
+	const result = await database.prepare("SELECT id, parent_id FROM link_groups").all<GroupHierarchyRow>();
+	return result.results ?? [];
+}
+
+/**
+ * Explains a move that matched nothing. The write was already refused by
+ * `GROUP_MOVE_SQL`, so this is read-only classification and can never authorize a
+ * move. The checks follow that statement's `WHERE` clause, which is why the
+ * observed-parent precondition is reported before the subtree and depth reasons.
+ */
+async function classifyGroupMoveFailure(
+	database: D1Database,
+	groupId: number,
+	targetParentId: number | null,
+	expectedParentId: number | null,
+): Promise<{ status: 404 | 409; error: string }> {
+	const rows = await readGroupRows(database);
+	const current = rows.find((row) => row.id === groupId);
+	if (!current) {
+		return { status: 404, error: "Group not found" };
+	}
+
+	if (targetParentId !== null && !rows.some((row) => row.id === targetParentId)) {
+		return { status: 404, error: "Parent group not found" };
+	}
+
+	const hierarchy = analyzeGroupHierarchy(rows);
+	if (!hierarchy.ok) {
+		return { status: 409, error: GROUP_HIERARCHY_CORRUPT_MESSAGE };
+	}
+
+	if ((current.parent_id ?? null) !== expectedParentId) {
+		return { status: 409, error: GROUP_PARENT_CHANGED_MESSAGE };
+	}
+
+	if (isWithinSubtree(hierarchy.snapshot.parentById, groupId, targetParentId)) {
+		return { status: 409, error: GROUP_SUBTREE_MESSAGE };
+	}
+
+	const targetDepth = targetParentId === null ? 0 : (hierarchy.snapshot.depthById.get(targetParentId) ?? 0);
+	const resultingDepth = targetDepth + (hierarchy.snapshot.heightById.get(groupId) ?? 1);
+	return { status: 409, error: groupDepthLimitMessage(resultingDepth) };
+}
+
+/**
+ * Explains an insert that wrote nothing. The write was already refused by
+ * `GROUP_INSERT_SQL`, so this is read-only classification: it can never authorize
+ * an insert, never retries one and cannot produce a partial row. The order follows
+ * that statement's `WHERE` clause, which is why a parent that stopped existing
+ * during the request is reported as missing before the ceiling is blamed.
+ */
+async function classifyGroupInsertFailure(
+	database: D1Database,
+	parentId: number | null,
+): Promise<{ status: 404 | 409; error: string }> {
+	if (parentId === null) {
+		// A parent-less insert carries no condition left to refuse; kept so this
+		// classifier stays total.
+		return { status: 409, error: groupDepthLimitMessage() };
+	}
+
+	const rows = await readGroupRows(database);
+	if (!rows.some((row) => row.id === parentId)) {
+		return { status: 404, error: "Parent group not found" };
+	}
+
+	const hierarchy = analyzeGroupHierarchy(rows);
+	if (!hierarchy.ok) {
+		return { status: 409, error: GROUP_HIERARCHY_CORRUPT_MESSAGE };
+	}
+
+	const resultingDepth = (hierarchy.snapshot.depthById.get(parentId) ?? 0) + 1;
+	return { status: 409, error: groupDepthLimitMessage(resultingDepth) };
+}
+
 async function groupExists(database: D1Database, groupId: number) {
 	const group = await database
 		.prepare("SELECT 1 AS present FROM link_groups WHERE id = ? LIMIT 1")
@@ -2285,24 +2463,6 @@ async function groupExists(database: D1Database, groupId: number) {
 		.first<{ present: number }>();
 
 	return Boolean(group);
-}
-
-async function cleanupEmptyGroup(database: D1Database, groupId: number) {
-	const usage = await database
-		.prepare("SELECT COUNT(1) AS total FROM links WHERE group_id = ? AND disabled_at IS NULL")
-		.bind(groupId)
-		.first<{ total: number }>();
-
-	if ((usage?.total ?? 0) > 0) {
-		return false;
-	}
-
-	const deleted = await database
-		.prepare("DELETE FROM link_groups WHERE id = ? RETURNING id")
-		.bind(groupId)
-		.first<{ id: number }>();
-
-	return Boolean(deleted);
 }
 
 async function suggestDuplicateSlug(database: D1Database, baseSlug: string) {

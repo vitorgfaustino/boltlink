@@ -188,6 +188,14 @@ O sistema usa camadas com transparência e blur, não sombras pesadas. A profund
 ### Search
 - **Shell:** Input com ícone de lupa à esquerda (position absolute, left 14px). Padding-left 40px para não sobrepor ícone.
 - **Layout:** Row principal (input + botão de busca) + row secundária (label "Filtrar por grupo" + select). Em ≤640px, filtro colapsa para coluna única.
+- **Filtro:** continua significando associação direta ao grupo escolhido; a opção "Sem grupo" é um sentinela separado e subgrupos não entram por padrão.
+
+### Group Tree (painel `Grupos`, Unreleased / Fase 5)
+- **Painel:** ocupa as duas colunas do `.layout` (`grid-column: 1 / -1`) para não alterar a grade formulário + links.
+- **Estrutura:** listas aninhadas (`ul` dentro do `li` pai) em vez de indentação calculada; cada linha é um `.group-node` com botão de expandir/recolher (só quando há filhos), nome, caminho completo e ações `Mover` / `Excluir`.
+- **Toggle:** botão real com `aria-expanded` e `aria-label` nomeando o grupo, com o estado visível no glifo (`▸` / `▾`).
+- **Formas:** `fieldset.group-form` para "Criar grupo" (nome + grupo pai opcional) e "Mover grupo" (grupo, novo pai e caminho atual), lado a lado a partir de 768px.
+- **Erros:** um único `#group-status` com `aria-live="polite"`; uma recusa da API mantém a linha na tela e apenas reporta o motivo.
 
 ### Details / Accordion
 - **Summary:** Cursor pointer, peso 700, cor `--text-secondary`. Hover: cor `--accent`. Chevron customizado via `::after` com borda rotacionada (não usa `::marker` nativo).

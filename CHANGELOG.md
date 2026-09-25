@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-> Este bloco cobre o baseline local da **Fase 2** (Split Test A/B, migration `0004`), o estado **Unreleased da Fase 3** (Smart Routing, migration `0005`) e a working tree **Unreleased da Fase 4** (destino de expiração + `ROOT_REDIRECT_URL`, migration `0006`). A tag publicada `v2.2.1` termina na `0003` e não contém nenhum deles. Nenhum bump de versão está associado a estas correções.
+> Este bloco cobre o baseline local da **Fase 2** (Split Test A/B, migration `0004`), o estado **Unreleased da Fase 3** (Smart Routing, migration `0005`), a working tree **Unreleased da Fase 4** (destino de expiração + `ROOT_REDIRECT_URL`, migration `0006`) e a working tree **Unreleased da Fase 5** (hierarquia de grupos, sem migration nova). A tag publicada `v2.2.1` termina na `0003` e não contém nenhum deles. Nenhum bump de versão está associado a estas correções.
 
 ### Adicionado
 
@@ -29,6 +29,18 @@
 - `GET /api/capabilities` informa `expiredRedirect` ao Admin (indicador de schema da `0006`, não feature flag de produto)
 - `PATCH` de destino de expiração com invariante de estado final: campo ausente preserva, `null` limpa, URL válida substitui; limpar `expiresAt` mantendo o destino retorna `400`; limpar os dois juntos é permitido
 - duplicar um link continua nascendo ativo: não copia `expiresAt`, `goLiveAt`, senha nem `expiredRedirectUrl`; `reset-clicks` preserva expiração e destino de expiração
+- integridade da hierarquia de grupos sobre `link_groups.parent_id` (Unreleased / Fase 5): auto-parentesco e qualquer ciclo indireto respondem `409` sem escrita, decididos por CTE recursiva no próprio statement
+- limite operacional `MAX_GROUP_DEPTH = 16` com raiz em profundidade 1: `POST` sob profundidade 16 responde `409` sem linha parcial e `MOVE` mede a subárvore inteira (grupo + descendentes); árvore legada acima do limite continua legível e reparável para cima
+- movimentação de grupo com precondição de concorrência `expectedParentId`, obrigatória sempre que `parentId` é enviado: um pai que mudou desde a leitura responde `409` em vez de sobrescrever o move alheio, e o rename sem `parentId` mantém last-write-wins (sem coluna `version` em grupos)
+- `DELETE /api/groups/:id` passa a ser um `DELETE` condicional atômico: só remove grupo sem subgrupos e sem nenhum link, links desabilitados incluídos; com subgrupos ou links responde `409`, inexistente responde `404`, sem cascade e sem reparent automático
+- leitura de árvore corrompida falha fechado: ciclo gravado por SQL externo faz `GET /api/groups` responder `409` sem árvore parcial, sem loop e sem reparo automático
+- Admin ganha painel de grupos com árvore expansível, indentação, caminho completo (`Clientes / Brasil / Campinas`), criação com grupo pai opcional, movimentação com `expectedParentId` e exclusão bloqueada pelo backend com erro explícito
+- `test/group-hierarchy.spec.ts` e `test/group-hierarchy-admin.spec.ts` cobrem contrato de `parentId`, ciclos, profundidade, delete, corrupção, concorrência com dois handles, teto `O(N)` da montagem da árvore e ausência de HTML sink para nome/caminho de grupo
+
+### Removido
+
+- `cleanupEmptyGroup`: o runtime deixou de apagar grupos automaticamente (Unreleased / Fase 5). O comportamento antigo removia um grupo vazio quando o último link ativo saía dele, ignorando subgrupos e links desabilitados; agora mover ou excluir o último link preserva o grupo e a remoção é sempre explícita (`DELETE /api/groups/:id`)
+- o campo de criação rápida de grupo no formulário de link: criar grupo (com grupo pai opcional) passou para o painel `Grupos`, mantendo o formulário de link apenas com a associação `Grupo`
 
 ### Corrigido
 

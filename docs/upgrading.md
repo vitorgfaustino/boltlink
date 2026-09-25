@@ -1,15 +1,16 @@
 # Upgrading
 
-## Escopo das três bases e da Fase 4 (Unreleased / Fase 4)
+## Escopo das três bases e das Fases 4 e 5 (Unreleased)
 
-Os documentos abaixo descrevem quatro estados de código diferentes. Confirme em qual você está antes de seguir um procedimento:
+Os documentos abaixo descrevem cinco estados de código diferentes. Confirme em qual você está antes de seguir um procedimento:
 
 | Base | Como identificar | Migrations | Recursos de produto |
 | --- | --- | --- | --- |
 | Publicada | tag `v2.2.1` (`git rev-parse v2.2.1` → `8b3895e`) | `0000` a `0003` | links, grupos, tags, QR code, senha, agenda/expiração |
 | Fase 2 local | baseline local `23353a1`, não publicado | `0000` a `0004` | base publicada + Split Test A/B |
 | Fase 3 congelada | HEAD `548f179`, Unreleased | `0000` a `0005` | Fase 2 + Smart Routing |
-| Fase 4 (working tree) | working tree atual sobre `548f179` | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
+| Fase 4 congelada | HEAD `cdb9f83`, Unreleased | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
+| Fase 5 (working tree) | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos |
 
 Nenhum bump de versão acompanha estas correções: a tag publicada continua sendo `v2.2.1` e termina na `0003`.
 
@@ -71,6 +72,26 @@ npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote
 ```
 
 A Fase 4 também introduz a variável opcional `ROOT_REDIRECT_URL` (redirect da raiz), que não depende de migration nem de bindings novos: veja `README.md` e `docs/cloudflare-setup.md`.
+
+## Hierarquia de grupos (Unreleased / Fase 5)
+
+> Escopo: **working tree da Fase 5** (sobre o HEAD congelado da Fase 4 `cdb9f83`). A tag publicada `v2.2.1` **contém** a tabela `link_groups` com `parent_id` (migration `0002`), mas não contém nada desta seção.
+
+- **Não há migration**: a Fase 5 usa `link_groups.parent_id`, com a FK auto-referente e o índice `idx_link_groups_parent_id` que já existem desde a `0002`. Nada para aplicar, nenhum binding novo e nenhuma coluna nova. Uma instalação em `0006` já tem o schema necessário.
+- **O que muda no upgrade é comportamento, não schema.** Se a instalação já convivia com `link_groups.parent_id` gravado à mão, aplique as mudanças e valide: ciclos existentes passam a falhar fechado (veja abaixo).
+- **Falha fechado em grafo corrompido**: um ciclo gravado por SQL externo (ou `parent_id` apontando para grupo ausente) faz `GET /api/groups` responder `409` e o Admin mostrar o erro, sem árvore parcial e sem reparo automático. Antes de confiar no painel, verifique a árvore:
+
+```sql
+-- Ciclos: um grupo que alcança a si mesmo subindo a cadeia de parent_id.
+SELECT id, name, parent_id FROM link_groups;
+```
+
+  Repare o ciclo com um `UPDATE` administrativo explícito (o runtime nunca corrige a árvore sozinho) e recarregue o painel.
+- **Árvore legada acima de 16 níveis continua legível** e pode ser reparada movendo subárvores para cima; uma operação que mantém ou aumenta a violação responde `409`.
+- **Mudança de contrato em `PATCH /api/groups/:id`**: sempre que `parentId` for enviado, `expectedParentId` passa a ser obrigatório (o pai que o cliente observou; `null` para raiz). Um cliente que hoje manda apenas `parentId` recebe `400`; um move com pai desatualizado recebe `409`. Renomear sem `parentId` continua last-write-wins.
+- **Mudança de contrato em `DELETE /api/groups/:id`**: só remove grupo sem subgrupos e sem nenhum link, links desabilitados incluídos. Antes, um grupo com links desabilitados ou com subgrupos podia ser removido e os filhos eram promovidos a raiz pela FK `ON DELETE SET NULL`.
+- **Exclusão automática removida**: o runtime não apaga mais um grupo quando o último link ativo sai dele. Grupos que antes "sumiam" sozinhos passam a permanecer e devem ser removidos explicitamente quando não forem mais usados.
+- **Rollback**: voltar o código para a Fase 4 não exige nenhuma ação de banco — a Fase 5 não altera schema nem dados. O comportamento antigo volta junto com o código (inclusive a exclusão automática).
 
 ## PASSWORD_SESSION_SECRET e links protegidos por senha
 

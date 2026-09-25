@@ -68,7 +68,7 @@ Não existe mais persistência de evento por clique e nenhum dado de visitante (
 ### Tabela `link_groups`
 
 - `name`
-- `parent_id`
+- `parent_id` (auto-referência da migration `0002`; `NULL` = grupo raiz. A hierarquia é validada em tempo de escrita — veja "Semântica da hierarquia de grupos (Unreleased / Fase 5)")
 - `created_at`
 
 ### Semântica do Split Test A/B (Phase 2 local)
@@ -134,6 +134,23 @@ Escopo: **baseline local da Fase 2**. A tag publicada `v2.2.1` não tem Split Te
 - Valor válido: `302` + `Cache-Control: no-store` (sempre temporário — é configuração mutável por ambiente; `301` reteria um destino que pode mudar).
 - Valor ausente, inválido (não http/https, relativo, `javascript:`, `data:` etc.) ou com self-loop direto para a própria raiz: a landing é servida (fail-safe silencioso; não há erro de startup nem log do valor rejeitado).
 - Não afeta unknown slugs (`404`), `/admin`, `/api`, `/health`, `/privacidade` nem assets. A validação reusa `normalizeTargetUrl`, sem exceção específica da raiz.
+
+### Semântica da hierarquia de grupos (Unreleased / Fase 5)
+
+> Escopo: working tree da Fase 5 (sobre o HEAD congelado da Fase 4 `cdb9f83`). A hierarquia **já existe** desde a migration `0002_advanced_features.sql`; a Fase 5 não adiciona migration, coluna, tabela auxiliar, closure table nem materialized path, e não muda nenhuma capability.
+
+- `parent_id` é a única representação da árvore. `GET /api/groups` continua devolvendo linhas planas (`name`, `parent_id`, `created_at`); o Admin monta a árvore no cliente e o endpoint não virou uma resposta aninhada.
+- `parentId` é o campo de escrita. Em `POST /api/groups`, ausente ou `null` significa raiz e um inteiro positivo significa filho do grupo informado. Em `PATCH /api/groups/:id`, ausente preserva o pai, `null` move para a raiz e um inteiro positivo move sob o grupo informado. `parentGroupId` não existe na API pública.
+- Um grupo pai inexistente responde `404`: o pedido não é ignorado, não é convertido para raiz e não cria grupo implicitamente.
+- A hierarquia é acíclica. Auto-parentesco e qualquer ciclo indireto (`A → B → A`, `A → B → C → A`) respondem `409` sem escrita. O backend é a autoridade; a UI não é proteção suficiente.
+- `MAX_GROUP_DEPTH = 16`, com raiz em profundidade 1. `POST` sob profundidade 16 responde `409` e não grava linha parcial. Um `MOVE` mede a subárvore inteira (grupo + descendentes), não apenas o nó movido.
+- Árvore legada já acima de 16 continua legível e reparável: uma operação que reduz a profundidade máxima é aceita, e uma que mantém ou aumenta a violação responde `409`.
+- Toda mudança de pai é **um único `UPDATE` condicionado** com CTEs recursivas: ciclo, profundidade e a precondição do pai observado são decididos na mesma instrução que escreve. Não existe `SELECT` de verificação seguido de `UPDATE` desprotegido, logo não há janela entre checar e gravar. As CTEs usam `UNION` e um limite de recursão, então um ciclo pré-existente termina em vez de girar.
+- A precondição de concorrência é `expectedParentId`, obrigatória sempre que `parentId` é enviado. `null` significa que o cliente observou o grupo na raiz. Se o pai mudou desde a leitura, a resposta é `409` e nenhum move concorrente é sobrescrito. `PATCH` sem `parentId` (renomear) continua *last-write-wins*: a Fase 5 não adiciona coluna `version` a grupos.
+- `DELETE /api/groups/:id` é **um `DELETE` condicional atômico**: só remove grupo com zero subgrupos e zero links, incluindo links desabilitados. Grupo inexistente responde `404`; com subgrupos ou com links responde `409`. Não há cascade, não há reparent automático e a FK `ON DELETE SET NULL` da `0002` é preservada — a API impede que ela seja alcançada em deletes normais.
+- A exclusão automática de grupos foi **removida**. Mover ou excluir o último link de um grupo deixa o grupo no banco; remover um grupo é sempre uma decisão explícita do operador. O helper `cleanupEmptyGroup` não existe mais no runtime.
+- Grafo corrompido por edição SQL externa (ciclo, ou `parent_id` apontando para grupo ausente) falha fechado: `GET /api/groups` responde `409` e o Admin mostra o erro sem montar árvore parcial e sem reparo automático. `POST`/`PATCH` que precisam interpretar a árvore também respondem `409`.
+- O redirect público não muda. `PUBLIC_REDIRECT_SQL` permanece `SELECT * FROM links WHERE slug = ? AND disabled_at IS NULL`: sem `JOIN`, sem `SELECT` em `link_groups`, sem CTE e sem `PRAGMA` extra. Um link com `group_id` não carrega o grupo no hot path.
 
 ### Migrações e runtime (release publicada v2.2.1)
 

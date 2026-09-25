@@ -30,14 +30,24 @@ export default defineConfig({
 				test: {
 					name: "workers",
 					include: ["test/**/*.spec.ts"],
-					exclude: ["test/ab-display.spec.ts", "test/smart-routing-admin.spec.ts", "test/expired-redirect-admin.spec.ts"],
+					exclude: [
+						"test/ab-display.spec.ts",
+						"test/smart-routing-admin.spec.ts",
+						"test/expired-redirect-admin.spec.ts",
+						"test/group-hierarchy-admin.spec.ts",
+					],
 				},
 			},
 			{
 				test: {
 					name: "node",
 					environment: "node",
-					include: ["test/ab-display.spec.ts", "test/smart-routing-admin.spec.ts", "test/expired-redirect-admin.spec.ts"],
+					include: [
+						"test/ab-display.spec.ts",
+						"test/smart-routing-admin.spec.ts",
+						"test/expired-redirect-admin.spec.ts",
+						"test/group-hierarchy-admin.spec.ts",
+					],
 				},
 			},
 		],

@@ -134,15 +134,17 @@
               </label>
 
               <label>
-                Grupo
+                <span class="field-label">
+                  Grupo
+                  <span class="help-tip">
+                    <button type="button" class="help-tip-btn" aria-label="Ajuda sobre grupo do link">i</button>
+                    <span class="help-tip-text">Associação direta do link a um grupo. A lista mostra o caminho completo do grupo.</span>
+                  </span>
+                </span>
                 <select id="group-id">
                   <option value="">Sem grupo</option>
                 </select>
               </label>
-              <div class="slug-row">
-                <input id="new-group-name" type="text" placeholder="Novo grupo (ex: Campanhas 2026)" />
-                <button type="button" class="secondary compact" id="create-group-button">Criar grupo</button>
-              </div>
 
               <label>
                 <span class="field-label">
@@ -320,11 +322,52 @@
                 <option value="">Todos os grupos</option>
                 <option value="__none__">Sem grupo</option>
               </select>
+              <span class="field-help">O filtro considera apenas a associação direta ao grupo escolhido, sem incluir subgrupos.</span>
             </div>
           </form>
         </div>
         <div class="status" id="list-status"></div>
         <div class="cards" id="links-list"></div>
+      </article>
+
+      <article class="panel groups-panel">
+        <div class="panel-header">
+          <div class="panel-heading-copy">
+            <h2>Grupos</h2>
+            <p class="search-help">Hierarquia de grupos em até 16 níveis. Renomear, mover e excluir usam a API que valida ciclos, profundidade e concorrência.</p>
+          </div>
+        </div>
+
+        <div class="group-toolbar">
+          <button type="button" class="secondary compact" id="group-expand-all">Expandir tudo</button>
+          <button type="button" class="secondary compact" id="group-collapse-all">Recolher tudo</button>
+          <button type="button" class="secondary compact" id="group-refresh">Recarregar grupos</button>
+        </div>
+
+        <div class="group-tree" id="group-tree"></div>
+
+        <div class="group-forms">
+          <fieldset class="group-form">
+            <legend>Criar grupo</legend>
+            <label for="group-create-name">Nome do grupo</label>
+            <input id="group-create-name" type="text" maxlength="120" placeholder="ex: Campanhas 2026" />
+            <label for="group-create-parent">Grupo pai (opcional)</label>
+            <select id="group-create-parent"></select>
+            <button type="button" class="secondary compact" id="group-create-button">Criar grupo</button>
+          </fieldset>
+
+          <fieldset class="group-form">
+            <legend>Mover grupo</legend>
+            <label for="group-move-source">Grupo a mover</label>
+            <select id="group-move-source"></select>
+            <label for="group-move-target">Novo grupo pai</label>
+            <select id="group-move-target"></select>
+            <p class="field-help" id="group-move-path">Selecione um grupo para ver o caminho completo.</p>
+            <button type="button" class="secondary compact" id="group-move-button">Mover grupo</button>
+          </fieldset>
+        </div>
+
+        <div class="status" id="group-status" role="status" aria-live="polite" aria-atomic="true"></div>
       </article>
     </section>
 
@@ -340,6 +383,7 @@
   <script src="/ab-display.js"></script>
   <script src="/smart-routing-ui.js"></script>
   <script src="/expired-redirect-ui.js"></script>
+  <script src="/group-hierarchy-ui.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>
