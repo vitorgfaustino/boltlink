@@ -30,7 +30,7 @@
     </section>
 
     <section class="layout">
-      <article class="panel">
+      <article class="panel link-form-panel" id="link-form-panel">
         <div class="panel-header">
           <div class="panel-heading-copy">
             <h2 id="form-title">Criar link</h2>
@@ -297,7 +297,11 @@
             Links ativos exibidos: <strong id="links-count">0</strong>
           </div>
           <div class="export-actions">
-            <button type="button" class="secondary compact" id="export-button">Exportar dados</button>
+            <div class="panel-action-row">
+              <button type="button" class="secondary compact create-link-toggle" id="create-link-toggle" aria-expanded="true" aria-controls="link-form-panel">+ Criar link</button>
+              <button type="button" class="secondary compact" id="group-drawer-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="group-drawer">Gerenciar grupos</button>
+              <button type="button" class="secondary compact" id="export-button">Exportar dados</button>
+            </div>
             <div class="status" id="export-status" role="status" aria-live="polite" aria-atomic="true"></div>
           </div>
           <form id="search-form" class="search-form">
@@ -333,46 +337,6 @@
         <div class="status" id="list-status"></div>
         <div class="cards" id="links-list"></div>
       </article>
-
-      <article class="panel groups-panel">
-        <div class="panel-header">
-          <div class="panel-heading-copy">
-            <h2>Grupos</h2>
-            <p class="search-help">Hierarquia de grupos em até 16 níveis. Renomear, mover e excluir usam a API que valida ciclos, profundidade e concorrência.</p>
-          </div>
-        </div>
-
-        <div class="group-toolbar">
-          <button type="button" class="secondary compact" id="group-expand-all">Expandir tudo</button>
-          <button type="button" class="secondary compact" id="group-collapse-all">Recolher tudo</button>
-          <button type="button" class="secondary compact" id="group-refresh">Recarregar grupos</button>
-        </div>
-
-        <div class="group-tree" id="group-tree"></div>
-
-        <div class="group-forms">
-          <fieldset class="group-form">
-            <legend>Criar grupo</legend>
-            <label for="group-create-name">Nome do grupo</label>
-            <input id="group-create-name" type="text" maxlength="120" placeholder="ex: Campanhas 2026" />
-            <label for="group-create-parent">Grupo pai (opcional)</label>
-            <select id="group-create-parent"></select>
-            <button type="button" class="secondary compact" id="group-create-button">Criar grupo</button>
-          </fieldset>
-
-          <fieldset class="group-form">
-            <legend>Mover grupo</legend>
-            <label for="group-move-source">Grupo a mover</label>
-            <select id="group-move-source"></select>
-            <label for="group-move-target">Novo grupo pai</label>
-            <select id="group-move-target"></select>
-            <p class="field-help" id="group-move-path">Selecione um grupo para ver o caminho completo.</p>
-            <button type="button" class="secondary compact" id="group-move-button">Mover grupo</button>
-          </fieldset>
-        </div>
-
-        <div class="status" id="group-status" role="status" aria-live="polite" aria-atomic="true"></div>
-      </article>
     </section>
 
     <footer class="app-footer" aria-label="Informação da versão">
@@ -383,6 +347,84 @@
       <span class="footer-timezone" id="footer-timezone">Fuso: America/Sao_Paulo</span>
     </footer>
   </main>
+
+  <!-- Group management lives in an on-demand off-canvas drawer, outside <main>: the
+       editor stays reachable from the top of the interface however long the links
+       list grows, and it can never be covered by a card or cover one. -->
+  <div class="group-drawer-backdrop" id="group-drawer-backdrop"></div>
+  <aside
+    class="group-drawer"
+    id="group-drawer"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="group-drawer-title"
+    aria-hidden="true"
+    inert
+  >
+    <header class="group-drawer-header">
+      <div class="panel-heading-copy">
+        <h2 id="group-drawer-title">Grupos</h2>
+        <p class="group-drawer-subtitle">Organize seus links em grupos e subgrupos. Use grupos para facilitar a organização e o filtro dos links.</p>
+      </div>
+      <button type="button" class="secondary compact group-drawer-close" id="group-drawer-close" aria-label="Fechar painel de grupos">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="m6 6 12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+    </header>
+
+    <div class="group-drawer-body">
+      <div class="group-tabs" role="tablist" aria-label="Gerenciamento de grupos">
+        <button type="button" role="tab" class="group-tab" id="group-tab-tree" aria-controls="group-panel-tree" aria-selected="true">Grupos</button>
+        <button type="button" role="tab" class="group-tab" id="group-tab-create" aria-controls="group-panel-create" aria-selected="false" tabindex="-1">Criar</button>
+      </div>
+
+      <section class="group-panel" role="tabpanel" id="group-panel-tree" aria-labelledby="group-tab-tree">
+        <div class="group-toolbar">
+          <button type="button" class="secondary compact" id="group-expand-all" hidden>Expandir tudo</button>
+          <button type="button" class="secondary compact" id="group-collapse-all" hidden>Recolher tudo</button>
+          <button type="button" class="secondary compact" id="group-refresh">Recarregar grupos</button>
+        </div>
+
+        <!-- Move/rename belong to the group the operator picked in the tree, so the editor
+             names it and asks only for the missing value. It closes the tree block. -->
+        <div class="group-tree" id="group-tree"></div>
+
+        <div class="group-context-editor" id="group-context-editor" hidden>
+          <p class="group-context-heading">
+            <span class="group-context-name" id="group-context-name"></span>
+            <span class="group-context-path" id="group-context-path"></span>
+          </p>
+          <div class="group-context-field" id="group-context-move-field">
+            <label for="group-context-parent">Novo grupo pai</label>
+            <select id="group-context-parent"></select>
+          </div>
+          <div class="group-context-field" id="group-context-rename-field" hidden>
+            <label for="group-context-name-input">Novo nome</label>
+            <input id="group-context-name-input" type="text" maxlength="120" />
+          </div>
+          <div class="group-context-actions">
+            <button type="button" class="primary compact" id="group-context-confirm">Confirmar</button>
+            <button type="button" class="secondary compact" id="group-context-cancel">Cancelar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="group-panel" role="tabpanel" id="group-panel-create" aria-labelledby="group-tab-create" hidden>
+        <fieldset class="group-form">
+          <legend>Criar grupo</legend>
+          <label for="group-create-name">Nome do grupo</label>
+          <input id="group-create-name" type="text" maxlength="120" placeholder="ex: Campanhas 2026" />
+          <label for="group-create-parent">Grupo pai (opcional)</label>
+          <select id="group-create-parent"></select>
+          <button type="button" class="secondary compact" id="group-create-button">Criar grupo</button>
+        </fieldset>
+      </section>
+
+      <div class="status" id="group-status" role="status" aria-live="polite" aria-atomic="true"></div>
+    </div>
+  </aside>
 
   <script src="/ab-display.js"></script>
   <script src="/smart-routing-ui.js"></script>

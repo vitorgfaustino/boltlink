@@ -33,6 +33,14 @@ const state = {
   // created meanwhile is visible without extra bookkeeping.
   groupTree: null,
   collapsedGroups: new Set(),
+  // The editor is an on-demand drawer: nothing about the tree depends on it being
+  // open, only where the controls are shown and where focus belongs.
+  groupDrawerOpen: false,
+  // Which drawer view is mounted, and which group the move/rename editor is bound to.
+  groupTab: "tree",
+  groupContext: null,
+  // On a narrow viewport the creation form starts collapsed so the links list is first.
+  createFormCollapsed: false,
 };
 
 const smartRoutingUi = window.BoltLinkSmartRouting || null;
@@ -160,13 +168,28 @@ const groupStatus = document.getElementById("group-status");
 const groupCreateNameInput = document.getElementById("group-create-name");
 const groupCreateParentSelect = document.getElementById("group-create-parent");
 const groupCreateButton = document.getElementById("group-create-button");
-const groupMoveSourceSelect = document.getElementById("group-move-source");
-const groupMoveTargetSelect = document.getElementById("group-move-target");
-const groupMovePath = document.getElementById("group-move-path");
-const groupMoveButton = document.getElementById("group-move-button");
+const groupTabTreeButton = document.getElementById("group-tab-tree");
+const groupTabCreateButton = document.getElementById("group-tab-create");
+const groupTreePanel = document.getElementById("group-panel-tree");
+const groupCreatePanel = document.getElementById("group-panel-create");
+const groupContextEditor = document.getElementById("group-context-editor");
+const groupContextName = document.getElementById("group-context-name");
+const groupContextPath = document.getElementById("group-context-path");
+const groupContextMoveField = document.getElementById("group-context-move-field");
+const groupContextRenameField = document.getElementById("group-context-rename-field");
+const groupContextParentSelect = document.getElementById("group-context-parent");
+const groupContextNameInput = document.getElementById("group-context-name-input");
+const groupContextConfirmButton = document.getElementById("group-context-confirm");
+const groupContextCancelButton = document.getElementById("group-context-cancel");
 const groupExpandAllButton = document.getElementById("group-expand-all");
 const groupCollapseAllButton = document.getElementById("group-collapse-all");
 const groupRefreshButton = document.getElementById("group-refresh");
+const groupDrawer = document.getElementById("group-drawer");
+const groupDrawerOpenButton = document.getElementById("group-drawer-open");
+const groupDrawerCloseButton = document.getElementById("group-drawer-close");
+const groupDrawerBackdrop = document.getElementById("group-drawer-backdrop");
+const linkFormPanel = document.getElementById("link-form-panel");
+const createLinkToggleButton = document.getElementById("create-link-toggle");
 const formTitle = document.getElementById("form-title");
 const formStatus = document.getElementById("form-status");
 const listStatus = document.getElementById("list-status");
@@ -536,16 +559,44 @@ function expandedGroupIds(tree) {
   return expanded;
 }
 
-function groupNodeButton(action, label, title, row) {
+function groupNodeButton(action, label, title, row, variant = "secondary") {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "secondary compact";
+  button.className = `${variant} compact`;
   button.dataset.groupAction = action;
   button.textContent = label;
   // The path, not the bare name, so repeated names stay distinguishable.
   button.setAttribute("aria-label", `${title}: ${row.path}`);
   button.title = button.getAttribute("aria-label");
   return button;
+}
+
+/**
+ * Row actions live behind a `…` menu, so a group never has to render three full buttons.
+ * The menu is the same `<details>` pattern the link cards use, which keeps it keyboard
+ * operable and closes it when the operator clicks outside.
+ */
+function buildGroupNodeMenu(row) {
+  const wrapper = document.createElement("details");
+  wrapper.className = "more-actions-dropdown group-node-menu";
+
+  const summary = document.createElement("summary");
+  summary.setAttribute("aria-label", `Ações do grupo: ${row.path}`);
+  summary.title = summary.getAttribute("aria-label");
+  // A glyph, not markup: persisted content is not the only thing kept away from HTML sinks.
+  summary.textContent = "⋯";
+  wrapper.append(summary);
+
+  const menu = document.createElement("div");
+  menu.className = "dropdown-menu";
+  menu.append(
+    groupNodeButton("move", "Mover", "Mover grupo", row),
+    groupNodeButton("rename", "Renomear", "Renomear grupo", row),
+    groupNodeButton("delete", "Excluir", "Excluir grupo", row, "danger"),
+  );
+  wrapper.append(menu);
+
+  return wrapper;
 }
 
 /**
@@ -585,19 +636,170 @@ function buildGroupNode(row) {
   main.append(name, path);
   container.append(main);
 
-  const actions = document.createElement("div");
-  actions.className = "group-node-actions";
-  actions.append(
-    groupNodeButton("move", "Mover", "Mover grupo", row),
-    groupNodeButton("delete", "Excluir", "Excluir grupo", row),
-  );
-  container.append(actions);
+  container.append(buildGroupNodeMenu(row));
 
   return container;
 }
 
+/**
+ * The two drawer views. Only the active one is rendered, so the hidden view can never hold
+ * a focusable control and the operator never faces the tree and a form at the same time.
+ */
+function selectGroupTab(tab) {
+  const isTree = tab !== "create";
+  state.groupTab = isTree ? "tree" : "create";
+  closeGroupContext();
+
+  groupTabTreeButton.setAttribute("aria-selected", String(isTree));
+  groupTabTreeButton.tabIndex = isTree ? 0 : -1;
+  groupTabCreateButton.setAttribute("aria-selected", String(!isTree));
+  groupTabCreateButton.tabIndex = isTree ? -1 : 0;
+  groupTreePanel.hidden = !isTree;
+  groupCreatePanel.hidden = isTree;
+}
+
+/** Roving focus across the two tabs, which is the keyboard contract for a tablist. */
+function onGroupTabsKeydown(event) {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+    return;
+  }
+  event.preventDefault();
+  if (event.key === "Home") {
+    selectGroupTab("tree");
+  } else if (event.key === "End") {
+    selectGroupTab("create");
+  } else {
+    selectGroupTab(state.groupTab === "tree" ? "create" : "tree");
+  }
+  (state.groupTab === "tree" ? groupTabTreeButton : groupTabCreateButton).focus();
+}
+
+/**
+ * The move/rename editor is bound to the group the operator picked in the tree: that row
+ * already answered "which group", so it is shown as context instead of being asked again.
+ */
+function openGroupContext(mode, groupId) {
+  const tree = state.groupTree;
+  const group = tree ? tree.byId.get(groupId) : null;
+  if (!group) {
+    setStatus(groupStatus, groupHierarchyUi.ERROR_MESSAGES.NOT_FOUND, "error");
+    return;
+  }
+
+  state.groupContext = { mode, groupId };
+  groupContextName.textContent = group.name;
+  groupContextPath.textContent = groupHierarchyUi.groupPath(tree.byId, groupId);
+  groupContextEditor.hidden = false;
+  setStatus(groupStatus, "");
+
+  const isMove = mode === "move";
+  groupContextMoveField.hidden = !isMove;
+  groupContextRenameField.hidden = isMove;
+
+  if (isMove) {
+    // The current parent is preselected: confirming without a change stays a move to the
+    // same place instead of turning into an accidental promotion to the root.
+    const options = groupHierarchyUi.parentOptions(tree, groupId);
+    fillGroupSelect(groupContextParentSelect, "Sem grupo pai (raiz)", options, group.parentId === null ? "" : String(group.parentId));
+    groupContextParentSelect.focus();
+    return;
+  }
+
+  groupContextNameInput.value = group.name;
+  groupContextNameInput.focus();
+  groupContextNameInput.select();
+}
+
+function closeGroupContext() {
+  if (!state.groupContext) {
+    return;
+  }
+  state.groupContext = null;
+  groupContextEditor.hidden = true;
+  groupContextParentSelect.replaceChildren();
+  groupContextNameInput.value = "";
+}
+
+async function confirmGroupContext() {
+  const context = state.groupContext;
+  const tree = state.groupTree;
+  const group = context && tree ? tree.byId.get(context.groupId) : null;
+  if (!context || !group) {
+    closeGroupContext();
+    setStatus(groupStatus, groupHierarchyUi.ERROR_MESSAGES.NOT_FOUND, "error");
+    return;
+  }
+
+  const isMove = context.mode === "move";
+  const groupId = context.groupId;
+  const path = groupHierarchyUi.groupPath(tree.byId, groupId);
+  const name = isMove ? null : groupContextNameInput.value.trim();
+  if (!isMove && !name) {
+    setStatus(groupStatus, "Informe o novo nome do grupo.", "error");
+    return;
+  }
+  if (!isMove && name === group.name) {
+    closeGroupContext();
+    return;
+  }
+
+  const targetParentId = isMove && groupContextParentSelect.value ? Number(groupContextParentSelect.value) : null;
+
+  setBusy(groupContextConfirmButton, true);
+  try {
+    const result = await groupRequest(`/api/groups/${groupId}`, {
+      method: "PATCH",
+      // Move: the parent observed in the loaded snapshot travels as the precondition in the
+      // same request, so a move that happened meanwhile answers 409 instead of overwriting
+      // it. Rename: no parentId at all, which is the last-write-wins path the API documents.
+      body: JSON.stringify(isMove ? { parentId: targetParentId, expectedParentId: group.parentId } : { name }),
+    });
+
+    closeGroupContext();
+
+    if (!result.ok) {
+      // No automatic retry: reload so the drawer reflects the current state, then explain.
+      await loadGroups();
+      setStatus(groupStatus, groupHierarchyUi.groupErrorMessage(result.error), "error");
+      return;
+    }
+
+    await loadGroups();
+    setStatus(
+      groupStatus,
+      isMove ? `Grupo "${path}" movido.` : `Grupo renomeado para "${result.payload.group.name}".`,
+      "success",
+    );
+  } finally {
+    setBusy(groupContextConfirmButton, false);
+  }
+}
+
+/** Brings one node into view inside the drawer body, without moving the page behind it. */
+function showGroupNode(groupId) {
+  const node = groupTreeContainer.querySelector(`.group-node[data-group-id="${groupId}"]`);
+  if (node) {
+    node.scrollIntoView({ block: "nearest" });
+  }
+}
+
+/**
+ * Expand/collapse and the context editor have nothing to act on while no group exists, so
+ * they are hidden instead of dimmed: hidden controls leave the layout, the tab order and the
+ * accessibility tree together. Creation is what remains, which is the second tab.
+ */
+function syncGroupDrawerEmptyState() {
+  const hasGroups = Boolean(state.groupTree && state.groupTree.byId.size);
+  groupExpandAllButton.hidden = !hasGroups;
+  groupCollapseAllButton.hidden = !hasGroups;
+  if (!hasGroups) {
+    closeGroupContext();
+  }
+}
+
 function renderGroupTree() {
   const tree = state.groupTree;
+  syncGroupDrawerEmptyState();
   groupTreeContainer.replaceChildren();
 
   if (!tree) {
@@ -609,7 +811,14 @@ function renderGroupTree() {
     const empty = document.createElement("p");
     empty.className = "group-tree-empty";
     empty.textContent = "Nenhum grupo criado ainda.";
-    groupTreeContainer.append(empty);
+    // The empty state offers the one action that makes sense here and takes it to the
+    // creation tab, instead of leaving an operator with nothing to click.
+    const cta = document.createElement("button");
+    cta.type = "button";
+    cta.className = "secondary compact group-tree-empty-cta";
+    cta.dataset.groupAction = "create-first";
+    cta.textContent = "Criar primeiro grupo";
+    groupTreeContainer.append(empty, cta);
     return;
   }
 
@@ -637,6 +846,7 @@ function renderGroupTree() {
 /** A governed failure: the panel explains it and never renders a partial tree. */
 function renderGroupTreeFailure(message) {
   state.groupTree = null;
+  syncGroupDrawerEmptyState();
   groupTreeContainer.replaceChildren();
   const notice = document.createElement("p");
   notice.className = "group-tree-empty error-text";
@@ -644,51 +854,132 @@ function renderGroupTreeFailure(message) {
   groupTreeContainer.append(notice);
 }
 
+// One reversible snapshot of the inline styles the drawer touched. No scroll listener:
+// the page behind simply stops scrolling while the drawer is open, and the exact previous
+// values come back on close.
+let bodyScrollLock = null;
+
+function lockBodyScroll() {
+  if (bodyScrollLock) {
+    return;
+  }
+  const scrollbar = window.innerWidth - document.documentElement.clientWidth;
+  bodyScrollLock = { overflow: document.body.style.overflow, paddingRight: document.body.style.paddingRight };
+  document.body.style.overflow = "hidden";
+  if (scrollbar > 0) {
+    document.body.style.paddingRight = `${scrollbar}px`;
+  }
+}
+
+function unlockBodyScroll() {
+  if (!bodyScrollLock) {
+    return;
+  }
+  document.body.style.overflow = bodyScrollLock.overflow;
+  document.body.style.paddingRight = bodyScrollLock.paddingRight;
+  bodyScrollLock = null;
+}
+
+/** Controls the drawer owns, in document order. A hidden or inert one is skipped. */
+function groupDrawerFocusables() {
+  const selector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]';
+  return Array.from(groupDrawer.querySelectorAll(selector)).filter((element) => {
+    const style = getComputedStyle(element);
+    return !element.hidden && style.display !== "none" && style.visibility !== "hidden";
+  });
+}
+
+/**
+ * The drawer is modal, so Tab stays inside it while it is open. Wrapping at both ends is
+ * enough: every control in it is a plain tab stop, with no shadow root to cross.
+ */
+function keepGroupDrawerFocus(event) {
+  if (event.key !== "Tab") {
+    return;
+  }
+  const focusables = groupDrawerFocusables();
+  if (!focusables.length) {
+    return;
+  }
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (!groupDrawer.contains(active)) {
+    event.preventDefault();
+    first.focus();
+    return;
+  }
+  if (event.shiftKey && active === first) {
+    event.preventDefault();
+    last.focus();
+    return;
+  }
+  if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function onGroupDrawerKeydown(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeGroupDrawer();
+    return;
+  }
+  keepGroupDrawerFocus(event);
+}
+
+function openGroupDrawer() {
+  if (state.groupDrawerOpen) {
+    return;
+  }
+  state.groupDrawerOpen = true;
+  // Every session starts from the same place: the tree, with no outcome left over from the
+  // previous one greeting the operator as if it had just happened.
+  selectGroupTab("tree");
+  setStatus(groupStatus, "");
+  lockBodyScroll();
+  groupDrawerOpenButton.setAttribute("aria-expanded", "true");
+  groupDrawer.removeAttribute("inert");
+  groupDrawer.setAttribute("aria-hidden", "false");
+  groupDrawer.classList.add("is-open");
+  groupDrawerBackdrop.classList.add("is-open");
+  document.addEventListener("keydown", onGroupDrawerKeydown);
+  groupDrawerCloseButton.focus();
+}
+
+function closeGroupDrawer() {
+  if (!state.groupDrawerOpen) {
+    return;
+  }
+  state.groupDrawerOpen = false;
+  document.removeEventListener("keydown", onGroupDrawerKeydown);
+  groupDrawer.classList.remove("is-open");
+  groupDrawerBackdrop.classList.remove("is-open");
+  // `inert` and `aria-hidden` are what keep the closed drawer out of the tab order and the
+  // accessibility tree; the transition only decides when it stops being visible.
+  groupDrawer.setAttribute("inert", "");
+  groupDrawer.setAttribute("aria-hidden", "true");
+  groupDrawerOpenButton.setAttribute("aria-expanded", "false");
+  unlockBodyScroll();
+  groupDrawerOpenButton.focus();
+}
+
 function refreshGroupSelects() {
   const tree = state.groupTree;
-  // The link form, the create form and the move source all list every group by
-  // full path so equal names stay distinguishable.
+  // The link form and the create form list every group by full path so equal names stay
+  // distinguishable. The filter keeps its own sentinel for "no group", restored when it is
+  // still offered.
   const options = tree ? groupHierarchyUi.parentOptions(tree, null) : [];
 
   fillGroupSelect(groupIdInput, "Sem grupo", options, groupIdInput.value);
   fillGroupSelect(groupCreateParentSelect, "Sem grupo pai (raiz)", options, groupCreateParentSelect.value);
-  fillGroupSelect(groupMoveSourceSelect, "Escolha um grupo", options, groupMoveSourceSelect.value);
-  // The filter keeps its own sentinel for "no group", restored when still offered.
   fillGroupSelect(
     searchGroupIdInput,
     "Todos os grupos",
     [groupOption("__none__", "Sem grupo")].concat(options),
     searchGroupIdInput.value,
   );
-
-  refreshMoveForm();
-}
-
-/** Full-path context for the selected group, plus its still-possible parents. */
-function refreshMoveForm() {
-  const tree = state.groupTree;
-  const sourceValue = groupMoveSourceSelect.value;
-  const groupId = sourceValue ? Number(sourceValue) : null;
-
-  if (!tree || !groupId) {
-    fillGroupSelect(groupMoveTargetSelect, "Sem grupo pai (raiz)", [], "");
-    groupMovePath.textContent = "Selecione um grupo para ver o caminho completo.";
-    return;
-  }
-
-  const path = groupHierarchyUi.groupPath(tree.byId, groupId);
-  const group = tree.byId.get(groupId);
-  const parentId = group ? group.parentId : null;
-  const currentParentPath = parentId === null
-    ? "raiz"
-    : groupHierarchyUi.groupPath(tree.byId, parentId);
-
-  // The group and its subtree are hidden from the target list: a display
-  // convenience, since the API refuses such a move regardless.
-  const options = groupHierarchyUi.parentOptions(tree, groupId);
-  fillGroupSelect(groupMoveTargetSelect, "Sem grupo pai (raiz)", options, parentId === null ? "" : String(parentId));
-
-  groupMovePath.textContent = `Caminho atual: ${path} (pai: ${currentParentPath}). Máximo de ${groupHierarchyUi.MAX_DEPTH} níveis.`;
 }
 
 async function loadGroups() {
@@ -737,55 +1028,17 @@ async function createGroupFromPanel() {
       return;
     }
 
+    const created = result.payload.group;
     groupCreateNameInput.value = "";
+    groupCreateParentSelect.value = "";
     await loadGroups();
-    setStatus(groupStatus, `Grupo "${result.payload.group.name}" criado.`, "success");
+    // Creation belongs to the tree: going back there shows the new group instead of leaving
+    // the operator in front of a form that has nothing left to submit.
+    selectGroupTab("tree");
+    showGroupNode(created.id);
+    setStatus(groupStatus, `Grupo "${created.name}" criado.`, "success");
   } finally {
     setBusy(groupCreateButton, false);
-  }
-}
-
-async function moveSelectedGroup() {
-  const tree = state.groupTree;
-  const sourceValue = groupMoveSourceSelect.value;
-  if (!tree || !sourceValue) {
-    setStatus(groupStatus, "Escolha o grupo que deve ser movido.", "error");
-    return;
-  }
-
-  const groupId = Number(sourceValue);
-  const group = tree.byId.get(groupId);
-  if (!group) {
-    setStatus(groupStatus, groupHierarchyUi.ERROR_MESSAGES.NOT_FOUND, "error");
-    return;
-  }
-
-  const targetValue = groupMoveTargetSelect.value;
-  const targetParentId = targetValue ? Number(targetValue) : null;
-  const path = groupHierarchyUi.groupPath(tree.byId, groupId);
-
-  setBusy(groupMoveButton, true);
-  try {
-    const result = await groupRequest(`/api/groups/${groupId}`, {
-      method: "PATCH",
-      // The parent observed in the loaded snapshot is the precondition, sent in
-      // the same request as the new one. A move that happened meanwhile makes the
-      // API answer 409 instead of overwriting it.
-      body: JSON.stringify({ parentId: targetParentId, expectedParentId: group.parentId }),
-    });
-
-    if (!result.ok) {
-      // No automatic retry: reload so the panel reflects the current state, then
-      // report why the move was refused.
-      await loadGroups();
-      setStatus(groupStatus, groupHierarchyUi.groupErrorMessage(result.error), "error");
-      return;
-    }
-
-    await loadGroups();
-    setStatus(groupStatus, `Grupo "${path}" movido.`, "success");
-  } finally {
-    setBusy(groupMoveButton, false);
   }
 }
 
@@ -1264,6 +1517,29 @@ smartRoutingRulesContainer.addEventListener("click", (event) => {
   renderSmartRules();
 });
 
+// The creation form collapses on its own only where the links list is the main content:
+// below this width the form would otherwise own the first screen.
+const createFormMedia = window.matchMedia("(max-width: 900px)");
+
+/**
+ * Collapses or shows the whole creation card. On a narrow viewport the card starts hidden
+ * behind the "+ Criar link" action in the links panel, so the list is reachable without
+ * scrolling past a full form; on desktop `createFormMedia` never matches and the card stays
+ * exactly where it always was.
+ */
+function setCreateFormCollapsed(collapsed) {
+  state.createFormCollapsed = collapsed;
+  linkFormPanel.hidden = collapsed;
+  createLinkToggleButton.setAttribute("aria-expanded", String(!collapsed));
+}
+
+/** After saving or cancelling there is nothing left to submit, so the card folds back. */
+function collapseCreateFormIfNarrow() {
+  if (createFormMedia.matches) {
+    setCreateFormCollapsed(true);
+  }
+}
+
 function resetForm() {
   state.editingSlug = null;
   linkForm.reset();
@@ -1295,10 +1571,14 @@ function resetForm() {
   refreshUtmPreview();
   refreshDomainWarning();
   renderLinkPreview(null);
+  collapseCreateFormIfNarrow();
 }
 
 function beginEdit(link) {
   state.editingSlug = link.slug;
+  // Editing happens from a card in the list, so the form has to be on screen before it is
+  // filled in.
+  setCreateFormCollapsed(false);
   slugInput.value = link.slug;
   targetUrlInput.value = link.target_url;
   redirectTypeInput.value = link.redirect_type || "302";
@@ -1898,21 +2178,49 @@ generateSlugButton.addEventListener("click", () => {
   slugInput.setSelectionRange(slugInput.value.length, slugInput.value.length);
 });
 
+groupDrawerOpenButton.addEventListener("click", () => {
+  openGroupDrawer();
+});
+
+groupDrawerCloseButton.addEventListener("click", () => {
+  closeGroupDrawer();
+});
+
+// The backdrop is a separate element behind the drawer, so its own clicks close and a
+// click that started inside the drawer never does.
+groupDrawerBackdrop.addEventListener("click", () => {
+  closeGroupDrawer();
+});
+
 groupCreateButton.addEventListener("click", () => {
   createGroupFromPanel();
 });
 
-groupMoveButton.addEventListener("click", () => {
-  moveSelectedGroup();
+groupTabTreeButton.addEventListener("click", () => {
+  selectGroupTab("tree");
 });
 
-groupMoveSourceSelect.addEventListener("change", () => {
-  refreshMoveForm();
+groupTabCreateButton.addEventListener("click", () => {
+  selectGroupTab("create");
+});
+
+document.querySelector(".group-tabs").addEventListener("keydown", onGroupTabsKeydown);
+
+groupContextConfirmButton.addEventListener("click", () => {
+  confirmGroupContext();
+});
+
+groupContextCancelButton.addEventListener("click", () => {
+  closeGroupContext();
 });
 
 groupRefreshButton.addEventListener("click", async () => {
   await loadGroups();
   setStatus(groupStatus, "Grupos recarregados.");
+});
+
+createLinkToggleButton.addEventListener("click", () => {
+  setCreateFormCollapsed(!state.createFormCollapsed);
 });
 
 exportButton.addEventListener("click", () => {
@@ -1943,26 +2251,56 @@ groupTreeContainer.addEventListener("click", (event) => {
     return;
   }
 
+  // The empty state is not a row: it swaps to the creation tab and goes straight to the
+  // field the operator has to fill in.
+  if (button.dataset.groupAction === "create-first") {
+    selectGroupTab("create");
+    groupCreateNameInput.focus();
+    return;
+  }
+
   const node = button.closest(".group-node");
   const groupId = node ? Number(node.dataset.groupId) : Number.NaN;
   if (!Number.isInteger(groupId)) {
     return;
   }
 
-  if (button.dataset.groupAction === "toggle") {
+  // Row actions live in a `…` menu: choosing one closes it, so the same menu is not left
+  // open over the tree while its editor runs.
+  const menu = button.closest("details.group-node-menu");
+  if (menu) {
+    menu.removeAttribute("open");
+  }
+
+  const action = button.dataset.groupAction;
+  if (action === "toggle") {
     toggleGroupExpansion(groupId);
     return;
   }
-  if (button.dataset.groupAction === "move") {
-    groupMoveSourceSelect.value = String(groupId);
-    refreshMoveForm();
-    groupMoveTargetSelect.focus();
+  if (action === "move" || action === "rename") {
+    openGroupContext(action, groupId);
     return;
   }
-  if (button.dataset.groupAction === "delete") {
+  if (action === "delete") {
     deleteGroupFromPanel(groupId);
   }
 });
+
+// The row menu is absolutely positioned inside the scrolling drawer body, so a row near the
+// bottom would open with part of its menu below the fold. Opening one brings the menu into
+// view instead of shipping a portal. Captured because `toggle` does not bubble out of the
+// <details> it belongs to.
+groupTreeContainer.addEventListener(
+  "toggle",
+  (event) => {
+    const menu = event.target;
+    if (!menu.classList || !menu.classList.contains("group-node-menu") || !menu.hasAttribute("open")) {
+      return;
+    }
+    menu.querySelector(".dropdown-menu").scrollIntoView({ block: "nearest" });
+  },
+  true,
+);
 
 groupCreateNameInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
@@ -2110,6 +2448,12 @@ async function copyToClipboard(text) {
 }
 
 resetForm();
+// Both narrow-viewport defaults follow the media query itself, so a rotation can never
+// leave the form hidden with its toggle hidden, or open with the list pushed down.
+setCreateFormCollapsed(createFormMedia.matches);
+createFormMedia.addEventListener("change", (event) => {
+  setCreateFormCollapsed(event.matches);
+});
 footerYear.textContent = String(new Date().getFullYear());
 loadCapabilities().finally(() => loadLinks());
 loadGroups();

@@ -177,12 +177,9 @@ p {
   align-items: start;
 }
 
-@media (min-width: 901px) {
-  .layout > .panel:first-child {
-    position: sticky;
-    top: 32px;
-  }
-}
+/* The first card stays in normal flow on purpose. A sticky grid item is contained by the
+   grid container rather than by its own row, so a pinned card follows the scrollport past
+   the rows below it and covers whatever they hold. */
 
 @media (min-width: 768px) and (max-width: 900px) {
   .layout {
@@ -1151,6 +1148,13 @@ button.icon-btn {
     scroll-behavior: auto;
   }
 
+  /* The drawer reveals through a delayed `visibility`, which the shared duration reset
+     below does not cover. */
+  .group-drawer,
+  .group-drawer-backdrop {
+    transition-delay: 0s !important;
+  }
+
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
@@ -1357,10 +1361,242 @@ button.icon-btn {
 }
 
 /* Group hierarchy panel (Unreleased / Phase 5, Gate 5.1).
-   The panel spans both layout columns so it never disturbs the existing
-   form/links grid. */
-.layout > .groups-panel {
-  grid-column: 1 / -1;
+
+   Group management is an on-demand off-canvas drawer rather than a card in the page:
+   it sits outside `main`, so the editor is reachable from the top of the interface no
+   matter how long the links list is, and it leaves the document flow entirely instead of
+   contending with the cards above it. */
+
+.group-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(3, 4, 6, 0.62);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--motion-medium), visibility 0s linear var(--motion-medium);
+}
+
+.group-drawer-backdrop.is-open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--motion-medium), visibility 0s;
+}
+
+.group-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  /* Full width below the desktop size, so the mobile drawer needs no edge-to-edge math. */
+  width: min(460px, 100%);
+  padding: 24px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  /* One rhythm for the whole drawer: header → tabs, and then each block inside the body. */
+  gap: 16px;
+  background: #0b0d10;
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform var(--motion-medium), visibility 0s linear var(--motion-medium);
+}
+
+.group-drawer.is-open {
+  transform: translateX(0);
+  visibility: visible;
+  transition: transform var(--motion-medium), visibility 0s;
+}
+
+.group-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.group-drawer-subtitle {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.group-drawer-close {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 10px;
+  flex-shrink: 0;
+}
+
+/* The drawer header never scrolls away: only the body does. */
+.group-drawer-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+/* Actions next to the links counter (create, group management, export). */
+.panel-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The create-link collapse is a narrow-viewport affordance: on desktop the form is always
+   open and there is nothing to toggle, so the control is not rendered there. */
+.create-link-toggle {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .create-link-toggle {
+    display: inline-flex;
+  }
+}
+
+/* The tablist closes the header and opens the content: its margin is what separates the
+   two, so both tabs start their own block at the same distance from the tabs. */
+.group-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+}
+
+.group-tab {
+  flex: 1 1 0;
+  min-height: 40px;
+  padding: 6px 12px;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  border-radius: var(--radius-xs);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.group-tab:hover:not([aria-selected="true"]) {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.group-tab[aria-selected="true"] {
+  background: var(--accent);
+  color: #09090b;
+}
+
+.group-tab[aria-selected="true"]:hover {
+  background: var(--accent);
+}
+
+.group-panel {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+/* Move/rename asked for the value only: which group it applies to is already decided.
+   It sits after the tree, separated by the panel gap, and opening it focuses its field, so
+   the editor is revealed even when the tree is longer than the drawer. */
+.group-context-editor {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line-hover);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+}
+
+.group-context-heading {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+.group-context-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.group-context-path {
+  font-size: 0.76rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.group-context-field {
+  display: grid;
+  gap: 6px;
+}
+
+.group-context-field label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.group-context-field select,
+.group-context-field input {
+  width: 100%;
+  min-width: 0;
+}
+
+.group-context-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A `…` menu per row keeps the list dense: no row carries three full buttons. */
+.group-node-menu {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.group-node-menu summary {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.group-node-menu .dropdown-menu {
+  min-width: 150px;
+}
+
+.group-node-menu .dropdown-menu button {
+  min-height: 36px;
+}
+
+.group-node-menu .dropdown-menu button[data-group-action="delete"] {
+  color: #fca5a5;
+}
+
+/* Touch targets on a phone: the dense row gives the toggle and the `…` menu back the size
+   the rest of the admin already uses there. */
+@media (max-width: 640px) {
+  .group-node-toggle,
+  .group-node-toggle-spacer {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .group-node-menu summary {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 .group-toolbar {
@@ -1378,9 +1614,8 @@ button.icon-btn {
 }
 
 .group-tree {
-  margin-top: 18px;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .group-tree-empty {
@@ -1389,86 +1624,71 @@ button.icon-btn {
   font-size: 0.85rem;
 }
 
+.group-tree-empty-cta {
+  justify-self: start;
+  margin-top: 8px;
+}
+
 .group-tree ul {
   list-style: none;
   margin: 0;
   padding-left: 0;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 /* Nesting is the indent: each level is a <ul> inside its parent <li>. */
 .group-tree li ul {
-  margin-left: 10px;
-  padding-left: 16px;
+  margin-left: 8px;
+  padding-left: 14px;
   border-left: 1px solid var(--line);
 }
 
+/* Dense rows: one line of name plus one line of context, and the actions behind `…` so a
+   simple group never becomes a tall card. */
 .group-node {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 6px;
+  padding: 3px 6px;
   border: 1px solid var(--line);
   border-radius: var(--radius-xs);
   background: var(--surface-strong);
 }
 
 .group-node-toggle {
-  min-width: 32px;
-  min-height: 32px;
-  padding: 0 6px;
-  font-size: 0.8rem;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0 4px;
+  font-size: 0.72rem;
   line-height: 1;
 }
 
 .group-node-toggle-spacer {
   display: inline-block;
-  min-width: 32px;
+  min-width: 26px;
 }
 
 .group-node-main {
   display: grid;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
-  flex: 1 1 220px;
+  flex: 1 1 auto;
 }
 
 .group-node-name {
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   font-weight: 600;
   color: var(--text);
+  line-height: 1.25;
   overflow-wrap: anywhere;
 }
 
 .group-node-path {
-  font-size: 0.76rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
   color: var(--muted);
   overflow-wrap: anywhere;
-}
-
-.group-node-actions {
-  display: flex;
-  gap: 6px;
-  margin-left: auto;
-}
-
-.group-node-actions button[data-group-action="delete"] {
-  color: #fca5a5;
-  border-color: rgba(239, 68, 68, 0.35);
-}
-
-.group-forms {
-  margin-top: 22px;
-  display: grid;
-  gap: 16px;
-}
-
-@media (min-width: 768px) {
-  .group-forms {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 .group-form {
@@ -1489,4 +1709,23 @@ button.icon-btn {
 
 .group-form button {
   justify-self: start;
+}
+
+/* `hidden` alone is not enough inside the drawer: the toolbar buttons are
+   `display: inline-flex`, the tabs and panels are grid/flex, and those rules would win over
+   the UA one. Scoped to the drawer, this keeps every hidden control out of the layout, the
+   tab order and the accessibility tree. */
+.group-drawer [hidden] {
+  display: none;
+}
+
+/* The group status claims its margin only once it has something to report, and stays
+   mounted while empty so the live region keeps announcing. */
+#group-status {
+  margin-top: 16px;
+}
+
+#group-status:empty {
+  min-height: 0;
+  margin-top: 0;
 }
