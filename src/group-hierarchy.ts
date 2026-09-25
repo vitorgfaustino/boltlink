@@ -64,6 +64,44 @@ export const MAX_GROUP_DEPTH = 16;
  */
 export const GROUP_DEPTH_PROBE_LIMIT = MAX_GROUP_DEPTH * 4;
 
+/**
+ * Name ceiling of the write paths. A submitted name longer than this is *truncated*
+ * on write, so the API can never persist a longer one; a longer stored value can
+ * only come from external SQL.
+ */
+export const MAX_GROUP_NAME_LENGTH = 120;
+
+/**
+ * Write contract of a group name: what `POST /api/groups` and the rename path store
+ * for a submitted value. Returns `null` when the request must be refused — the value
+ * is not a string or is empty once trimmed — and otherwise the trimmed, ceiling-clamped
+ * name. It is the single authority for the rule, so the write paths and the export
+ * cannot drift apart.
+ */
+export function normalizeGroupName(input: unknown): string | null {
+	if (typeof input !== "string") {
+		return null;
+	}
+
+	const trimmed = input.trim();
+	if (trimmed.length === 0) {
+		return null;
+	}
+
+	return trimmed.slice(0, MAX_GROUP_NAME_LENGTH);
+}
+
+/**
+ * Read contract of a *persisted* group name, stated as exact parity with the write
+ * path: a canonical name is one `normalizeGroupName` would return unchanged. A
+ * padded, whitespace-only or over-ceiling value was not produced by BoltLink, so the
+ * caller must refuse it instead of silently normalizing it into something the database
+ * does not actually contain.
+ */
+export function isCanonicalGroupName(persisted: unknown): persisted is string {
+	return typeof persisted === "string" && normalizeGroupName(persisted) === persisted;
+}
+
 /** Minimal shape of `link_groups` this module reasons about. */
 export type GroupHierarchyRow = {
 	id: number;

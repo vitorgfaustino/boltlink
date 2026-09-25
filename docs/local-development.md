@@ -1,6 +1,6 @@
 # Desenvolvimento Local
 
-> Escopo: release publicada = **v2.2.1** (tag real, migrations até `0003`; sem `npm run dev-prepare`). Este documento descreve as **bases locais**: o baseline da Fase 2 (`0004`, Split Test A/B), o estado Unreleased / Fase 3 (`0005`, Smart Routing), a working tree Unreleased / Fase 4 (`0006`, destino de expiração) e a working tree Unreleased / Fase 5 (hierarquia de grupos, **sem migration nova**).
+> Escopo: release publicada = **v2.2.1** (tag real, migrations até `0003`; sem `npm run dev-prepare`). Este documento descreve as **bases locais**: o baseline da Fase 2 (`0004`, Split Test A/B), o estado Unreleased / Fase 3 (`0005`, Smart Routing), a working tree Unreleased / Fase 4 (`0006`, destino de expiração) e a working tree Unreleased / Fase 5 (hierarquia de grupos e exportação portátil, **sem migration nova**).
 
 Este projeto suporta desenvolvimento local com banco SQLite isolado para teste manual e validação rápida.
 
@@ -41,7 +41,7 @@ npm run setup
 npm run dev-prepare
 ```
 
-`npm run dev-prepare` lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc` e aplica a cadeia de migrations em `.wrangler/state/v3/d1`: `0000` a `0004` no baseline da Fase 2, `0000` a `0005` no estado Unreleased / Fase 3, e `0000` a `0006` na working tree da Fase 4 e também na da Fase 5 (a Fase 5 não adiciona migration: a hierarquia de grupos usa `link_groups.parent_id`, criado pela `0002`). Sem isso o Worker responde `503 Database schema is not initialized`.
+`npm run dev-prepare` lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc` e aplica a cadeia de migrations em `.wrangler/state/v3/d1`: `0000` a `0004` no baseline da Fase 2, `0000` a `0005` no estado Unreleased / Fase 3, e `0000` a `0006` na working tree da Fase 4 e também na da Fase 5 (a Fase 5 não adiciona migration: a hierarquia de grupos usa `link_groups.parent_id`, criado pela `0002`, e a exportação portátil apenas lê as colunas existentes). Sem isso o Worker responde `503 Database schema is not initialized`.
 
 O script `dev-prepare` **não existe** no checkout da tag `v2.2.1`, que termina na `0003`; lá o comando é `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
 

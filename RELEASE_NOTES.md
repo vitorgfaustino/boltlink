@@ -1,4 +1,4 @@
-## Unreleased - Fase 5 (hierarquia de grupos)
+## Unreleased - Fase 5 (hierarquia de grupos e exportação portátil)
 
 Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.
 
@@ -15,6 +15,14 @@ Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.
 - **Falha fechado em grafo corrompido**: ciclo gravado por SQL externo faz `GET /api/groups` responder `409`, sem árvore parcial, sem loop e sem reparo automático.
 - **Admin**: painel `Grupos` com árvore expansível, indentação, caminho completo (`Clientes / Brasil / Campinas`), criação com grupo pai opcional, movimentação com contexto de caminho e exclusão bloqueada pelo backend com erro compreensível — sem drag-and-drop e sem sort manual.
 - **Redirect inalterado**: o hot path público continua com a mesma leitura de `links`, sem `JOIN` em `link_groups`, sem consulta ao grupo e sem custo adicional por clique.
+- **Exportação portátil (Gate 5.2)**: `GET /api/export` gera o **BoltLink Portability JSON v1** (`format: "boltlink-portability"`, `schemaVersion: 1`) com a configuração lógica da instância e download pelo Admin em `Exportar dados`.
+- **Não é backup do banco**: o artefato transporta intenção administrativa — destino, tipo de redirect, tags, grupo, lifecycle, existência de senha, A/B e Smart Routing — e nada de métricas, hashes ou IDs internos. Recuperação integral de estado operacional continua sendo backup do D1.
+- **Senha nunca sai**: o `password_hash` não é nem selecionado; o documento traz apenas `passwordProtected: true/false`. O import (previsto para um gate futuro) vai exigir nova senha, e **não existe import nesta entrega**.
+- **Sem IDs internos**: grupos recebem `ref` local ao documento (`g1`, `g2`, …) e os links apontam para eles por `groupRef`; nenhum `id` do D1 é necessário para reconstruir a árvore, e nomes repetidos continuam distintos.
+- **Tombstones e ordem preservados**: links desabilitados continuam no documento (o slug permanece reservado), a ordem das tags é a do operador e as regras de Smart Routing viajam na ordem original, porque first-match-wins é semântico.
+- **Falha fechado, nunca parcial**: qualquer linha inválida — Smart Routing corrompido, destino de expiração sem expiração, URL inválida, slug reservado, **nome de grupo em forma não canônica (espaços nas pontas, só espaços ou acima de 120 caracteres, nunca normalizado no export)**, grafo de grupos com ciclo ou pai órfão, A/B inválido ou linha híbrida A/B + Smart — recusa o export inteiro com `409`. Acima de 50 grupos, 100 links ou 256 KiB (bytes UTF-8) a resposta é `413`. O documento nunca é truncado, nunca recebe `null` no lugar de estado corrompido e nunca é parcial.
+- **Determinismo e leitura consistente**: a mesma configuração produz o mesmo documento funcional (só `exportedAt` varia). Os dois `SELECT` viajam em um único `batch`, com a semântica que o D1 oferece para o batch; como o export também lê fora desse conjunto (contagem prévia e sondagens de capability), **não** há promessa de snapshot do request inteiro — a consistência vem da validação: os grupos são lidos antes dos links e uma corrida que criaria referência órfã responde `409` em vez de documento inconsistente.
+- **Somente leitura no request inteiro**: o export não escreve nada no banco e não executa DDL — nem no middleware: ele usa a readiness de schema somente leitura, então a projeção `boltlink_metric_fence` que as demais rotas `/api` instalam **não** é criada ao pedir o export, inclusive no primeiro request em handle frio. Usa o mesmo boundary administrativo e o mesmo rate limit das outras rotas `/api`, e downloads usam nome de arquivo constante com `Cache-Control: no-store`.
 
 ## Unreleased - Fase 4 (destino de expiração e redirect da raiz)
 

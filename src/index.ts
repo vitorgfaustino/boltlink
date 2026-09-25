@@ -50,9 +50,12 @@ import {
 	groupDeleteBindings,
 	groupInsertBindings,
 	groupMoveBindings,
+	normalizeGroupName,
 	isWithinSubtree,
 } from "./group-hierarchy";
 import type { GroupHierarchyRow } from "./group-hierarchy";
+import { PORTABILITY_EXPORT_FILENAME, buildPortabilityExport } from "./portability";
+import type { PortabilityGroupRow, PortabilityLinkRow } from "./portability";
 
 /** Persisted-state classification exposed to the Admin: disabled ≠ corrupt. */
 type SmartRoutingStatus = SmartRoutingPersistedResult["status"];
@@ -191,6 +194,13 @@ const SLUG_PATTERN = /^[A-Za-z0-9_-]{3,64}$/;
 const SLUG_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const accessJwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 const databaseSchemaBootstrap = new WeakMap<D1Database, Promise<void>>();
+/**
+ * Positive-only cache of the read-only schema *validation* (no fence projection).
+ * It exists so a steady-state `GET /api/export` runs no `PRAGMA` at all, exactly like
+ * the bootstrapping path; a failed validation is never cached, so an unprepared
+ * database keeps reporting `503`.
+ */
+const databaseSchemaValidated = new WeakMap<D1Database, Promise<void>>();
 const databaseAbReady = new WeakMap<D1Database, boolean>();
 const databaseSmartRoutingReady = new WeakMap<D1Database, boolean>();
 const databaseExpiredRedirectReady = new WeakMap<D1Database, boolean>();
@@ -324,8 +334,22 @@ const requireAdmin: MiddlewareHandler<AppContext> = async (c, next) => {
 	return rejectUnauthorized(c);
 };
 
+/**
+ * Administrative routes whose *whole request* must be read-only. `GET /api/export`
+ * is the only one, and for a specific reason: it advertises a zero-write artifact, so
+ * the fence projection the runtime installs on every other administrative request must
+ * not be created as a side effect of asking for it. The route still runs through the
+ * same rate limiter, the same `requireAdmin` boundary and the same schema validation;
+ * only the bootstrapping step is replaced by its read-only counterpart.
+ */
+const READ_ONLY_DATABASE_PATHS = new Set(["/api/export"]);
+
 const ensureDatabaseReady: MiddlewareHandler<AppContext> = async (c, next) => {
-	await ensureDatabaseSchema(c.env.db_boltlink);
+	if (READ_ONLY_DATABASE_PATHS.has(c.req.path)) {
+		await inspectDatabaseSchema(c.env.db_boltlink);
+	} else {
+		await ensurePreparedDatabase(c.env.db_boltlink);
+	}
 	await next();
 };
 
@@ -934,13 +958,15 @@ app.get("/api/groups", async (c) => {
 
 app.post("/api/groups", async (c) => {
 	const payload = await parseJsonBody<{ name?: string; parentId?: number | null }>(c);
-	if (!payload?.name?.trim()) {
+	// The name contract lives in `group-hierarchy` so the export validates against
+	// exactly the rule this path applies, instead of keeping a second copy.
+	const name = normalizeGroupName(payload?.name);
+	if (name === null) {
 		return c.json({ error: "Group name is required" }, 400);
 	}
 
-	const name = payload.name.trim().slice(0, 120);
-	const parentId = normalizeGroupId(payload.parentId);
-	if (payload.parentId !== undefined && parentId === undefined) {
+	const parentId = normalizeGroupId(payload?.parentId);
+	if (payload?.parentId !== undefined && parentId === undefined) {
 		return c.json({ error: "Invalid parentId" }, 400);
 	}
 
@@ -989,11 +1015,11 @@ app.patch("/api/groups/:id", async (c) => {
 
 	let name: string | null = null;
 	if (payload.name !== undefined) {
-		const trimmedName = payload.name.trim();
-		if (!trimmedName) {
+		const normalizedName = normalizeGroupName(payload.name);
+		if (normalizedName === null) {
 			return c.json({ error: "Group name cannot be empty" }, 400);
 		}
-		name = trimmedName.slice(0, 120);
+		name = normalizedName;
 	}
 
 	if (payload.parentId === undefined) {
@@ -1097,6 +1123,94 @@ app.delete("/api/groups/:id", async (c) => {
 	}
 
 	return c.json({ error: "Group could not be removed" }, 409);
+});
+
+/**
+ * Portability export (Unreleased / Phase 5, Gate 5.2).
+ *
+ * Administrative, on demand and read-only: it is protected by the same boundary as
+ * every other `/api` route (`requireAdmin` plus Cloudflare Access, with the API key
+ * as the existing alternative) and shares the existing administrative rate limiter.
+ * There is no parallel authentication and no dedicated limiter.
+ *
+ * The artifact is the logical configuration, not a database backup: hashes, metrics
+ * and internal identifiers are excluded by projection, not by filtering afterwards.
+ * The `password_hash` column is never selected — the statement computes a boolean —
+ * so the hash cannot leak through a later mistake in the serializer.
+ *
+ * Reads are ordered groups-then-links and the document is only emitted when every
+ * `groupRef` and `parentRef` resolves inside that snapshot. A group created, moved or
+ * removed meanwhile therefore produces a controlled `409`, never a document with
+ * dangling references. No snapshot isolation is claimed; internal consistency is
+ * enforced by validation. Zero writes: no `version`, timestamp, counter, epoch or
+ * audit table is touched — and the *whole request* is read-only, `GET /api/export`
+ * included the middleware stack, which is why this route validates the schema with
+ * the read-only readiness instead of the bootstrapping one that installs the metric
+ * fence projection.
+ */
+app.get("/api/export", async (c) => {
+	const schema = await inspectDatabaseSchema(c.env.db_boltlink);
+	const smartRouting = await resolveSmartRoutingCapability(c.env.db_boltlink, schema);
+	const expiredRedirect = await resolveExpiredRedirectCapability(c.env.db_boltlink, schema);
+
+	// Cheap pre-count so an oversized instance is refused before its rows are loaded.
+	const counts = await c.env.db_boltlink
+		.prepare("SELECT (SELECT COUNT(1) FROM link_groups) AS groups, (SELECT COUNT(1) FROM links) AS links")
+		.first<{ groups: number; links: number }>();
+
+	const abColumns = schema.abReady ? ", ab_enabled, ab_target_url, ab_weight_b" : "";
+	const smartColumn = smartRouting ? ", smart_routing_rules" : "";
+	const expiredColumn = expiredRedirect ? ", expired_redirect_url" : "";
+
+	// Both statements are explicit projections: `GET /api/links` is not reused as the
+	// read model, because that listing filters tombstones out and caps itself at 100
+	// rows. GROUP BY nothing and no LIMIT here — the export either carries everything
+	// or refuses.
+	const [groupResult, linkResult] = await c.env.db_boltlink.batch<unknown>([
+		c.env.db_boltlink.prepare(
+			"SELECT id, name, parent_id FROM link_groups ORDER BY name COLLATE NOCASE ASC, id ASC",
+		),
+		c.env.db_boltlink.prepare(`SELECT
+				slug,
+				target_url,
+				redirect_type,
+				tags,
+				group_id,
+				disabled_at,
+				go_live_at,
+				expires_at,
+				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${abColumns}${smartColumn}${expiredColumn}
+			FROM links
+			ORDER BY slug ASC`),
+	]);
+
+	const exported = buildPortabilityExport({
+		counts: { groups: counts?.groups ?? 0, links: counts?.links ?? 0 },
+		groups: (groupResult.results ?? []) as PortabilityGroupRow[],
+		links: (linkResult.results ?? []) as PortabilityLinkRow[],
+		capabilities: { abTesting: schema.abReady, smartRouting, expiredRedirect },
+		// The runtime's own validators are the authority for what BoltLink accepts, so
+		// the export cannot drift from the write paths it has to match.
+		policy: { isValidSlug: (slug: string) => validateSlug(slug) === null, normalizeUrl: normalizeTargetUrl },
+		exportedAt: isoNow(),
+	});
+
+	if (!exported.ok) {
+		// Controlled message: no raw SQL, no SQLite error, no stack and no stored value.
+		return c.json({ error: exported.error }, exported.status);
+	}
+
+	return new Response(exported.body, {
+		status: 200,
+		headers: {
+			"Content-Type": "application/json",
+			// Also set by the global header middleware for `/api/*`; repeated here so the
+			// export contract holds on its own.
+			"Cache-Control": "no-store",
+			// Static, constant filename: no persisted or request value can reach it.
+			"Content-Disposition": `attachment; filename="${PORTABILITY_EXPORT_FILENAME}"`,
+		},
+	});
 });
 
 app.get("/api/preview", async (c) => {
@@ -1644,7 +1758,49 @@ async function ensurePreparedDatabase(database: D1Database): Promise<void> {
 
 async function ensureDatabaseSchema(database: D1Database): Promise<SchemaCapabilities> {
 	await ensurePreparedDatabase(database);
+	return resolveSchemaCapabilities(database);
+}
 
+/**
+ * Read-only counterpart of {@link ensureDatabaseSchema}, for the routes whose whole
+ * request must not mutate the schema. It performs the same validation — the same
+ * `sqlite_master` probe and the same required-column check, failing closed with `503`
+ * when the database was never prepared — and reports the same capabilities, but it
+ * never installs the metric fence projection.
+ */
+async function inspectDatabaseSchema(database: D1Database): Promise<SchemaCapabilities> {
+	await ensureDatabaseValidated(database);
+	return resolveSchemaCapabilities(database);
+}
+
+/**
+ * Validates that the database was prepared, reusing the per-handle result when it
+ * already ran. Read-only by construction: it calls {@link readInitializedLinkColumns}
+ * and nothing else, so unlike {@link ensurePreparedDatabase} it cannot create a view.
+ */
+async function ensureDatabaseValidated(database: D1Database): Promise<void> {
+	const cachedValidation = databaseSchemaValidated.get(database);
+	if (cachedValidation) {
+		await cachedValidation;
+		return;
+	}
+
+	const validation = readInitializedLinkColumns(database).then(() => undefined).catch((error) => {
+		databaseSchemaValidated.delete(database);
+		throw error;
+	});
+	databaseSchemaValidated.set(database, validation);
+	await validation;
+}
+
+/**
+ * Capability resolution shared by both readiness levels, so the read-only route and
+ * the bootstrapping one can never disagree about what the database supports. Positive
+ * results are cached per handle; negative results are never cached, so a Worker started
+ * before migration 0004 can discover the migration once it is applied. The same schema
+ * read also classifies Smart Routing.
+ */
+async function resolveSchemaCapabilities(database: D1Database): Promise<SchemaCapabilities> {
 	if (databaseAbReady.get(database)) {
 		return {
 			abReady: true,
@@ -1653,9 +1809,6 @@ async function ensureDatabaseSchema(database: D1Database): Promise<SchemaCapabil
 		};
 	}
 
-	// Negative capabilities are never cached: a Worker started before migration
-	// 0004 must be able to discover the migration once it is applied. The same
-	// schema read also classifies Smart Routing.
 	const capabilities = await detectSchemaCapabilities(database);
 	if (capabilities.abReady) {
 		databaseAbReady.set(database, true);
@@ -1757,7 +1910,15 @@ async function detectSchemaCapabilities(database: D1Database): Promise<SchemaCap
  * the column from the row it already fetched.
  */
 async function ensureSmartRoutingCapability(database: D1Database): Promise<boolean> {
-	const schema = await ensureDatabaseSchema(database);
+	return resolveSmartRoutingCapability(database, await ensureDatabaseSchema(database));
+}
+
+/**
+ * Read-only resolution of the Smart Routing capability from an already-validated
+ * schema, for the routes that must not run the bootstrapping write. The negative
+ * re-probe is a `PRAGMA` read, never a mutation.
+ */
+async function resolveSmartRoutingCapability(database: D1Database, schema: SchemaCapabilities): Promise<boolean> {
 	if (schema.smartRoutingReady || databaseSmartRoutingReady.get(database) === true) {
 		return true;
 	}
@@ -1779,7 +1940,11 @@ async function ensureSmartRoutingCapability(database: D1Database): Promise<boole
  * the shape of the row it already fetched.
  */
 async function ensureExpiredRedirectCapability(database: D1Database): Promise<boolean> {
-	const schema = await ensureDatabaseSchema(database);
+	return resolveExpiredRedirectCapability(database, await ensureDatabaseSchema(database));
+}
+
+/** Read-only counterpart of {@link ensureExpiredRedirectCapability}. */
+async function resolveExpiredRedirectCapability(database: D1Database, schema: SchemaCapabilities): Promise<boolean> {
 	if (schema.expiredRedirectReady || databaseExpiredRedirectReady.get(database) === true) {
 		return true;
 	}

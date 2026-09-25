@@ -35,7 +35,7 @@ Não existe mais persistência de evento por clique e nenhum dado de visitante (
 
 1. O acesso passa por `requireAdmin`.
 2. O token do Access é validado no próprio Worker.
-3. O painel consome `/api/links`, `/api/groups`, `/api/preview` e endpoints auxiliares.
+3. O painel consome `/api/links`, `/api/groups`, `/api/preview`, `/api/export` e endpoints auxiliares.
 4. O painel permite zerar `clicks_total` de um link ativo sem apagar o link.
 
 ## Modelo de dados
@@ -151,6 +151,47 @@ Escopo: **baseline local da Fase 2**. A tag publicada `v2.2.1` não tem Split Te
 - A exclusão automática de grupos foi **removida**. Mover ou excluir o último link de um grupo deixa o grupo no banco; remover um grupo é sempre uma decisão explícita do operador. O helper `cleanupEmptyGroup` não existe mais no runtime.
 - Grafo corrompido por edição SQL externa (ciclo, ou `parent_id` apontando para grupo ausente) falha fechado: `GET /api/groups` responde `409` e o Admin mostra o erro sem montar árvore parcial e sem reparo automático. `POST`/`PATCH` que precisam interpretar a árvore também respondem `409`.
 - O redirect público não muda. `PUBLIC_REDIRECT_SQL` permanece `SELECT * FROM links WHERE slug = ? AND disabled_at IS NULL`: sem `JOIN`, sem `SELECT` em `link_groups`, sem CTE e sem `PRAGMA` extra. Um link com `group_id` não carrega o grupo no hot path.
+
+### Exportação portátil: BoltLink Portability JSON v1 (Unreleased / Fase 5)
+
+> Escopo: working tree da Fase 5. Não existe `GET /api/export` nem formato de exportação na tag publicada `v2.2.1`. A entrega é somente **export**: nenhum import, upload, dry-run ou remapeamento de IDs.
+
+O módulo `src/portability.ts` é dono do formato e o handler Hono permanece fino. As regras de produto que já existem no runtime (sintaxe e slugs reservados, política de destino) entram por injeção, para que o export não mantenha uma segunda cópia divergente das regras de escrita.
+
+**Identidade do formato.** `format: "boltlink-portability"` e `schemaVersion: 1`. A versão do formato evolui independentemente da versão do produto: `schemaVersion` nunca espelha `package.json`. `exportedAt` é metadado informativo e não influencia a identidade nem a semântica do futuro import.
+
+**Configuração lógica, não backup.** O documento descreve intenção administrativa: `slug`, `targetUrl`, `redirectType`, `tags`, `groupRef`, `disabled`, `goLiveAt`, `expiresAt`, `expiredRedirectUrl`, `passwordProtected`, `abTest` e `smartRouting`. Métricas (`clicks_total`, `ab_clicks_*`, `ab_started_at`, `metric_epoch`, `ab_generation`), `has_qrcode`, `version` e os `id` do D1 ficam de fora **por projeção**, não por filtro posterior. Recuperação integral de hashes, contadores e metadados operacionais continua sendo backup do banco.
+
+**Senha.** A consulta nunca seleciona `password_hash`: ela calcula `CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password`, então o hash não entra no processo. O documento carrega apenas o booleano, e o import futuro exigirá nova senha.
+
+**Refs de grupo.** Nenhum `id` interno vira identidade portátil. Cada grupo recebe uma `ref` local ao documento (`g1`, `g2`, …) derivada da ordenação determinística, e cada link se vincula por `groupRef`, com `null` — nunca omissão — para link sem grupo. Refs não dependem do banco de destino e não exigem coluna nova.
+
+**Capacidade por nível de migration.** `expiredRedirectUrl`, `abTest` e `smartRouting` só aparecem quando a coluna existe no banco, seguindo exatamente o que a API administrativa já faz: ausência significa "este banco não tem a feature", nunca "configurado como `null`".
+
+**Ordem e determinismo.** Grupos são ordenados por nome (comparação total e independente de locale, com o `id` apenas como desempate) e links por `slug`. `ref` deriva dessa ordem, então a mesma configuração produz o mesmo documento funcional: apenas `exportedAt` varia. Ordem de tags e ordem das regras de Smart Routing são preservadas porque first-match-wins é semântico.
+
+**Falha fechado.** Qualquer linha que o BoltLink não aceitaria hoje recusa o export inteiro com `409` e mensagem controlada, sem citar SQL bruto, erro do SQLite, stack, hash ou segredo:
+
+| Estado persistido | Resposta |
+| --- | --- |
+| Smart Routing corrompido (incluindo JSON válido que não é array de regras) | `409` — nunca convertido em "desativado" |
+| Destino de expiração sem `expires_at`, ou URL inválida | `409` |
+| URL de destino inválida, `redirect_type` fora de `301`/`302`, tags fora do contrato | `409` |
+| Slug malformado ou reservado (corrupção externa) | `409` |
+| Lifecycle não parseável, ou `expiresAt` anterior a `goLiveAt` | `409` |
+| `group_id` apontando para grupo inexistente; ciclo ou pai órfão no grafo | `409` |
+| Nome de grupo não canônico: com espaços nas pontas, só espaços, ou acima de 120 caracteres | `409` — nunca normalizado para um valor que o banco não contém |
+| A/B inválido (`ab_weight_b` fora de 1–99, split ativo sem Variant B, split ativo em `301`) | `409` |
+| Linha híbrida A/B + Smart Routing | `409` |
+| Acima de 50 grupos, 100 links ou 256 KiB (bytes UTF-8) | `413`, sem truncar |
+
+O limite de bytes é aplicado sobre o documento serializado e medido em UTF-8, não em unidades de string do JavaScript.
+
+**Leitura consistente.** Os dois `SELECT` do export viajam em um único `batch`, e os statements dentro desse batch têm a semântica que o D1 oferece para o batch — não uma garantia acrescentada aqui. O export completo, porém, também faz leituras **fora** desse conjunto: a contagem prévia e as sondagens de capability. O gate portanto **não** promete um snapshot único do request inteiro. O que ele garante é consistência interna: os grupos são lidos antes dos links e o documento só é emitido quando todo `groupRef` e `parentRef` resolve naquela leitura dos grupos. Se um link aponta para um grupo que a leitura não viu (por exemplo, um grupo criado no intervalo), a resposta é `409` em vez de referência órfã. A consistência final vem da validação das referências, não de uma alegação de snapshot isolation, e uma corrida nunca produz documento internamente inconsistente.
+
+**Isolamento do hot path.** Nada do export toca o redirect: o módulo não é importado no caminho público, e um teste instrumentado garante que um redirect aquecido continua com um único `SELECT * FROM links` e nenhuma menção a `link_groups`, `JOIN`, CTE ou `PRAGMA`.
+
+**Somente leitura do request inteiro.** `GET /api/export` não escreve no D1 e não executa DDL — e isso vale para o **request completo**, não apenas para o handler. A rota usa a readiness de schema somente leitura (validação por `sqlite_master`/`PRAGMA` e sondagem de capabilities), então nem o middleware cria objetos: a projeção `boltlink_metric_fence` que a readiness de bootstrap instala nas demais rotas `/api` **não** é criada ao pedir o export, inclusive no primeiro request em handle frio. Autenticação (`requireAdmin`/Access/chave de API), rate limit e o `503` de banco não preparado continuam idênticos.
 
 ### Migrações e runtime (release publicada v2.2.1)
 

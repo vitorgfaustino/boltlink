@@ -40,6 +40,9 @@ const expiredRedirectUi = window.BoltLinkExpiredRedirect || null;
 // Loaded before this script, and pinned by an order test. The panel fails closed
 // with an explanatory status instead of throwing when the module is absent.
 const groupHierarchyUi = window.BoltLinkGroupHierarchy || null;
+// Loaded before this script, and pinned by an order test. When it is missing the
+// export button disables itself instead of downloading a file under a guessed name.
+const portabilityUi = window.BoltLinkPortability || null;
 // Loaded before this script, and pinned by an order test. The local fallback only
 // keeps the controls inert instead of throwing if the module is ever absent; a
 // submission that actually needs the rules fails closed in the payload builder.
@@ -169,6 +172,8 @@ const formStatus = document.getElementById("form-status");
 const listStatus = document.getElementById("list-status");
 const linksList = document.getElementById("links-list");
 const linksCount = document.getElementById("links-count");
+const exportButton = document.getElementById("export-button");
+const exportStatus = document.getElementById("export-status");
 const appVersion = document.getElementById("app-version");
 const footerYear = document.getElementById("footer-year");
 const footerTimezone = document.getElementById("footer-timezone");
@@ -849,6 +854,61 @@ async function downloadQrForSlug(slug) {
   anchor.click();
   URL.revokeObjectURL(url);
   return shortLink;
+}
+
+/**
+ * Downloads the portability export.
+ *
+ * The request goes through the same authenticated `/api/export` route as every other
+ * administrative call, and the body is handed to a `download` blob instead of being
+ * navigated to, so the panel never renders raw JSON. The filename comes from
+ * `Content-Disposition` through the shared helper, which falls back to a constant
+ * whenever the header is absent or does not match the safe shape.
+ */
+async function exportConfiguration() {
+  if (!portabilityUi) {
+    setStatus(exportStatus, "O módulo de exportação não foi carregado. Recarregue o painel.", "error");
+    return;
+  }
+
+  setBusy(exportButton, true);
+  setStatus(exportStatus, "Preparando exportação...");
+
+  try {
+    const response = await fetch(portabilityUi.EXPORT_PATH, {
+      method: "GET",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    });
+
+    if (!response.ok) {
+      let apiMessage = "";
+      try {
+        const payload = await response.json();
+        apiMessage = typeof payload?.error === "string" ? payload.error : "";
+      } catch {
+        apiMessage = "";
+      }
+
+      setStatus(exportStatus, portabilityUi.exportErrorMessage(response.status, apiMessage), "error");
+      return;
+    }
+
+    const body = await response.text();
+    const filename = portabilityUi.filenameFromDisposition(response.headers.get("Content-Disposition"));
+    const blobUrl = URL.createObjectURL(new Blob([body], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = blobUrl;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(blobUrl);
+
+    setStatus(exportStatus, `Exportação concluída: ${filename}`, "success");
+  } catch (error) {
+    setStatus(exportStatus, error?.message || "Não foi possível exportar os dados.", "error");
+  } finally {
+    setBusy(exportButton, false);
+  }
 }
 
 function setAbWeightBValue(rawWeight) {
@@ -1853,6 +1913,10 @@ groupMoveSourceSelect.addEventListener("change", () => {
 groupRefreshButton.addEventListener("click", async () => {
   await loadGroups();
   setStatus(groupStatus, "Grupos recarregados.");
+});
+
+exportButton.addEventListener("click", () => {
+  exportConfiguration();
 });
 
 groupExpandAllButton.addEventListener("click", () => {

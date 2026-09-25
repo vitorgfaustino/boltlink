@@ -23,9 +23,9 @@ Este guia cobre as três formas de operar o BoltLink v2.2.1:
 | Fase 2 local (`23353a1`, não publicado) | `0000` a `0004` | Split Test A/B |
 | Fase 3 congelada (`548f179`) | `0000` a `0005` | Split Test A/B + Smart Routing |
 | Fase 4 congelada (`cdb9f83`) | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
-| Fase 5 working tree (esta working tree sobre `cdb9f83`) | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos |
+| Fase 5 working tree (esta working tree sobre `cdb9f83`) | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil |
 
-Os fluxos publicados abaixo usam apenas comandos que existem na tag. `npm run dev-prepare`, `0004`, `0005` e `0006` pertencem às seções locais. A hierarquia de grupos da Fase 5 não acrescenta migration: ela usa `link_groups.parent_id`, criado pela `0002`.
+Os fluxos publicados abaixo usam apenas comandos que existem na tag. `npm run dev-prepare`, `0004`, `0005` e `0006` pertencem às seções locais. A hierarquia de grupos e a exportação portátil da Fase 5 não acrescentam migration: a primeira usa `link_groups.parent_id`, criado pela `0002`, e a segunda apenas lê colunas existentes.
 
 ## Fluxo A: Wrangler local (release publicada v2.2.1)
 
@@ -137,15 +137,16 @@ Na working tree da Fase 4:
 - valide `GET /api/capabilities` com `expiredRedirect: true`;
 - opcionalmente configure `ROOT_REDIRECT_URL` (variável `Text`, não é secret) para redirecionar `GET /`; ausente ou inválida, a landing normal é servida — valide a configuração após o deploy.
 
-## Unreleased / Fase 5 (hierarquia de grupos)
+## Unreleased / Fase 5 (hierarquia de grupos e exportação portátil)
 
 > Escopo: release publicada/baseline = **v2.2.1**. Esta seção descreve somente a working tree da Fase 5 (sobre o HEAD congelado da Fase 4 `cdb9f83`).
 
 Na working tree da Fase 5:
 
-- **não há etapa de migration nem binding novo**: a hierarquia usa `link_groups.parent_id`, criado pela `0002`. As mesmas etapas do Fluxo A/B/C valem, sem passo adicional;
+- **não há etapa de migration nem binding novo**: a hierarquia usa `link_groups.parent_id`, criado pela `0002`, e o export apenas lê colunas existentes. As mesmas etapas do Fluxo A/B/C valem, sem passo adicional;
 - `npm run dev-prepare` continua aplicando a cadeia até `0006`; a Fase 5 não adiciona `0007`;
-- o Admin ganha o painel `Grupos` (árvore, criação com grupo pai opcional, mover, excluir) e o redirect público continua sem consultar `link_groups`;
+- o Admin ganha o painel `Grupos` (árvore, criação com grupo pai opcional, mover, excluir) e a ação `Exportar dados`, e o redirect público continua sem consultar `link_groups`;
+- `GET /api/export` está protegido pelo mesmo boundary de `/api` (Cloudflare Access, `requireAdmin` ou chave de API) e pelo mesmo rate limit administrativo: se a instalação usa Access, nada extra precisa ser configurado além da policy que já cobre `/api/*`;
 - se a instância já tinha `link_groups.parent_id` editado à mão, valide a árvore antes de confiar no painel: um ciclo existente faz `GET /api/groups` responder `409` (falha fechado, sem reparo automático). Veja `docs/upgrading.md`;
 - o contrato de `PATCH /api/groups/:id` exige `expectedParentId` sempre que `parentId` é enviado, e `DELETE /api/groups/:id` só remove grupo sem subgrupos e sem nenhum link (desabilitados incluídos). Automatizações que chamam essas rotas precisam ser atualizadas.
 

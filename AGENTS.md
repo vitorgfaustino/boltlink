@@ -15,6 +15,7 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 - destino opcional para links expirados em `links.expired_redirect_url` (**Unreleased / Fase 4**; migration `0006_expired_redirect.sql`, ausente da tag publicada)
 - redirect opcional da raiz (`GET /`) via variável `ROOT_REDIRECT_URL` (**Unreleased / Fase 4**, sem D1)
 - hierarquia de grupos em `link_groups.parent_id` (**Unreleased / Fase 5**, sem migration nova: a coluna existe desde a `0002`)
+- exportação administrativa da configuração lógica em BoltLink Portability JSON v1 via `GET /api/export` (**Unreleased / Fase 5**, sem migration nova)
 - autenticação administrativa via Cloudflare Access
 
 ### Cinco bases de código que não podem ser confundidas
@@ -25,9 +26,9 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 | Fase 2 local | baseline local `23353a1`, não publicado | `0000` a `0004` | Split Test A/B |
 | Fase 3 congelada | HEAD `548f179`, Unreleased | `0000` a `0005` | Split Test A/B + Smart Routing |
 | Fase 4 congelada | HEAD `cdb9f83`, Unreleased | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
-| Fase 5 working tree | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos |
+| Fase 5 working tree | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil |
 
-A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
+A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura nem a exportação portátil da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência, e não existe `GET /api/export`). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
 
 ## Regra obrigatória para tarefas Cloudflare
 
@@ -76,6 +77,12 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - não existe exclusão automática de grupos: mover ou excluir o último link deixa o grupo no banco (Fase 5)
 - grafo de grupos corrompido por SQL externo falha fechado com `409`, sem árvore parcial e sem reparo automático (Fase 5)
 - o redirect público nunca consulta `link_groups` nem adiciona `JOIN`, CTE ou `PRAGMA` ao hot path (Fase 5)
+- `GET /api/export` é `format: "boltlink-portability"` / `schemaVersion: 1`, com identidade de formato independente da versão do produto; o artefato é configuração lógica e **não** substitui backup do D1 (Fase 5)
+- o export nunca inclui `password_hash`, métricas, `has_qrcode`, `version` nem IDs internos do D1: grupos viajam com `ref` local e links se vinculam por `groupRef` (Fase 5)
+- linha persistida que o BoltLink não aceitaria hoje falha o export inteiro com `409` controlado (Smart Routing corrompido, destino de expiração sem expiração, URL inválida, slug reservado, nome de grupo em forma não canônica — espaços nas pontas, só espaços ou acima de 120 caracteres, nunca normalizado —, ciclo/pai órfão em grupos, A/B inválido, linha híbrida A/B + Smart), sem skip, reparo ou documento parcial (Fase 5)
+- limites do formato são 50 grupos, 100 links e 256 KiB em bytes UTF-8, medidos após a serialização; acima deles a resposta é `413` explícito e o documento nunca é truncado (Fase 5)
+- o export é somente leitura no **request inteiro** (zero escritas e zero DDL no D1, inclusive no middleware: usa a readiness de schema somente leitura, então não cria `boltlink_metric_fence`; as demais rotas `/api` mantêm o bootstrap), usa o boundary administrativo de `/api` e responde com `Content-Disposition` de nome constante e `Cache-Control: no-store` (Fase 5)
+- não existe import nesta entrega: nenhum `/api/import`, upload, dry-run ou coleta de senha (Fase 5)
 - redirects públicos usam `Referrer-Policy: strict-origin`
 - admin, API, home, gate de senha e respostas não redirect usam `Referrer-Policy: no-referrer`
 
@@ -84,6 +91,7 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - UI: `public/admin.html`
 - API ou auth: `src/index.ts`
 - hierarquia de grupos: `src/group-hierarchy.ts` (helpers de grafo e os statements atômicos) e `public/group-hierarchy-ui.js` (helpers de apresentação da árvore)
+- exportação portátil: `src/portability.ts` (formato, validação, refs, limites e serializer) e `public/portability-ui.js` (helpers de apresentação do download)
 - rate limiting: `src/rate-limit.ts`
 - banco: `migrations/` (autoridade); `schema.sql` (baseline da `0000` para ferramentas manuais)
 - operação: `docs/`

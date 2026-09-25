@@ -108,6 +108,25 @@ redirect da raiz (ROOT_REDIRECT_URL válida):
 
 O destino é uma coluna da própria linha lida pelo SELECT existente, decidido no lifecycle antes de qualquer classificação ou métrica. O redirect da raiz decide antes de qualquer acesso a D1. Nenhuma quota ou preço novo é introduzido por esta fase; os limites listados no topo do documento continuam os mesmos.
 
+## Exportação portátil no caminho crítico (Unreleased / Fase 5)
+
+> Escopo: release publicada/baseline = **v2.2.1**. Esta seção pertence ao estado Unreleased da working tree da Fase 5.
+
+O export é uma leitura administrativa sob demanda e **não** toca o caminho crítico:
+
+```text
+redirect público normal:
+0 mudança (mesma invocação, 1 lookup, 0 consulta a link_groups)
+
+GET /api/export (admin, quando solicitado):
+1 invocação do Worker
++ 1 leitura de contagem
++ 1 leitura de grupos + 1 leitura de links
++ 0 escrita
+```
+
+É esperado que uma exportação use mais leituras e mais CPU do que um redirect, e isso é aceitável porque a operação é rara, exige sessão administrativa e é limitada pelo próprio formato (50 grupos, 100 links e 256 KiB). O export não adiciona KV, Durable Objects, cron, API externa nem processamento em background, e não introduz nenhuma quota ou preço novo: os limites do topo deste documento continuam os mesmos. O rate limit administrativo de `/api/*` já existente é o mesmo para esta rota.
+
 ## O que o código faz
 
 BoltLink aplica duas protecoes gratuitas dentro da aplicacao:

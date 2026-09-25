@@ -1369,6 +1369,14 @@ button.icon-btn {
   gap: 10px;
 }
 
+/* Export action: the button sits next to the links counter and its status line is
+   scoped to the action, so an export refusal never overwrites the list status. */
+.export-actions {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
 .group-tree {
   margin-top: 18px;
   display: grid;

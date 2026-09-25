@@ -10,7 +10,7 @@ Os documentos abaixo descrevem cinco estados de código diferentes. Confirme em 
 | Fase 2 local | baseline local `23353a1`, não publicado | `0000` a `0004` | base publicada + Split Test A/B |
 | Fase 3 congelada | HEAD `548f179`, Unreleased | `0000` a `0005` | Fase 2 + Smart Routing |
 | Fase 4 congelada | HEAD `cdb9f83`, Unreleased | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
-| Fase 5 (working tree) | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos |
+| Fase 5 (working tree) | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil |
 
 Nenhum bump de versão acompanha estas correções: a tag publicada continua sendo `v2.2.1` e termina na `0003`.
 
@@ -92,6 +92,17 @@ SELECT id, name, parent_id FROM link_groups;
 - **Mudança de contrato em `DELETE /api/groups/:id`**: só remove grupo sem subgrupos e sem nenhum link, links desabilitados incluídos. Antes, um grupo com links desabilitados ou com subgrupos podia ser removido e os filhos eram promovidos a raiz pela FK `ON DELETE SET NULL`.
 - **Exclusão automática removida**: o runtime não apaga mais um grupo quando o último link ativo sai dele. Grupos que antes "sumiam" sozinhos passam a permanecer e devem ser removidos explicitamente quando não forem mais usados.
 - **Rollback**: voltar o código para a Fase 4 não exige nenhuma ação de banco — a Fase 5 não altera schema nem dados. O comportamento antigo volta junto com o código (inclusive a exclusão automática).
+
+### Exportação portátil (Unreleased / Fase 5)
+
+> Escopo: working tree da Fase 5. A tag publicada `v2.2.1` não possui `GET /api/export` nem o botão `Exportar dados`.
+
+- **Não há migration**: o export lê as colunas que já existem. Nenhum binding novo, nenhuma capability nova e nada para aplicar; uma instalação em `0006` (ou até em `0004`/`0005`) exporta com as capacidades que o banco já tem.
+- **Aditivo do ponto de vista do upgrade**: a única superfície nova é a rota administrativa `GET /api/export` e a ação no Admin. O redirect público, o CRUD e o lifecycle não mudam.
+- **Sem impacto nos dados**: o endpoint é somente leitura — não atualiza `version`, timestamps, `has_qrcode`, contadores ou epochs, e não cria tabela de auditoria.
+- **Falha fechado pode bloquear o export**: uma linha que o BoltLink não aceitaria hoje (Smart Routing corrompido, destino de expiração sem expiração, ciclo ou pai órfão em grupos, híbrido A/B + Smart Routing) faz o export inteiro responder `409` até ser corrigida. Nada é reparado automaticamente e o banco não é modificado. O limite do formato é 50 grupos, 100 links e 256 KiB.
+- **Import não existe nesta entrega**: não há upload, dry-run, merge, replace nem remapeamento de IDs. O documento gerado é a entrada prevista para um gate futuro, e não substitui backup do D1.
+- **Rollback**: remover o código da Fase 5 não exige nenhuma ação de banco. O endpoint e o botão deixam de existir; nenhum dado foi gravado por eles.
 
 ## PASSWORD_SESSION_SECRET e links protegidos por senha
 

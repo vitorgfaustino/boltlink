@@ -183,6 +183,7 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 - permite configurar um destino usado depois da expiração do link: com destino válido o link expirado responde `302`, sem destino responde `410`; requests expirados não contam clique (Unreleased / Fase 4)
 - permite redirecionar a raiz (`GET /`) para uma URL operacional via `ROOT_REDIRECT_URL`, sem consultar D1 (Unreleased / Fase 4)
 - organiza links em grupos hierárquicos, com prevenção de ciclos, limite de 16 níveis, movimentação com detecção de concorrência e exclusão só de grupo realmente vazio (Unreleased / Fase 5)
+- exporta a configuração lógica da instância em um JSON portátil, com download pelo Admin e sem senhas, métricas ou IDs internos (Unreleased / Fase 5)
 - conta cliques de forma agregada sem eventos detalhados
 - permite zerar a estatística agregada de um link ativo
 - inclui orientações para reduzir tráfego desnecessário no plano gratuito da Cloudflare
@@ -358,6 +359,49 @@ Como a árvore se comporta:
 - **Grafo corrompido falha fechado.** Se um SQL externo gravar um ciclo, `GET /api/groups` responde `409` e o Admin mostra o erro sem montar árvore parcial e sem reparo automático.
 - **Leitura.** `GET /api/groups` continua devolvendo linhas planas com `parent_id`; o Admin monta a árvore, mostra o caminho completo (`Clientes / Brasil / Campinas`) e permite expandir, recolher, criar, mover e excluir. O filtro por grupo continua significando **associação direta** ao grupo escolhido, sem incluir subgrupos.
 - **Redirect inalterado.** `GET /:slug` continua com a mesma leitura de `links`, sem `JOIN` em `link_groups`, sem consulta ao grupo e sem custo adicional por clique.
+
+## Exportação de configuração (Unreleased / Fase 5)
+
+> Escopo: **working tree da Fase 5** (Unreleased, sobre o HEAD congelado da Fase 4 `cdb9f83`). Nada desta seção existe na tag publicada `v2.2.1`.
+
+`GET /api/export` devolve um documento **BoltLink Portability JSON v1** com a configuração administrativa da instância, e o Admin oferece a ação `Exportar dados` para baixá-lo.
+
+```json
+{
+  "format": "boltlink-portability",
+  "schemaVersion": 1,
+  "exportedAt": "2026-01-01T00:00:00.000Z",
+  "groups": [{ "ref": "g1", "name": "Clientes", "parentRef": null }],
+  "links": [
+    {
+      "slug": "campanha",
+      "targetUrl": "https://example.com/destino",
+      "redirectType": "302",
+      "tags": ["verao"],
+      "groupRef": "g1",
+      "disabled": false,
+      "goLiveAt": null,
+      "expiresAt": null,
+      "expiredRedirectUrl": null,
+      "passwordProtected": false,
+      "abTest": { "enabled": false, "variantBUrl": null, "weightB": 50 },
+      "smartRouting": null
+    }
+  ]
+}
+```
+
+- **Não é backup do banco.** O artefato representa **configuração lógica**: intenção administrativa, não estado operacional. Recuperação integral de hashes, contadores e metadados continua sendo backup do D1; o JSON não substitui esse mecanismo.
+- **Identidade própria do formato.** `schemaVersion` é a versão do formato e evolui independentemente da versão do produto; `exportedAt` é apenas informativo.
+- **Sem IDs internos.** Grupos recebem `ref` local ao documento (`g1`, `g2`, …) e links se vinculam por `groupRef` (`null` quando não há grupo). O `id` do D1 não é necessário para reconstruir a árvore, e grupos com nomes repetidos continuam distintos.
+- **Sem senhas.** `password_hash` não é nem selecionado pela consulta: o documento traz apenas `passwordProtected: true/false`. Um import futuro vai exigir nova senha — e **não existe import nesta entrega**.
+- **Sem métricas e sem estado interno.** `clicks_total`, contadores A/B, `ab_started_at`, `metric_epoch`, `ab_generation`, `has_qrcode` e `version` não são exportados. A configuração A/B e as regras de Smart Routing viajam sem seus resultados.
+- **Tombstones incluídos.** Links desabilitados continuam no documento com `disabled: true`, porque o slug permanece reservado.
+- **Ordem preservada.** Tags mantêm a ordem do operador e as regras de Smart Routing mantêm a ordem original, já que first-match-wins é semântico.
+- **Falha fechado.** Qualquer linha inválida (Smart Routing corrompido, destino de expiração sem expiração, URL inválida, slug reservado, nome de grupo não canônico — com espaços nas pontas, só espaços ou acima de 120 caracteres, nunca normalizado no export —, ciclo ou pai órfão em grupos, A/B inválido, linha híbrida A/B + Smart Routing) recusa o export inteiro com `409`. Acima de 50 grupos, 100 links ou 256 KiB (bytes UTF-8) a resposta é `413`. O documento nunca é truncado nem parcial.
+- **Determinístico.** A mesma configuração produz o mesmo documento funcional; só `exportedAt` varia.
+- **Somente leitura no request inteiro e administrativo.** O export não escreve no banco e não executa DDL — nem no middleware: usa a readiness de schema somente leitura, então não cria `boltlink_metric_fence` (as demais rotas `/api` mantêm o bootstrap). Responde com `Content-Disposition: attachment` e `Cache-Control: no-store`, usa o mesmo boundary de `/api` (`requireAdmin`/Access/chave de API) e o mesmo rate limit. O nome do arquivo é constante (`boltlink-export.json`).
+- **Privacidade.** Nenhum dado de visitante entra no documento: sem IP, sem hash de IP, sem `User-Agent`, sem país, sem dispositivo e sem histórico de cliques.
 
 ## Tráfego e estatísticas
 

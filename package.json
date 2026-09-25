@@ -21,7 +21,7 @@
     "dev-validate-phase-2": "npm run test -- --testNamePattern 'Phase 2' --passWithNoTests",
     "dev-validate-phase-3": "npm run test -- --testNamePattern 'Phase 3' --passWithNoTests",
     "dev-validate-phase-4": "vitest run test/link-lifecycle-and-management.spec.ts test/expired-redirect-migration.spec.ts test/expired-redirect-admin.spec.ts test/index.spec.ts",
-    "dev-validate-phase-5": "vitest run test/group-hierarchy.spec.ts test/group-hierarchy-admin.spec.ts"
+    "dev-validate-phase-5": "vitest run test/group-hierarchy.spec.ts test/group-hierarchy-admin.spec.ts test/portability-export.spec.ts test/portability-export-admin.spec.ts"
   },
   "cloudflare": {
     "bindings": {
