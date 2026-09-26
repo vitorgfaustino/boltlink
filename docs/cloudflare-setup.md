@@ -145,7 +145,8 @@ Na working tree da Fase 5:
 
 - **não há etapa de migration nem binding novo**: a hierarquia usa `link_groups.parent_id`, criado pela `0002`, e o export apenas lê colunas existentes. As mesmas etapas do Fluxo A/B/C valem, sem passo adicional;
 - `npm run dev-prepare` continua aplicando a cadeia até `0006`; a Fase 5 não adiciona `0007`;
-- o Admin ganha o painel `Grupos` (árvore, criação com grupo pai opcional, mover, excluir) e a ação `Exportar dados`, e o redirect público continua sem consultar `link_groups`;
+- o Admin ganha o painel `Grupos` (árvore, criação com grupo pai opcional, mover, excluir), a ação `Exportar configuração` e o drawer `Importar configuração`, e o redirect público continua sem consultar `link_groups`;
+- `POST /api/import/preview` e `POST /api/import/apply` ficam no mesmo boundary de `/api` (Cloudflare Access, `requireAdmin` ou chave de API) e no mesmo rate limit administrativo: se a instalação usa Access, nada extra precisa ser configurado além da policy que já cobre `/api/*`. O import não pede binding, secret ou variável nova — links protegidos continuam exigindo apenas `PASSWORD_SESSION_SECRET`;
 - `GET /api/export` está protegido pelo mesmo boundary de `/api` (Cloudflare Access, `requireAdmin` ou chave de API) e pelo mesmo rate limit administrativo: se a instalação usa Access, nada extra precisa ser configurado além da policy que já cobre `/api/*`;
 - se a instância já tinha `link_groups.parent_id` editado à mão, valide a árvore antes de confiar no painel: um ciclo existente faz `GET /api/groups` responder `409` (falha fechado, sem reparo automático). Veja `docs/upgrading.md`;
 - o contrato de `PATCH /api/groups/:id` exige `expectedParentId` sempre que `parentId` é enviado, e `DELETE /api/groups/:id` só remove grupo sem subgrupos e sem nenhum link (desabilitados incluídos). Automatizações que chamam essas rotas precisam ser atualizadas.

@@ -360,11 +360,11 @@ Como a árvore se comporta:
 - **Leitura.** `GET /api/groups` continua devolvendo linhas planas com `parent_id`; o Admin monta a árvore, mostra o caminho completo (`Clientes / Brasil / Campinas`) e permite expandir, recolher, criar, mover e excluir. O filtro por grupo continua significando **associação direta** ao grupo escolhido, sem incluir subgrupos.
 - **Redirect inalterado.** `GET /:slug` continua com a mesma leitura de `links`, sem `JOIN` em `link_groups`, sem consulta ao grupo e sem custo adicional por clique.
 
-## Exportação de configuração (Unreleased / Fase 5)
+## Portabilidade de configuração (Unreleased / Fase 5)
 
 > Escopo: **working tree da Fase 5** (Unreleased, sobre o HEAD congelado da Fase 4 `cdb9f83`). Nada desta seção existe na tag publicada `v2.2.1`.
 
-`GET /api/export` devolve um documento **BoltLink Portability JSON v1** com a configuração administrativa da instância, e o Admin oferece a ação `Exportar dados` para baixá-lo.
+`GET /api/export` devolve um documento **BoltLink Portability JSON v1** com a configuração administrativa da instância, e o Admin oferece a ação `Exportar configuração` para baixá-lo. O mesmo formato pode ser lido de volta em outra instalação pela ação `Importar configuração`.
 
 ```json
 {
@@ -394,7 +394,7 @@ Como a árvore se comporta:
 - **Não é backup do banco.** O artefato representa **configuração lógica**: intenção administrativa, não estado operacional. Recuperação integral de hashes, contadores e metadados continua sendo backup do D1; o JSON não substitui esse mecanismo.
 - **Identidade própria do formato.** `schemaVersion` é a versão do formato e evolui independentemente da versão do produto; `exportedAt` é apenas informativo.
 - **Sem IDs internos.** Grupos recebem `ref` local ao documento (`g1`, `g2`, …) e links se vinculam por `groupRef` (`null` quando não há grupo). O `id` do D1 não é necessário para reconstruir a árvore, e grupos com nomes repetidos continuam distintos.
-- **Sem senhas.** `password_hash` não é nem selecionado pela consulta: o documento traz apenas `passwordProtected: true/false`. Um import futuro vai exigir nova senha — e **não existe import nesta entrega**.
+- **Sem senhas.** `password_hash` não é nem selecionado pela consulta: o documento traz apenas `passwordProtected: true/false`. A importação exige uma **nova** senha para cada link protegido, informada no próprio apply e usada apenas para gerar o hash — ela não é registrada em log, não vai para a URL, não volta na resposta e não fica no navegador.
 - **Sem métricas e sem estado interno.** `clicks_total`, contadores A/B, `ab_started_at`, `metric_epoch`, `ab_generation`, `has_qrcode` e `version` não são exportados. A configuração A/B e as regras de Smart Routing viajam sem seus resultados.
 - **Tombstones incluídos.** Links desabilitados continuam no documento com `disabled: true`, porque o slug permanece reservado.
 - **Ordem preservada.** Tags mantêm a ordem do operador e as regras de Smart Routing mantêm a ordem original, já que first-match-wins é semântico.
@@ -402,6 +402,23 @@ Como a árvore se comporta:
 - **Determinístico.** A mesma configuração produz o mesmo documento funcional; só `exportedAt` varia.
 - **Somente leitura no request inteiro e administrativo.** O export não escreve no banco e não executa DDL — nem no middleware: usa a readiness de schema somente leitura, então não cria `boltlink_metric_fence` (as demais rotas `/api` mantêm o bootstrap). Responde com `Content-Disposition: attachment` e `Cache-Control: no-store`, usa o mesmo boundary de `/api` (`requireAdmin`/Access/chave de API) e o mesmo rate limit. O nome do arquivo é constante (`boltlink-export.json`).
 - **Privacidade.** Nenhum dado de visitante entra no documento: sem IP, sem hash de IP, sem `User-Agent`, sem país, sem dispositivo e sem histórico de cliques.
+
+### Importação de configuração
+
+O caminho de volta: `POST /api/import/preview` valida o arquivo e mostra o que seria criado, e `POST /api/import/apply` grava a configuração. O Admin expõe os dois passos no drawer `Importar configuração`.
+
+- **É a mesma entrega, na direção inversa.** A entrada é o documento gerado por `Exportar configuração`; não existe um segundo formato e nada é coercido: chave desconhecida, tipo errado, referência órfã, ciclo, slug duplicado ou tag fora do contrato respondem `400` com o caminho do campo (`links[3].targetUrl`).
+- **Preview não escreve nada.** `POST /api/import/preview` é somente leitura no request inteiro: não altera linhas, não executa DDL, não instala a projeção `boltlink_metric_fence` e responde `503` quando o banco nunca foi preparado. Ele devolve um resumo (grupos, links, desativados, protegidos, testes A/B, Smart Routing), os slugs em conflito, os bloqueios e os slugs que exigem nova senha.
+- **Apply é tudo ou nada.** O documento inteiro — grupos em ordem de pai para filho e depois os links — vai em **um único `batch`** do D1, que é uma transação. Se qualquer statement falhar, nenhum grupo e nenhum link do documento permanecem; é por isso que a interface pode afirmar "Nenhuma alteração foi aplicada".
+- **Sem overwrite e sem merge.** Um slug já reservado no destino (link ativo, desabilitado ou tombstone) bloqueia o import inteiro com `409` e lista os conflitos; grupos do arquivo são sempre **novos** grupos, nunca fundidos com um grupo de mesmo nome que já exista. O import em instalação não vazia é permitido quando nada colide.
+- **Nova senha por link protegido.** `passwordProtected: true` exige uma senha nova no apply (campo `replacementPasswords`), hasheada pelo mecanismo atual do BoltLink. Sem ela nada é escrito, e a senha antiga da origem não funciona — ela nunca fez parte do documento.
+- **Feature que falta bloqueia, nunca degrada.** Se o documento usa A/B, Smart Routing ou destino de expiração e o banco de destino ainda não tem a migration correspondente, a resposta é `409` (`TARGET_CAPABILITY_MISSING`) pedindo a atualização. A/B no estado default não conta como uso, porque não há configuração a perder.
+- **Árvore acima de 16 níveis bloqueia.** O export transporta árvore legada válida acima do limite, mas o import não cria no destino uma forma que os caminhos de escrita atuais recusariam: a resposta é `409` (`GROUP_DEPTH_EXCEEDED`) com zero escritas — é limite de portabilidade de legado, não reparo automático.
+- **Métricas começam de novo.** Como o documento não carrega métricas, os links importados nascem com os defaults (`clicks_total = 0`) exatamente como um link criado no painel; nada é estimado ou restaurado. O mesmo vale para `version`, `has_qrcode` e timestamps.
+- **Sem migration e sem DDL implícito.** O vínculo `ref` → id local é resolvido dentro da própria transação, com o id de cada grupo derivado na própria instrução a partir de `max(MAX(id), sqlite_sequence.seq)` e o pai endereçado por distância: nenhuma tabela temporária, nenhuma coluna nova e a sequência `AUTOINCREMENT` continua correta depois do bloco importado. O piso pela sequência importa porque um id já gasto e apagado pode continuar referenciado em `links.group_id`: reutilizá-lo faria um link antigo passar a apontar para um grupo importado.
+- **Destino íntegro é pré-requisito.** Se a instalação tiver link apontando para grupo que não existe, o import inteiro é bloqueado com `409` (`TARGET_GROUP_REFERENCE_CORRUPT`) no preview e no apply: nada é reparado, nada é reparentado e nenhum `group_id` é zerado. Corrija os links órfãos e tente novamente.
+- **Corpo ilegível é recusado, não adivinhado.** O corpo precisa ser UTF-8 válido: um byte inválido responde `400` (`INVALID_BODY`) em vez de virar U+FFFD, o que importaria um texto diferente do arquivo. E se o batch falhar por algo que não seja a colisão de slug, a resposta é `500` controlado — nunca `SLUG_COLLISION` só porque já existe um slug ocupado no destino.
+- **Administrativo e não cacheado.** As duas rotas ficam no boundary de `/api` (Cloudflare Access, `requireAdmin` ou chave de API), usam o mesmo rate limit e respondem com `Cache-Control: no-store`. O arquivo é lido e processado no navegador do operador e no Worker da própria instalação; nada é enviado a serviço externo nem guardado em storage do browser. O drawer descarta as senhas digitadas em toda falha terminal (inclusive falha de rede ou resposta ilegível), no sucesso, no close, no arquivo novo e no reset, e o apply exige um preview aprovado para o mesmo arquivo que está na tela: a resposta atrasada de um arquivo substituído nunca descreve o que o apply enviaria. O veredito de uma tentativa vem do status **e** de um corpo que seja o contrato esperado: se a resposta chegar truncada ou ilegível, o painel diz que o estado final é desconhecido — nunca afirma que nada foi aplicado, porque o import pode ter sido gravado.
 
 ## Tráfego e estatísticas
 

@@ -95,14 +95,18 @@ SELECT id, name, parent_id FROM link_groups;
 
 ### Exportação portátil (Unreleased / Fase 5)
 
-> Escopo: working tree da Fase 5. A tag publicada `v2.2.1` não possui `GET /api/export` nem o botão `Exportar dados`.
+> Escopo: working tree da Fase 5. A tag publicada `v2.2.1` não possui `GET /api/export`, nem as rotas de importação, nem os botões `Exportar configuração` e `Importar configuração`.
 
 - **Não há migration**: o export lê as colunas que já existem. Nenhum binding novo, nenhuma capability nova e nada para aplicar; uma instalação em `0006` (ou até em `0004`/`0005`) exporta com as capacidades que o banco já tem.
 - **Aditivo do ponto de vista do upgrade**: a única superfície nova é a rota administrativa `GET /api/export` e a ação no Admin. O redirect público, o CRUD e o lifecycle não mudam.
 - **Sem impacto nos dados**: o endpoint é somente leitura — não atualiza `version`, timestamps, `has_qrcode`, contadores ou epochs, e não cria tabela de auditoria.
 - **Falha fechado pode bloquear o export**: uma linha que o BoltLink não aceitaria hoje (Smart Routing corrompido, destino de expiração sem expiração, ciclo ou pai órfão em grupos, híbrido A/B + Smart Routing) faz o export inteiro responder `409` até ser corrigida. Nada é reparado automaticamente e o banco não é modificado. O limite do formato é 50 grupos, 100 links e 256 KiB.
-- **Import não existe nesta entrega**: não há upload, dry-run, merge, replace nem remapeamento de IDs. O documento gerado é a entrada prevista para um gate futuro, e não substitui backup do D1.
-- **Rollback**: remover o código da Fase 5 não exige nenhuma ação de banco. O endpoint e o botão deixam de existir; nenhum dado foi gravado por eles.
+- **Importação portátil (Gate 5.3)**: o Admin ganha a ação `Importar configuração`, em drawer próprio, que envia o documento para `POST /api/import/preview` (somente leitura, com resumo, colisões, bloqueios e senhas necessárias) e, após revisão, para `POST /api/import/apply`. Não há upload para serviço externo, não há dry-run gravando nada e não há remapeamento manual de IDs: o vínculo `ref` → id local é resolvido dentro da transação.
+- **Import é tudo ou nada**: o apply grava grupos e links em um único `batch` do D1, então uma falha deixa o banco exatamente como estava. Colisão de slug bloqueia o import inteiro com `409` (sem overwrite e sem partial import), e o mesmo vale para feature usada que a instalação ainda não suporta, árvore acima de 16 níveis e grafo de grupos corrompido.
+- **Import exige nova senha**: `passwordProtected: true` não carrega hash nem senha, então o apply pede uma senha nova por link protegido; sem ela nada é escrito e a senha antiga da origem não funciona. A senha viaja no corpo da requisição (nunca em log, URL, resposta ou storage do browser).
+- **Import pode ser bloqueado por dados da própria instalação**: se o destino tiver algum link apontando para um grupo que não existe (um `group_id` deixado para trás por exclusão externa), as duas rotas respondem `409` (`TARGET_GROUP_REFERENCE_CORRUPT`) sem escrever nada. Nada é reparado automaticamente e nenhum grupo importado ocupa o id vago — corrija os links órfãos e repita. Ids de grupo importados nunca reutilizam um id que a sequência `AUTOINCREMENT` do destino já gastou.
+- **Import não cria nem altera schema**: as duas rotas usam a readiness de schema somente leitura e respondem `503` num banco não preparado — nenhuma migration é aplicada implicitamente e nenhuma coluna é criada. Uma instalação em `0004`/`0005` recusa com `409` um documento que use Smart Routing ou destino de expiração; atualizar as migrations é o caminho.
+- **Rollback**: remover o código da Fase 5 não exige nenhuma ação de banco. As rotas e os botões deixam de existir; o export não gravou nada e o import, quando usado, gravou apenas links e grupos como qualquer criação pelo painel.
 
 ## PASSWORD_SESSION_SECRET e links protegidos por senha
 

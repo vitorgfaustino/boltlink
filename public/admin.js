@@ -41,6 +41,18 @@ const state = {
   groupContext: null,
   // On a narrow viewport the creation form starts collapsed so the links list is first.
   createFormCollapsed: false,
+  // Import drawer. `importDocument` is the exact parsed document the current preview
+  // describes, so the apply can never send a file the operator did not review: choosing
+  // another file clears it, and the passwords live only in the fields.
+  importDrawerOpen: false,
+  importApplying: false,
+  importDocument: null,
+  importState: null,
+  // Identity of the document being reviewed, and the preview request in flight for it.
+  // Every reset replaces the first and cancels the second, so an answer that arrives late
+  // describes a selection the drawer is no longer showing and is dropped.
+  importSelection: null,
+  importPreviewAbort: null,
 };
 
 const smartRoutingUi = window.BoltLinkSmartRouting || null;
@@ -51,6 +63,9 @@ const groupHierarchyUi = window.BoltLinkGroupHierarchy || null;
 // Loaded before this script, and pinned by an order test. When it is missing the
 // export button disables itself instead of downloading a file under a guessed name.
 const portabilityUi = window.BoltLinkPortability || null;
+// Loaded before this script, and pinned by an order test. When it is missing the import
+// drawer explains itself instead of running with an unknown path or an unmapped state.
+const portabilityImportUi = window.BoltLinkPortabilityImport || null;
 // Loaded before this script, and pinned by an order test. The local fallback only
 // keeps the controls inert instead of throwing if the module is ever absent; a
 // submission that actually needs the rules fails closed in the payload builder.
@@ -197,6 +212,25 @@ const linksList = document.getElementById("links-list");
 const linksCount = document.getElementById("links-count");
 const exportButton = document.getElementById("export-button");
 const exportStatus = document.getElementById("export-status");
+const importDrawer = document.getElementById("import-drawer");
+const importDrawerOpenButton = document.getElementById("import-drawer-open");
+const importDrawerCloseButton = document.getElementById("import-drawer-close");
+const importDrawerBackdrop = document.getElementById("import-drawer-backdrop");
+const importFileInput = document.getElementById("import-file");
+const importFileName = document.getElementById("import-file-name");
+const importReview = document.getElementById("import-review");
+const importSummary = document.getElementById("import-summary");
+const importWarnings = document.getElementById("import-warnings");
+const importConflicts = document.getElementById("import-conflicts");
+const importBlockers = document.getElementById("import-blockers");
+const importErrors = document.getElementById("import-errors");
+const importPasswords = document.getElementById("import-passwords");
+const importPasswordFields = document.getElementById("import-password-fields");
+const importPlan = document.getElementById("import-plan");
+const importApplyButton = document.getElementById("import-apply-button");
+const importResetButton = document.getElementById("import-reset-button");
+const importDoneButton = document.getElementById("import-done-button");
+const importStatus = document.getElementById("import-status");
 const appVersion = document.getElementById("app-version");
 const footerYear = document.getElementById("footer-year");
 const footerTimezone = document.getElementById("footer-timezone");
@@ -934,6 +968,8 @@ function openGroupDrawer() {
     return;
   }
   state.groupDrawerOpen = true;
+  // The import drawer is modal too, and the two are never open together.
+  closeImportDrawer();
   // Every session starts from the same place: the tree, with no outcome left over from the
   // previous one greeting the operator as if it had just happened.
   selectGroupTab("tree");
@@ -1162,6 +1198,602 @@ async function exportConfiguration() {
   } finally {
     setBusy(exportButton, false);
   }
+}
+
+/* Configuration import (Unreleased / Phase 5, Gate 5.3).
+
+   The drawer walks the operator through one decision at a time: pick the file, review what
+   the API answered, supply a new password for every protected link, then apply. Nothing is
+   rendered from a file through an HTML sink — every value goes in through `textContent` —
+   and nothing about the file is kept after the drawer closes or the selection changes. */
+
+/** Replaces a node's children without parsing any string as markup. */
+function clearImportNode(node) {
+  while (node.firstChild) {
+    node.removeChild(node.firstChild);
+  }
+}
+
+function appendImportLine(container, text) {
+  const item = document.createElement("li");
+  item.textContent = text;
+  container.appendChild(item);
+}
+
+/** One `path — mensagem` line: the path is positional context from the API, not a dump. */
+function appendImportIssue(container, path, message) {
+  const item = document.createElement("li");
+  const label = document.createElement("span");
+  label.className = "import-error-path";
+  label.textContent = path;
+  const copy = document.createElement("span");
+  copy.textContent = message;
+  item.appendChild(label);
+  item.appendChild(copy);
+  container.appendChild(item);
+}
+
+function renderImportList(container, entries, render) {
+  clearImportNode(container);
+  for (const entry of entries) {
+    render(container, entry);
+  }
+  container.hidden = entries.length === 0;
+}
+
+/** The review block is replaced wholesale, so no state from a previous file can survive. */
+function resetImportReview() {
+  // A reset is what replaces the document, so it is also what invalidates the identity of
+  // the one being reviewed: a preview still in flight belongs to the previous file, and its
+  // answer is dropped instead of describing what an apply would send. The machine is
+  // created once and only ever advanced, so a ticket from an earlier selection can never
+  // match a later one.
+  if (portabilityImportUi) {
+    state.importSelection = state.importSelection || portabilityImportUi.createImportSelection();
+    state.importSelection.invalidate();
+  }
+  state.importDocument = null;
+  state.importState = null;
+  state.importApplying = false;
+  discardImportPasswords();
+  importReview.hidden = true;
+  importSummary.hidden = true;
+  importPlan.textContent = "";
+  clearImportNode(importSummary);
+  clearImportNode(importWarnings);
+  clearImportNode(importConflicts);
+  clearImportNode(importBlockers);
+  clearImportNode(importErrors);
+  importWarnings.hidden = true;
+  importConflicts.hidden = true;
+  importBlockers.hidden = true;
+  importErrors.hidden = true;
+  importDoneButton.hidden = true;
+  importApplyButton.hidden = false;
+  // Busy state first, then `disabled`: `setBusy` writes `disabled` itself, so a reset that
+  // cleared the flag would leave the button clickable before any file was reviewed.
+  setBusy(importApplyButton, false);
+  importApplyButton.disabled = true;
+}
+
+/** Full reset: selection, review, passwords and status, so nothing outlives its file. */
+function resetImportDrawer() {
+  importFileInput.value = "";
+  importFileName.textContent = "";
+  resetImportReview();
+  setStatus(importStatus, "");
+}
+
+function renderImportSummary(summary) {
+  clearImportNode(importSummary);
+  for (const line of portabilityImportUi.summaryLines(summary)) {
+    const term = document.createElement("dt");
+    term.textContent = line.label;
+    const value = document.createElement("dd");
+    value.textContent = line.value;
+    importSummary.appendChild(term);
+    importSummary.appendChild(value);
+  }
+  importSummary.hidden = false;
+}
+
+function renderImportWarnings(payload) {
+  const messages = portabilityImportUi.warningMessages(payload);
+  renderImportList(importWarnings, messages, appendImportLine);
+}
+
+/** One password field per protected slug: never pre-filled, never stored anywhere. */
+function renderImportPasswords(slugs) {
+  clearImportNode(importPasswordFields);
+
+  for (let index = 0; index < slugs.length; index += 1) {
+    const slug = slugs[index];
+    const field = document.createElement("div");
+    field.className = "import-password-field";
+
+    const inputId = `import-password-${index}`;
+    const label = document.createElement("label");
+    label.setAttribute("for", inputId);
+    label.textContent = `Nova senha para ${slug}`;
+
+    const input = document.createElement("input");
+    input.type = "password";
+    input.id = inputId;
+    input.autocomplete = "new-password";
+    input.dataset.slug = slug;
+
+    field.appendChild(label);
+    field.appendChild(input);
+    importPasswordFields.appendChild(field);
+  }
+
+  importPasswords.hidden = slugs.length === 0;
+}
+
+/**
+ * Empties the password fields and drops the nodes that hold them. Every terminal outcome of
+ * an apply goes through here, and so does the reset that a new file, a close and the reset
+ * button all share: a password typed for an attempt that failed is not reusable, and the
+ * operator types it again for the next one. The mapping built for the request is a local of
+ * `applyImport` and outlives nothing.
+ */
+function discardImportPasswords() {
+  if (portabilityImportUi) {
+    portabilityImportUi.clearPasswordInputs(importPasswordFields.querySelectorAll("input[data-slug]"));
+  }
+  clearImportNode(importPasswordFields);
+  importPasswords.hidden = true;
+}
+
+/**
+ * The mapping the apply sends, one entry per filled field, built by the helper so a slug
+ * like `__proto__` stays an own property instead of being swallowed by object assignment.
+ */
+function collectImportPasswords() {
+  const entries = [];
+  for (const input of importPasswordFields.querySelectorAll("input[data-slug]")) {
+    const value = input.value.trim();
+    if (value) {
+      entries.push({ slug: input.dataset.slug, value });
+    }
+  }
+  return portabilityImportUi.passwordMap(entries);
+}
+
+/**
+ * Ends the attempt that just finished, whatever its outcome was: the passwords typed for it
+ * are discarded and the approved preview stops authorizing anything, so a new preview is
+ * the only way back to an apply. Called on refusal, on transport failure and on success.
+ */
+function endImportAttempt() {
+  discardImportPasswords();
+  state.importState = null;
+  if (state.importSelection) {
+    state.importSelection.revokePreview();
+  }
+}
+
+/**
+ * Whether the preview answer for `generation` still describes the document the drawer is
+ * showing. A stale answer is dropped without a trace: the selection that replaced it is
+ * already being validated, and its own answer is the one the operator is waiting for.
+ */
+function importSelectionStale(generation) {
+  return !state.importSelection || !state.importSelection.isCurrent(generation);
+}
+
+/**
+ * The apply control is enabled by the API's answer, never by the file: a valid preview
+ * with no blocker and no collision, approved for the selection the drawer is showing now,
+ * plus a non-empty password for every protected link.
+ */
+function syncImportApplyState() {
+  if (state.importApplying) {
+    return;
+  }
+
+  let enabled = Boolean(
+    state.importState === portabilityImportUi.STATE_VALID && state.importSelection && state.importSelection.canApply(),
+  );
+  if (enabled) {
+    for (const input of importPasswordFields.querySelectorAll("input[data-slug]")) {
+      if (!input.value.trim()) {
+        enabled = false;
+        break;
+      }
+    }
+  }
+
+  importApplyButton.disabled = !enabled;
+}
+
+function renderImportResult(payload, status, generation) {
+  const ui = portabilityImportUi;
+  // The document this answer describes is no longer the one in the drawer, so none of it
+  // may reach the panel — not the summary, not the conflicts, not the password fields.
+  if (importSelectionStale(generation)) {
+    return;
+  }
+
+  const responseState = ui.responseState(payload);
+  state.importState = responseState;
+  // An approved preview is what authorizes an apply, and only for the selection it was
+  // requested for: the ticket recorded here is compared against the current generation.
+  if (responseState === ui.STATE_VALID) {
+    state.importSelection.markPreview(generation);
+  }
+  importReview.hidden = false;
+
+  // The summary belongs to both answers: on a valid plan it is what the operator reviews
+  // before importing, and on a refused one it still describes the file that was refused.
+  renderImportSummary(payload?.summary);
+
+  renderImportWarnings(payload);
+  renderImportList(importConflicts, ui.conflictSlugs(payload), appendImportLine);
+  renderImportList(importBlockers, ui.blockerMessages(payload), appendImportLine);
+  renderImportList(
+    importErrors,
+    Array.isArray(payload?.errors) ? payload.errors : [],
+    (container, entry) => appendImportIssue(container, entry?.path ?? "documento", ui.errorMessage(entry?.code)),
+  );
+  renderImportPasswords(responseState === ui.STATE_VALID ? ui.requiresPasswordSlugs(payload) : []);
+
+  importPlan.textContent = responseState === ui.STATE_VALID ? ui.planText(payload?.summary) : "";
+  importDoneButton.hidden = true;
+  importApplyButton.hidden = false;
+  syncImportApplyState();
+
+  if (responseState === ui.STATE_VALID) {
+    const protectedCount = ui.requiresPasswordSlugs(payload).length;
+    setStatus(
+      importStatus,
+      protectedCount
+        ? `Arquivo validado. Informe ${protectedCount} nova(s) senha(s) para continuar.`
+        : "Arquivo validado. Revise o resumo antes de importar.",
+      "success",
+    );
+    return;
+  }
+
+  setStatus(importStatus, ui.previewErrorMessage(status, payload?.code), "error");
+}
+
+async function requestImportPreview(document, generation) {
+  // The request that was superseded is cancelled, which is a courtesy rather than the
+  // guarantee: a cancellation can arrive after its response, so the generation check below
+  // stays the authority and the abort only saves the round trip.
+  if (state.importPreviewAbort) {
+    state.importPreviewAbort.abort();
+  }
+  const controller = new AbortController();
+  state.importPreviewAbort = controller;
+
+  let response;
+  try {
+    response = await fetch(portabilityImportUi.PREVIEW_PATH, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(portabilityImportUi.envelopeFor(document)),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    // A request that failed for a document the operator already replaced — including by
+    // this selection's own cancellation — has nothing to report about the current one.
+    if (importSelectionStale(generation)) {
+      return;
+    }
+    throw error;
+  } finally {
+    if (state.importPreviewAbort === controller) {
+      state.importPreviewAbort = null;
+    }
+  }
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (importSelectionStale(generation)) {
+    return;
+  }
+
+  if (!payload) {
+    setStatus(importStatus, portabilityImportUi.previewErrorMessage(response.status), "error");
+    return;
+  }
+
+  renderImportResult(payload, response.status, generation);
+}
+
+/** Reads the chosen file and asks the API what would happen. Nothing is written here. */
+async function handleImportFileSelection() {
+  if (!portabilityImportUi) {
+    setStatus(importStatus, "O módulo de importação não foi carregado. Recarregue o painel.", "error");
+    return;
+  }
+
+  const file = importFileInput.files && importFileInput.files[0];
+  resetImportReview();
+  // The identity of this selection, taken before the first await: choosing another file
+  // while this one is being read invalidates it, and every step below refuses to write to
+  // the panel or to the state under a generation that stopped being the current one.
+  const generation = state.importSelection.generation;
+  setStatus(importStatus, "");
+
+  if (!file) {
+    importFileName.textContent = "";
+    return;
+  }
+
+  importFileName.textContent = file.name;
+
+  if (portabilityImportUi.fileTooLarge(file.size)) {
+    setStatus(
+      importStatus,
+      `Arquivo maior que o limite de ${portabilityImportUi.formatBytes(portabilityImportUi.MAX_BYTES)} do formato.`,
+      "error",
+    );
+    return;
+  }
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    if (importSelectionStale(generation)) {
+      return;
+    }
+    setStatus(importStatus, "Não foi possível ler o arquivo como JSON. Verifique se ele não está corrompido.", "error");
+    return;
+  }
+
+  if (importSelectionStale(generation)) {
+    return;
+  }
+
+  const localProblem = portabilityImportUi.localDocumentProblem(parsed);
+  if (localProblem) {
+    setStatus(importStatus, localProblem, "error");
+    return;
+  }
+
+  state.importDocument = parsed;
+  setStatus(importStatus, "Validando arquivo...");
+
+  try {
+    await requestImportPreview(parsed, generation);
+  } catch (error) {
+    if (importSelectionStale(generation)) {
+      return;
+    }
+    setStatus(importStatus, error?.message || "Não foi possível validar o arquivo.", "error");
+  }
+}
+
+/**
+ * Applies the document the preview describes. The body carries the same file the operator
+ * reviewed plus the passwords just typed; the API revalidates everything and writes the
+ * whole document as one transaction, so a failure means the destination is untouched.
+ *
+ * The document is not enough on its own: the approval has to belong to the selection the
+ * drawer is showing, so a file chosen while a previous plan was approved cannot be applied
+ * under that plan's review.
+ */
+async function applyImport() {
+  if (state.importApplying || !state.importDocument || !state.importSelection || !state.importSelection.canApply()) {
+    return;
+  }
+
+  state.importApplying = true;
+  setBusy(importApplyButton, true);
+  importResetButton.disabled = true;
+  setStatus(importStatus, "Importando configuração...");
+
+  try {
+    const response = await fetch(portabilityImportUi.APPLY_PATH, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(
+        portabilityImportUi.envelopeFor(state.importDocument, collectImportPasswords()),
+      ),
+    });
+
+    // The body is handed over as text and interpreted by the helper, so the verdict comes from
+    // the status *and* a body that is actually the contract. An unreadable body is not a
+    // refusal: a `200` whose response was truncated may be an import that already committed,
+    // and the panel has no evidence either way.
+    const verdict = portabilityImportUi.readApplyResponse(response.status, await response.text());
+
+    if (verdict.verdict === portabilityImportUi.VERDICT_UNKNOWN) {
+      renderImportUnknownOutcome(null);
+      return;
+    }
+
+    if (verdict.verdict === portabilityImportUi.VERDICT_REFUSED) {
+      // A refused apply is an apply that wrote nothing: the import is one transaction, so
+      // the panel can say that plainly instead of guessing at a partial result.
+      renderImportFailure(verdict.payload, verdict.status);
+      return;
+    }
+
+    renderImportSuccess(verdict.payload);
+  } catch (error) {
+    // The request never produced an answer at all, which is the same non-answer as a response
+    // nobody can read: nothing typed for the attempt is kept, and no outcome is claimed.
+    renderImportUnknownOutcome(error?.message);
+  } finally {
+    state.importApplying = false;
+    setBusy(importApplyButton, false);
+    importResetButton.disabled = false;
+    // Whatever the outcome was, the control ends up in the state the review supports
+    // instead of whatever the path that just ran happened to leave behind.
+    syncImportApplyState();
+  }
+}
+
+/**
+ * The outcome of an apply nobody can confirm: the request produced no answer, or the answer
+ * it produced is not the contract. Nothing is said about the destination — it may hold the
+ * whole document or none of it — so the attempt ends like every other terminal outcome
+ * (passwords discarded, approval revoked, apply unavailable) and the operator reloads and
+ * reviews the current state instead of being told that a rollback happened.
+ */
+function renderImportUnknownOutcome(detail) {
+  const plan = portabilityImportUi.unknownOutcomePlan(detail);
+  if (plan.discardPasswords) {
+    endImportAttempt();
+  }
+  importApplyButton.hidden = true;
+  importDoneButton.hidden = false;
+  setStatus(importStatus, plan.message, "error");
+}
+
+function renderImportFailure(payload, status) {
+  const ui = portabilityImportUi;
+  // Every terminal failure ends the attempt: the passwords typed for it are discarded (they
+  // were typed for a review that no longer authorizes anything) and a new preview is the
+  // way back.
+  if (ui.applyFailureDisposition(status).discardPasswords) {
+    endImportAttempt();
+  }
+
+  importErrors.hidden = true;
+  clearImportNode(importErrors);
+
+  if (payload && Array.isArray(payload.blockers) && payload.blockers.length) {
+    renderImportList(importBlockers, ui.blockerMessages(payload), appendImportLine);
+    renderImportList(importConflicts, ui.conflictSlugs(payload), appendImportLine);
+    // Rebuilt empty for the links that still need one: knowing which slugs owe a password
+    // is useful, keeping the values that were just refused is not.
+    renderImportPasswords(ui.requiresPasswordSlugs(payload));
+  } else if (payload && Array.isArray(payload.errors)) {
+    renderImportList(
+      importErrors,
+      payload.errors,
+      (container, entry) => appendImportIssue(container, entry?.path ?? "documento", ui.errorMessage(entry?.code)),
+    );
+  }
+
+  setStatus(importStatus, `${ui.applyErrorMessage(status, payload?.code)} Nenhuma alteração foi aplicada.`, "error");
+  // A new preview is the way out of a conflict: the file is still loaded, so the operator
+  // can simply ask again once the destination changed.
+  importApplyButton.hidden = true;
+  importApplyButton.disabled = true;
+  importDoneButton.hidden = false;
+}
+
+function renderImportSuccess(payload) {
+  const ui = portabilityImportUi;
+  importConflicts.hidden = true;
+  importBlockers.hidden = true;
+  importErrors.hidden = true;
+  // The attempt is over: the passwords did their job and are gone, and the approval that
+  // authorized this apply does not survive it.
+  endImportAttempt();
+  importPlan.textContent = "";
+  importApplyButton.hidden = true;
+  importDoneButton.hidden = false;
+  setStatus(importStatus, ui.successText(payload), "success");
+
+  // The panel reflects the new configuration without a reload: the list, the group tree,
+  // the group selects and the group filter all read from the API again.
+  loadCapabilities()
+    .catch(() => {})
+    .finally(() => {
+      loadLinks().catch(() => {});
+      loadGroups().catch(() => {});
+    });
+}
+
+/** Controls the drawer owns, in document order. A hidden or disabled one is skipped. */
+function importDrawerFocusables() {
+  const selector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]';
+  return Array.from(importDrawer.querySelectorAll(selector)).filter((element) => {
+    const style = getComputedStyle(element);
+    return !element.hidden && style.display !== "none" && style.visibility !== "hidden";
+  });
+}
+
+function keepImportDrawerFocus(event) {
+  if (event.key !== "Tab") {
+    return;
+  }
+  const focusables = importDrawerFocusables();
+  if (!focusables.length) {
+    return;
+  }
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (!importDrawer.contains(active)) {
+    event.preventDefault();
+    first.focus();
+    return;
+  }
+  if (event.shiftKey && active === first) {
+    event.preventDefault();
+    last.focus();
+    return;
+  }
+  if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function onImportDrawerKeydown(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeImportDrawer();
+    return;
+  }
+  keepImportDrawerFocus(event);
+}
+
+/**
+ * Opening the import closes the group drawer, and vice versa: the two are modal, so
+ * leaving one open behind the other would either trap focus in an invisible surface or
+ * let a click reach a panel the operator cannot see.
+ */
+function openImportDrawer() {
+  if (state.importDrawerOpen) {
+    return;
+  }
+  closeGroupDrawer();
+  state.importDrawerOpen = true;
+  // A fresh session never inherits the previous one's file, summary or passwords.
+  resetImportDrawer();
+  lockBodyScroll();
+  importDrawerOpenButton.setAttribute("aria-expanded", "true");
+  importDrawer.removeAttribute("inert");
+  importDrawer.setAttribute("aria-hidden", "false");
+  importDrawer.classList.add("is-open");
+  importDrawerBackdrop.classList.add("is-open");
+  document.addEventListener("keydown", onImportDrawerKeydown);
+  importDrawerCloseButton.focus();
+}
+
+function closeImportDrawer() {
+  if (!state.importDrawerOpen) {
+    return;
+  }
+  state.importDrawerOpen = false;
+  document.removeEventListener("keydown", onImportDrawerKeydown);
+  importDrawer.classList.remove("is-open");
+  importDrawerBackdrop.classList.remove("is-open");
+  importDrawer.setAttribute("inert", "");
+  importDrawer.setAttribute("aria-hidden", "true");
+  importDrawerOpenButton.setAttribute("aria-expanded", "false");
+  // Closing discards the file and the passwords: a modal that reopens pre-filled would
+  // invite an apply the operator did not review.
+  resetImportDrawer();
+  unlockBodyScroll();
+  importDrawerOpenButton.focus();
 }
 
 function setAbWeightBValue(rawWeight) {
@@ -2225,6 +2857,41 @@ createLinkToggleButton.addEventListener("click", () => {
 
 exportButton.addEventListener("click", () => {
   exportConfiguration();
+});
+
+importDrawerOpenButton.addEventListener("click", () => {
+  openImportDrawer();
+});
+
+importDrawerCloseButton.addEventListener("click", () => {
+  closeImportDrawer();
+});
+
+importDrawerBackdrop.addEventListener("click", () => {
+  closeImportDrawer();
+});
+
+importDoneButton.addEventListener("click", () => {
+  closeImportDrawer();
+});
+
+// A new selection invalidates everything the previous file produced, including the
+// passwords, so the apply can never refer to a document the operator is no longer seeing.
+importFileInput.addEventListener("change", () => {
+  handleImportFileSelection();
+});
+
+importPasswordFields.addEventListener("input", () => {
+  syncImportApplyState();
+});
+
+importApplyButton.addEventListener("click", () => {
+  applyImport();
+});
+
+importResetButton.addEventListener("click", () => {
+  resetImportDrawer();
+  importFileInput.focus();
 });
 
 groupExpandAllButton.addEventListener("click", () => {

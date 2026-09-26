@@ -1360,6 +1360,211 @@ button.icon-btn {
   }
 }
 
+/* Configuration import drawer (Unreleased / Phase 5, Gate 5.3).
+
+   The same off-canvas surface as the group drawer, kept as its own block rather than
+   folded into the group rules: the group drawer is a frozen, reviewed layout, and the
+   only thing the two share is the vocabulary of the drawer itself. Opening one closes
+   the other, so the two are never visible at the same time. */
+
+.import-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(3, 4, 6, 0.62);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--motion-medium), visibility 0s linear var(--motion-medium);
+}
+
+.import-drawer-backdrop.is-open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--motion-medium), visibility 0s;
+}
+
+.import-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  /* Full width below the desktop size, and slightly wider than the group drawer above
+     it: a review with counts, blockers and password fields needs the room. */
+  width: min(520px, 100%);
+  padding: 24px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 16px;
+  background: #0b0d10;
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform var(--motion-medium), visibility 0s linear var(--motion-medium);
+}
+
+.import-drawer.is-open {
+  transform: translateX(0);
+  visibility: visible;
+  transition: transform var(--motion-medium), visibility 0s;
+}
+
+.import-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.import-drawer-subtitle {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.import-drawer-close {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 10px;
+  flex-shrink: 0;
+}
+
+/* Only the body scrolls, so the title and the close control stay where they were. */
+.import-drawer-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+.import-step {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.import-step + .import-step {
+  padding-top: 16px;
+}
+
+.import-step-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.import-file-name {
+  color: var(--muted);
+  font-size: 0.85rem;
+  /* A file name is operator input: it wraps instead of stretching the drawer. */
+  overflow-wrap: anywhere;
+}
+
+.import-summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.import-summary dt {
+  color: var(--muted);
+}
+
+.import-summary dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.import-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  /* The conflict and error lists are the reason this body scrolls, so an entry is a
+     readable line instead of a one-line ellipsis. */
+  max-height: 220px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.import-list li {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.import-list.import-conflicts li,
+.import-list.import-blockers li,
+.import-list.import-errors li {
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.import-error-path {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  margin-right: 6px;
+  overflow-wrap: anywhere;
+}
+
+.import-passwords {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.import-password-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.import-password-field {
+  display: grid;
+  gap: 4px;
+}
+
+.import-password-field label {
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.import-plan {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A closed drawer never keeps a hidden control in the layout. */
+.import-drawer [hidden] {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The drawer reveals through a delayed `visibility`, which the shared duration reset
+     in the global block does not cover. */
+  .import-drawer,
+  .import-drawer-backdrop {
+    transition-delay: 0s !important;
+  }
+}
+
 /* Group hierarchy panel (Unreleased / Phase 5, Gate 5.1).
 
    Group management is an on-demand off-canvas drawer rather than a card in the page:

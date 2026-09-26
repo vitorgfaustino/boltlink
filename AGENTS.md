@@ -16,6 +16,7 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 - redirect opcional da raiz (`GET /`) via variável `ROOT_REDIRECT_URL` (**Unreleased / Fase 4**, sem D1)
 - hierarquia de grupos em `link_groups.parent_id` (**Unreleased / Fase 5**, sem migration nova: a coluna existe desde a `0002`)
 - exportação administrativa da configuração lógica em BoltLink Portability JSON v1 via `GET /api/export` (**Unreleased / Fase 5**, sem migration nova)
+- importação administrativa dessa mesma configuração via `POST /api/import/preview` (somente leitura) e `POST /api/import/apply` (**Unreleased / Fase 5**, sem migration nova)
 - autenticação administrativa via Cloudflare Access
 
 ### Cinco bases de código que não podem ser confundidas
@@ -26,9 +27,9 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 | Fase 2 local | baseline local `23353a1`, não publicado | `0000` a `0004` | Split Test A/B |
 | Fase 3 congelada | HEAD `548f179`, Unreleased | `0000` a `0005` | Split Test A/B + Smart Routing |
 | Fase 4 congelada | HEAD `cdb9f83`, Unreleased | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
-| Fase 5 working tree | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil |
+| Fase 5 working tree | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil |
 
-A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura nem a exportação portátil da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência, e não existe `GET /api/export`). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
+A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura nem a portabilidade da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência, e não existem `GET /api/export`, `POST /api/import/preview` nem `POST /api/import/apply`). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
 
 ## Regra obrigatória para tarefas Cloudflare
 
@@ -82,7 +83,21 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - linha persistida que o BoltLink não aceitaria hoje falha o export inteiro com `409` controlado (Smart Routing corrompido, destino de expiração sem expiração, URL inválida, slug reservado, nome de grupo em forma não canônica — espaços nas pontas, só espaços ou acima de 120 caracteres, nunca normalizado —, ciclo/pai órfão em grupos, A/B inválido, linha híbrida A/B + Smart), sem skip, reparo ou documento parcial (Fase 5)
 - limites do formato são 50 grupos, 100 links e 256 KiB em bytes UTF-8, medidos após a serialização; acima deles a resposta é `413` explícito e o documento nunca é truncado (Fase 5)
 - o export é somente leitura no **request inteiro** (zero escritas e zero DDL no D1, inclusive no middleware: usa a readiness de schema somente leitura, então não cria `boltlink_metric_fence`; as demais rotas `/api` mantêm o bootstrap), usa o boundary administrativo de `/api` e responde com `Content-Disposition` de nome constante e `Cache-Control: no-store` (Fase 5)
-- não existe import nesta entrega: nenhum `/api/import`, upload, dry-run ou coleta de senha (Fase 5)
+- o import consome exatamente o documento que o export gera: `POST /api/import/preview` é somente leitura no request inteiro (zero `INSERT`/`UPDATE`/`DELETE`/DDL, inclusive no middleware) e `POST /api/import/apply` grava o documento inteiro em um único `batch` do D1, ou seja, em uma transação: o resultado é tudo ou nada, nunca partial import (Fase 5)
+- o import não cria migration, não altera schema e não faz DDL implícito: banco não preparado falha fechado com `503` nas duas rotas (Fase 5)
+- `apply` revalida o documento, as capabilities do destino, as colisões de slug e as senhas do zero; o preview é uma descrição da intenção e o estado do browser nunca é autoridade (Fase 5)
+- colisão com qualquer slug reservado no destino — link ativo, desabilitado ou tombstone — bloqueia o import inteiro com `409` e zero escritas; não existe overwrite e não há merge de grupo por nome (Fase 5)
+- link com `passwordProtected: true` exige uma nova senha em `replacementPasswords` no próprio apply, hasheada pelo mecanismo atual; sem ela (ou com senha para link não protegido) nada é escrito (Fase 5)
+- o mapeamento `ref` lógico → id local usa ids relativos calculados dentro da transação, com o pai sempre antes do filho: sem migration, sem tabela temporária, sem closure table e sem nome/path como chave (Fase 5)
+- o piso da alocação de id de grupo é `max(MAX(id), sqlite_sequence.seq)`, lido dentro de cada `INSERT`: um id que a tabela `AUTOINCREMENT` já gastou nunca é reutilizado, então um `links.group_id` apontando para grupo inexistente não pode ser adotado por um grupo importado (Fase 5)
+- destino com link apontando para grupo inexistente bloqueia o import inteiro com `409` (`TARGET_GROUP_REFERENCE_CORRUPT`) no preview e no apply, com zero escritas: sem reparo, sem reparent e sem zerar `group_id`, e sem que um grupo importado "cure" o órfão por colisão de id (Fase 5)
+- o corpo do import é decodificado em UTF-8 estrito: byte inválido responde `400` `INVALID_BODY` nas duas rotas, nunca U+FFFD, e o documento não é reinterpretado a partir de texto reparado (Fase 5)
+- a falha do batch é classificada pela assinatura do erro (`UNIQUE constraint failed: links.slug`), nunca pelo estado lido depois: qualquer outra falha responde `500` controlado mesmo que exista slug ocupado no destino, e a leitura pós-falha apenas nomeia os conflitos já provados pela assinatura (Fase 5)
+- o Admin descarta as senhas digitadas em toda falha terminal de apply (rede incluída), no sucesso, no close, no novo arquivo e no reset, e o apply exige preview aprovado para a seleção atual (`importSelection`/`generation`): resposta atrasada de um arquivo substituído nunca descreve o que o apply enviaria (Fase 5)
+- feature realmente usada pelo documento que o destino não suporta bloqueia com `409` (`TARGET_CAPABILITY_MISSING`), sem degradar e sem auto-migrar; A/B no estado default não conta como uso (Fase 5)
+- documento mais profundo que `MAX_GROUP_DEPTH` bloqueia com `409` (`GROUP_DEPTH_EXCEEDED`), documentado como limite de portabilidade de legado, sem bypass do invariante (Fase 5)
+- métricas não são inventadas nem restauradas: links importados nascem com os defaults atuais (`clicks_total = 0`, `metric_epoch`/`ab_generation` do destino) (Fase 5)
+- o import é cold/admin path: não altera `GET /:slug`, o fluxo de senha, `PUBLIC_REDIRECT_SQL`, `recordClick`, bot detection, A/B, Smart Routing, lifecycle nem o redirect da raiz (Fase 5)
 - redirects públicos usam `Referrer-Policy: strict-origin`
 - admin, API, home, gate de senha e respostas não redirect usam `Referrer-Policy: no-referrer`
 
@@ -92,6 +107,7 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - API ou auth: `src/index.ts`
 - hierarquia de grupos: `src/group-hierarchy.ts` (helpers de grafo e os statements atômicos) e `public/group-hierarchy-ui.js` (helpers de apresentação da árvore)
 - exportação portátil: `src/portability.ts` (formato, validação, refs, limites e serializer) e `public/portability-ui.js` (helpers de apresentação do download)
+- importação portátil: `src/portability-import.ts` (validação do documento, plano, blockers e os statements do batch) e `public/portability-import-ui.js` (helpers de apresentação do drawer de importação)
 - rate limiting: `src/rate-limit.ts`
 - banco: `migrations/` (autoridade); `schema.sql` (baseline da `0000` para ferramentas manuais)
 - operação: `docs/`

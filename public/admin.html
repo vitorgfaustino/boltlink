@@ -300,7 +300,8 @@
             <div class="panel-action-row">
               <button type="button" class="secondary compact create-link-toggle" id="create-link-toggle" aria-expanded="true" aria-controls="link-form-panel">+ Criar link</button>
               <button type="button" class="secondary compact" id="group-drawer-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="group-drawer">Gerenciar grupos</button>
-              <button type="button" class="secondary compact" id="export-button">Exportar dados</button>
+              <button type="button" class="secondary compact" id="export-button">Exportar configuração</button>
+              <button type="button" class="secondary compact" id="import-drawer-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="import-drawer">Importar configuração</button>
             </div>
             <div class="status" id="export-status" role="status" aria-live="polite" aria-atomic="true"></div>
           </div>
@@ -426,11 +427,76 @@
     </div>
   </aside>
 
+  <!-- Configuration import lives in its own off-canvas drawer, next to the group one and
+       under the same rules: modal, focus trapped, and never open at the same time as the
+       other drawer. The two are separate surfaces on purpose — importing is a one-shot
+       operation with its own review step, not another view of the group tree. -->
+  <div class="import-drawer-backdrop" id="import-drawer-backdrop"></div>
+  <aside
+    class="import-drawer"
+    id="import-drawer"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="import-drawer-title"
+    aria-hidden="true"
+    inert
+  >
+    <header class="import-drawer-header">
+      <div class="panel-heading-copy">
+        <h2 id="import-drawer-title">Importar configuração</h2>
+        <p class="import-drawer-subtitle">Importe links e grupos de uma exportação do BoltLink.</p>
+      </div>
+      <button type="button" class="secondary compact import-drawer-close" id="import-drawer-close" aria-label="Fechar painel de importação">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="m6 6 12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+    </header>
+
+    <div class="import-drawer-body">
+      <section class="import-step">
+        <h3 class="import-step-title">Arquivo</h3>
+        <label for="import-file">Selecionar arquivo</label>
+        <input id="import-file" type="file" accept="application/json,.json" />
+        <p class="field-help">Use um arquivo gerado por "Exportar configuração". Limite: 256 KiB.</p>
+        <p class="import-file-name" id="import-file-name"></p>
+      </section>
+
+      <section class="import-step" id="import-review" hidden>
+        <h3 class="import-step-title">Revisão</h3>
+        <!-- Counts come from the API preview and are written with textContent: a slug, a
+             group name or a tag from the file is never markup. -->
+        <dl class="import-summary" id="import-summary" hidden></dl>
+        <ul class="import-list import-warnings" id="import-warnings" hidden></ul>
+        <ul class="import-list import-conflicts" id="import-conflicts" hidden></ul>
+        <ul class="import-list import-blockers" id="import-blockers" hidden></ul>
+        <ul class="import-list import-errors" id="import-errors" hidden></ul>
+
+        <fieldset class="import-passwords" id="import-passwords" hidden>
+          <legend>Novas senhas necessárias</legend>
+          <p class="field-help">As senhas não fazem parte da exportação. Defina uma nova senha para cada link protegido. Elas não são guardadas no navegador.</p>
+          <div class="import-password-fields" id="import-password-fields"></div>
+        </fieldset>
+
+        <p class="import-plan" id="import-plan"></p>
+        <div class="import-actions">
+          <button type="button" class="primary compact" id="import-apply-button" disabled>Importar configuração</button>
+          <button type="button" class="secondary compact" id="import-reset-button">Escolher outro arquivo</button>
+          <button type="button" class="secondary compact" id="import-done-button" hidden>Concluir</button>
+        </div>
+      </section>
+
+      <div class="status" id="import-status" role="status" aria-live="polite" aria-atomic="true"></div>
+    </div>
+  </aside>
+
   <script src="/ab-display.js"></script>
   <script src="/smart-routing-ui.js"></script>
   <script src="/expired-redirect-ui.js"></script>
   <script src="/group-hierarchy-ui.js"></script>
   <script src="/portability-ui.js"></script>
+  <script src="/portability-import-ui.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>

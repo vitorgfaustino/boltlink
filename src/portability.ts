@@ -264,9 +264,16 @@ function linkSubject(slug: unknown): string {
  */
 const ISO_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 
-type Resolved<T> = { ok: true; value: T } | { ok: false };
+export type Resolved<T> = { ok: true; value: T } | { ok: false };
 
-function resolvePersistedInstant(raw: unknown): Resolved<string | null> {
+/**
+ * Instant rule of the format, shared by both directions. The import reuses this exact
+ * function instead of restating the rule, so a value can never be accepted by one
+ * direction and refused by the other: `Date#toISOString()` is the only shape BoltLink
+ * stores, which is why an offset form, a naive local datetime or a number is refused
+ * rather than reinterpreted in some timezone.
+ */
+export function resolvePersistedInstant(raw: unknown): Resolved<string | null> {
 	if (raw === null || raw === undefined) {
 		return { ok: true, value: null };
 	}
@@ -304,8 +311,12 @@ function resolvePersistedUrl(raw: unknown, policy: PortabilityValidationPolicy):
  * Stored tags are the JSON array `normalizeTags` writes: trimmed, non-empty strings,
  * at most 50, in the operator's order. That order is preserved here — the product
  * never sorts tags, so sorting them during export would be a silent rewrite.
+ *
+ * Exported for {@link ./portability-import}, which feeds the document's array through
+ * `JSON.stringify` into this same function: the import then accepts exactly the shape
+ * the export emits, instead of restating the rule and drifting from it.
  */
-function resolvePersistedTags(raw: unknown): Resolved<string[]> {
+export function resolvePersistedTags(raw: unknown): Resolved<string[]> {
 	if (raw === null || raw === undefined) {
 		return { ok: true, value: [] };
 	}

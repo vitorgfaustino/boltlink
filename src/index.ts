@@ -54,8 +54,27 @@ import {
 	isWithinSubtree,
 } from "./group-hierarchy";
 import type { GroupHierarchyRow } from "./group-hierarchy";
-import { PORTABILITY_EXPORT_FILENAME, buildPortabilityExport } from "./portability";
+import { PORTABILITY_EXPORT_FILENAME, PORTABILITY_MAX_BYTES, buildPortabilityExport } from "./portability";
 import type { PortabilityGroupRow, PortabilityLinkRow } from "./portability";
+import {
+	PORTABILITY_IMPORT_ENVELOPE_KEYS,
+	PORTABILITY_IMPORT_ENVELOPE_SLACK_BYTES,
+	buildPortabilityImportStatements,
+	findPortabilityImportBlockers,
+	isPortabilityImportSlugCollisionError,
+	parsePortabilityImportDocument,
+	portabilityImportDocumentBytes,
+	portabilityImportRefusal,
+} from "./portability-import";
+import type {
+	PortabilityImportBlockerCode,
+	PortabilityImportEnvelope,
+	PortabilityImportFeatureFlags,
+	PortabilityImportPlan,
+	PortabilityImportPolicy,
+	PortabilityImportRefusal,
+	PortabilityImportWarningCode,
+} from "./portability-import";
 
 /** Persisted-state classification exposed to the Admin: disabled ≠ corrupt. */
 type SmartRoutingStatus = SmartRoutingPersistedResult["status"];
@@ -335,17 +354,21 @@ const requireAdmin: MiddlewareHandler<AppContext> = async (c, next) => {
 };
 
 /**
- * Administrative routes whose *whole request* must be read-only. `GET /api/export`
- * is the only one, and for a specific reason: it advertises a zero-write artifact, so
- * the fence projection the runtime installs on every other administrative request must
- * not be created as a side effect of asking for it. The route still runs through the
- * same rate limiter, the same `requireAdmin` boundary and the same schema validation;
- * only the bootstrapping step is replaced by its read-only counterpart.
+ * Administrative routes that must not run the bootstrapping schema step. `GET /api/export`
+ * is there because it advertises a zero-write artifact, so the fence projection the
+ * runtime installs on every other administrative request must not be created as a side
+ * effect of asking for it. The two import routes are there for the same reason from the
+ * other direction: they validate a document and write rows, and a portability operation
+ * must never execute DDL — implicit or otherwise — so they validate the schema with the
+ * read-only readiness and refuse a database that was never prepared with the same `503`.
+ * The preview route additionally writes nothing at all, which is why its whole request
+ * stays read-only. Every one of them still runs through the same rate limiter, the same
+ * `requireAdmin` boundary and the same schema validation.
  */
-const READ_ONLY_DATABASE_PATHS = new Set(["/api/export"]);
+const NON_BOOTSTRAPPING_DATABASE_PATHS = new Set(["/api/export", "/api/import/preview", "/api/import/apply"]);
 
 const ensureDatabaseReady: MiddlewareHandler<AppContext> = async (c, next) => {
-	if (READ_ONLY_DATABASE_PATHS.has(c.req.path)) {
+	if (NON_BOOTSTRAPPING_DATABASE_PATHS.has(c.req.path)) {
 		await inspectDatabaseSchema(c.env.db_boltlink);
 	} else {
 		await ensurePreparedDatabase(c.env.db_boltlink);
@@ -1211,6 +1234,141 @@ app.get("/api/export", async (c) => {
 			"Content-Disposition": `attachment; filename="${PORTABILITY_EXPORT_FILENAME}"`,
 		},
 	});
+});
+
+/**
+ * Portability import (Unreleased / Phase 5, Gate 5.3).
+ *
+ * The counterpart of the export, on the same administrative boundary: `requireAdmin`
+ * plus Cloudflare Access, with the API key as the existing alternative, and the shared
+ * administrative rate limiter. There is no parallel authentication and no public route.
+ *
+ * The two endpoints exist because the operation has two steps with different
+ * consequences. `preview` answers "what would this file create, and can it be applied
+ * here?" and is *read-only in the whole request* — it validates, measures, checks the
+ * destination and reports, and never writes a row or a schema object. `apply` writes
+ * nothing until every one of those checks has been repeated from scratch, because a
+ * preview is a description of an intent the operator saw, never an authorization: there
+ * is no plan id, no token and no server-side session to trust, so the browser's state is
+ * worth exactly nothing here.
+ *
+ * The format is the export's own artifact and nothing else: no second schema, no
+ * coercion, no repair. What the document cannot carry (hashes, metrics, internal ids and
+ * timestamps) the destination generates, exactly as if an operator had typed the
+ * configuration into the Admin.
+ */
+app.post("/api/import/preview", async (c) => {
+	const envelope = await readPortabilityImportEnvelope(c);
+	if (!envelope.ok) {
+		return respondPortabilityImportRefusal(c, envelope.refusal);
+	}
+
+	const parsed = parsePortabilityImportDocument(envelope.envelope.document, portabilityImportPolicy());
+	if (!parsed.ok) {
+		return respondPortabilityImportRefusal(c, parsed);
+	}
+
+	const destination = await readPortabilityImportDestination(c.env.db_boltlink, parsed.plan);
+	const blockers = findPortabilityImportBlockers({
+		plan: parsed.plan,
+		capabilities: destination.capabilities,
+		conflicts: destination.conflicts,
+		destinationHierarchyValid: destination.hierarchyValid,
+		destinationGroupReferencesValid: destination.groupReferencesValid,
+		passwordSecretConfigured: hasConfiguredPasswordSessionSecret(c.env),
+	});
+
+	if (blockers.length > 0) {
+		return respondPortabilityImportBlocked(c, parsed.plan, destination.conflicts, blockers);
+	}
+
+	return c.json(
+		{
+			ok: true,
+			summary: parsed.plan.summary,
+			conflicts: [],
+			requiresPasswords: parsed.plan.protectedSlugs.map((slug) => ({ slug })),
+			warnings: PORTABILITY_IMPORT_WARNINGS,
+		},
+		200,
+		{ "Cache-Control": "no-store" },
+	);
+});
+
+app.post("/api/import/apply", async (c) => {
+	const envelope = await readPortabilityImportEnvelope(c);
+	if (!envelope.ok) {
+		return respondPortabilityImportRefusal(c, envelope.refusal);
+	}
+
+	const parsed = parsePortabilityImportDocument(envelope.envelope.document, portabilityImportPolicy());
+	if (!parsed.ok) {
+		return respondPortabilityImportRefusal(c, parsed);
+	}
+
+	const plan = parsed.plan;
+	const destination = await readPortabilityImportDestination(c.env.db_boltlink, plan);
+	const blockers = findPortabilityImportBlockers({
+		plan,
+		capabilities: destination.capabilities,
+		conflicts: destination.conflicts,
+		destinationHierarchyValid: destination.hierarchyValid,
+		destinationGroupReferencesValid: destination.groupReferencesValid,
+		passwordSecretConfigured: hasConfiguredPasswordSessionSecret(c.env),
+	});
+
+	if (blockers.length > 0) {
+		return respondPortabilityImportBlocked(c, plan, destination.conflicts, blockers);
+	}
+
+	// Passwords are validated as a strict mapping and hashed before anything is built:
+	// no plaintext is ever persisted, logged, echoed or placed in an error message.
+	const passwords = resolvePortabilityImportPasswords(plan, envelope.envelope.replacementPasswords);
+	if (!passwords.ok) {
+		return respondPortabilityImportRefusal(c, passwords.refusal);
+	}
+
+	const passwordHashes = new Map<string, string>();
+	for (const [slug, value] of passwords.values) {
+		passwordHashes.set(slug, await hashPassword(value) ?? "");
+	}
+
+	const statements = buildPortabilityImportStatements({
+		plan,
+		capabilities: destination.capabilities,
+		passwordHashes,
+		now: isoNow(),
+	});
+
+	try {
+		await c.env.db_boltlink.batch(
+			statements.map((statement) => c.env.db_boltlink.prepare(statement.sql).bind(...statement.bindings)),
+		);
+	} catch (error) {
+		// A batch is one SQL transaction: the failing statement aborts the sequence, so
+		// the destination is exactly as it was, however far the import had progressed.
+		console.error("Portability import batch failed", error instanceof Error ? error.message : String(error));
+
+		// The one failure with a meaningful explanation is the slug reservation, and it has
+		// to *be* that failure: the error names the constraint SQLite refused. Anything else
+		// stays an unexpected server error — reading the destination afterwards would find a
+		// conflicting slug in any installation that already holds one of the document's
+		// slugs, and would report an unrelated defect as a collision.
+		if (!isPortabilityImportSlugCollisionError(error)) {
+			return c.json({ error: "Import could not be completed" }, 500, { "Cache-Control": "no-store" });
+		}
+
+		// Read only to say *which* slugs the transaction tripped over, never to decide that
+		// it tripped over a slug at all: the error already said so.
+		const lateConflicts = await findPortabilityImportSlugConflicts(c.env.db_boltlink, plan.links.map((link) => link.slug));
+		return respondPortabilityImportBlocked(c, plan, lateConflicts, ["SLUG_COLLISION"]);
+	}
+
+	return c.json(
+		{ ok: true, groupsCreated: plan.groups.length, linksCreated: plan.links.length },
+		200,
+		{ "Cache-Control": "no-store" },
+	);
 });
 
 app.get("/api/preview", async (c) => {
@@ -3621,6 +3779,323 @@ async function parseJsonBody<T>(c: Context<AppContext>) {
 
 function isoNow() {
 	return new Date().toISOString();
+}
+
+/** Warnings the panel renders as copy of its own: the API never sends user-facing text. */
+const PORTABILITY_IMPORT_WARNINGS: PortabilityImportWarningCode[] = ["METRICS_NOT_EXPORTED"];
+
+/** Bounded conflict report: the panel lists slugs compactly and never needs all of them. */
+const PORTABILITY_IMPORT_MAX_CONFLICTS = 20;
+
+/**
+ * Transport cap of the envelope, on top of the document ceiling. The document's own
+ * limit is measured after parsing against the format's limit — the same number the
+ * export applies to what it produces — so the two limits can never be confused: this
+ * one only keeps an oversized body from being buffered before it is refused.
+ */
+const PORTABILITY_IMPORT_BODY_MAX_BYTES = PORTABILITY_MAX_BYTES + PORTABILITY_IMPORT_ENVELOPE_SLACK_BYTES;
+
+/**
+ * The runtime's own validators are the authority for what BoltLink accepts, exactly as
+ * the export uses them: slug syntax and reservation, URL normalization, the tag storage
+ * form and the default A/B weight all come from the write paths, so a document can never
+ * be importable here and unapplicable through the administrative API.
+ */
+function portabilityImportPolicy(): PortabilityImportPolicy {
+	return {
+		isValidSlug: (slug: string) => validateSlug(slug) === null,
+		normalizeUrl: (candidate: string) => normalizeTargetUrl(candidate),
+		serializeTags: (tags: string[]) => normalizeTags(tags),
+		defaultAbWeightB: DEFAULT_AB_WEIGHT_B,
+	};
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Reads the request body with a hard byte ceiling, so a hostile or accidental upload is
+ * refused while it is being read instead of after it was buffered. The declared
+ * `Content-Length` is only a fast path: the streamed count is what decides.
+ */
+async function readPortabilityImportBody(
+	c: Context<AppContext>,
+	maxBytes: number,
+): Promise<{ ok: true; text: string } | { ok: false; refusal: PortabilityImportRefusal }> {
+	const declared = Number.parseInt(c.req.header("Content-Length") ?? "", 10);
+	if (!Number.isNaN(declared) && declared > maxBytes) {
+		return { ok: false, refusal: portabilityImportRefusal(413, "TOO_LARGE") };
+	}
+
+	const stream = c.req.raw.body;
+	if (!stream) {
+		return { ok: false, refusal: portabilityImportRefusal(400, "INVALID_BODY") };
+	}
+
+	const reader = stream.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+
+	try {
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+			if (!value) {
+				continue;
+			}
+			total += value.byteLength;
+			if (total > maxBytes) {
+				await reader.cancel();
+				return { ok: false, refusal: portabilityImportRefusal(413, "TOO_LARGE") };
+			}
+			chunks.push(value);
+		}
+	} catch {
+		return { ok: false, refusal: portabilityImportRefusal(400, "INVALID_BODY") };
+	}
+
+	const merged = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		merged.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+
+	// Strict UTF-8. The default decoder *repairs* a malformed sequence by substituting
+	// U+FFFD, which would turn a corrupt file into a different document that still
+	// validates: the operator would import text that is not the text in the file, and the
+	// only sign of it would be a replacement character somewhere in a name. A body that is
+	// not UTF-8 is refused as unreadable instead of being guessed at.
+	try {
+		// `ignoreBOM: false` is the default and is named because the runtime's type for the
+		// options object requires it: a byte order mark is still a byte order mark.
+		return { ok: true, text: new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(merged) };
+	} catch {
+		return { ok: false, refusal: portabilityImportRefusal(400, "INVALID_BODY") };
+	}
+}
+
+/**
+ * Reads the `{ document, replacementPasswords }` envelope. Both endpoints take the same
+ * shape, so the panel has exactly one body to build and one envelope rule to satisfy,
+ * and the passwords for the protected links travel next to the document they belong to
+ * instead of inside it — the format stays free of secrets.
+ */
+async function readPortabilityImportEnvelope(c: Context<AppContext>): Promise<
+	{ ok: true; envelope: PortabilityImportEnvelope } | { ok: false; refusal: PortabilityImportRefusal }
+> {
+	const body = await readPortabilityImportBody(c, PORTABILITY_IMPORT_BODY_MAX_BYTES);
+	if (!body.ok) {
+		return body;
+	}
+
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(body.text) as unknown;
+	} catch {
+		return { ok: false, refusal: portabilityImportRefusal(400, "INVALID_BODY") };
+	}
+
+	if (!isJsonObject(parsed)) {
+		return { ok: false, refusal: portabilityImportRefusal(400, "INVALID_BODY") };
+	}
+
+	const unknownKeys = Object.keys(parsed).filter((key) => !PORTABILITY_IMPORT_ENVELOPE_KEYS.has(key));
+	if (unknownKeys.length > 0) {
+		return {
+			ok: false,
+			refusal: portabilityImportRefusal(
+				400,
+				"INVALID_BODY",
+				unknownKeys.map((key) => ({ path: `envelope.${key}`, code: "INVALID_BODY" as const })),
+			),
+		};
+	}
+	if (!Object.prototype.hasOwnProperty.call(parsed, "document")) {
+		return { ok: false, refusal: portabilityImportRefusal(400, "INVALID_BODY", [{ path: "document", code: "INVALID_BODY" }]) };
+	}
+
+	// The format's own ceiling, measured on the document that would be applied — the same
+	// rule, and the same `413`, in both directions.
+	if (portabilityImportDocumentBytes(parsed.document) > PORTABILITY_MAX_BYTES) {
+		return { ok: false, refusal: portabilityImportRefusal(413, "TOO_LARGE") };
+	}
+
+	const rawPasswords = parsed.replacementPasswords;
+	if (rawPasswords === undefined || rawPasswords === null) {
+		return { ok: true, envelope: { document: parsed.document, replacementPasswords: null } };
+	}
+	if (!isJsonObject(rawPasswords)) {
+		return { ok: false, refusal: portabilityImportRefusal(400, "INVALID_PASSWORD") };
+	}
+
+	return { ok: true, envelope: { document: parsed.document, replacementPasswords: rawPasswords } };
+}
+
+/**
+ * Everything the destination decides: which feature columns exist, whether its own group
+ * tree is interpretable, and which of the document's slugs already reserve a slug here.
+ * All of it is read-only, so the same helper serves the preview and the apply — the
+ * apply simply runs it again instead of trusting the answer the preview produced.
+ */
+async function readPortabilityImportDestination(
+	database: D1Database,
+	plan: PortabilityImportPlan,
+): Promise<{
+	capabilities: PortabilityImportFeatureFlags;
+	hierarchyValid: boolean;
+	groupReferencesValid: boolean;
+	conflicts: string[];
+}> {
+	const schema = await inspectDatabaseSchema(database);
+	const capabilities = {
+		abTesting: schema.abReady,
+		smartRouting: await resolveSmartRoutingCapability(database, schema),
+		expiredRedirect: await resolveExpiredRedirectCapability(database, schema),
+	};
+
+	// A destination whose own tree cannot be interpreted refuses the import instead of
+	// compounding the problem: the imported groups would be readable, but the panel could
+	// not render the result, and no repair is ever implicit.
+	const hierarchyValid = analyzeGroupHierarchy(await readGroupRows(database)).ok;
+
+	// The second way a destination tree can be unreadable: a link that belongs to a group
+	// that does not exist. Nothing in D1 enforces `links.group_id` as a foreign key, so a
+	// row deleted by external SQL leaves the reference behind — and it is precisely the
+	// state an id reuse would silently repair, by giving that id to an imported group.
+	const orphan = await database.prepare(ORPHAN_GROUP_REFERENCE_SQL).first();
+
+	return {
+		capabilities,
+		hierarchyValid,
+		groupReferencesValid: !orphan,
+		conflicts: plan.links.length ? await findPortabilityImportSlugConflicts(database, plan.links.map((link) => link.slug)) : [],
+	};
+}
+
+/**
+ * Whether the destination holds any link pointing at a group that is not there. One row is
+ * enough: the check answers a yes/no question, so it stops at the first one and never walks
+ * the whole table. Read-only, like everything else the preview does.
+ */
+const ORPHAN_GROUP_REFERENCE_SQL = `SELECT 1 AS present FROM links AS candidate
+	WHERE candidate.group_id IS NOT NULL
+	  AND NOT EXISTS (SELECT 1 FROM link_groups WHERE link_groups.id = candidate.group_id)
+	LIMIT 1`;
+
+/**
+ * Slugs the document wants that the destination already reserves. *Any* row counts —
+ * active, disabled or tombstone — because the `slug` column is unique across all of them
+ * and the product never reuses a slug after soft deletion. Chunked so the parameter count
+ * of each statement stays far below the platform ceiling, and reported in document order
+ * so the panel's list is stable.
+ */
+async function findPortabilityImportSlugConflicts(database: D1Database, slugs: string[]): Promise<string[]> {
+	const unique = [...new Set(slugs)];
+	const conflicts = new Set<string>();
+
+	for (let offset = 0; offset < unique.length; offset += 50) {
+		const chunk = unique.slice(offset, offset + 50);
+		const placeholders = chunk.map(() => "?").join(", ");
+		const rows = await database
+			.prepare(`SELECT slug FROM links WHERE slug IN (${placeholders})`)
+			.bind(...chunk)
+			.all<{ slug: string }>();
+
+		for (const row of rows.results ?? []) {
+			conflicts.add(String(row.slug));
+		}
+	}
+
+	return unique.filter((slug) => conflicts.has(slug));
+}
+
+/**
+ * Replacement passwords for the protected links of the document, validated as a strict
+ * mapping: one non-empty password for every `passwordProtected: true` link, nothing for
+ * any other slug and nothing in a shape that is not a string. A missing entry is the
+ * import requirement not being met (`409`); a malformed one is a bad request (`400`).
+ * The values never leave this function except as hashes.
+ */
+function resolvePortabilityImportPasswords(
+	plan: PortabilityImportPlan,
+	provided: Record<string, unknown> | null,
+): { ok: true; values: Map<string, string> } | { ok: false; refusal: PortabilityImportRefusal } {
+	const entries = Object.entries(provided ?? {});
+	const required = new Set(plan.protectedSlugs);
+	const values = new Map<string, string>();
+	const issues: Array<{ path: string; code: "INVALID_PASSWORD" }> = [];
+
+	for (let index = 0; index < entries.length; index += 1) {
+		const [slug, value] = entries[index];
+		if (!required.has(slug)) {
+			// Strict on purpose: a password that would have no effect must be visible
+			// instead of silently dropped. Only a slug-shaped key is named back, so the
+			// report never republishes an arbitrary key from the request.
+			const label = validateSlug(slug) === null ? `replacementPasswords.${slug}` : `replacementPasswords[${index}]`;
+			issues.push({ path: label, code: "INVALID_PASSWORD" });
+			continue;
+		}
+
+		const password = normalizePassword(value);
+		if (password.kind !== "set") {
+			issues.push({ path: `replacementPasswords.${slug}`, code: "INVALID_PASSWORD" });
+			continue;
+		}
+		values.set(slug, password.value);
+	}
+
+	if (issues.length > 0) {
+		return { ok: false, refusal: portabilityImportRefusal(400, "INVALID_PASSWORD", issues) };
+	}
+
+	const missing = plan.protectedSlugs.filter((slug) => !values.has(slug));
+	if (missing.length > 0) {
+		return {
+			ok: false,
+			refusal: portabilityImportRefusal(409, "PASSWORD_REQUIRED", missing.map((slug) => ({ path: `replacementPasswords.${slug}`, code: "PASSWORD_REQUIRED" as const }))),
+		};
+	}
+
+	return { ok: true, values };
+}
+
+function respondPortabilityImportRefusal(c: Context<AppContext>, refusal: PortabilityImportRefusal) {
+	// Controlled message: no raw SQL, no SQLite error, no stack and no document value.
+	return c.json({ ok: false, error: refusal.error, code: refusal.code, errors: refusal.errors }, refusal.status, {
+		"Cache-Control": "no-store",
+	});
+}
+
+/**
+ * The valid-document-cannot-be-applied answer. Every reason is reported together, so the
+ * operator fixes them in one pass, and the summary still travels: knowing that the file
+ * holds 7 groups and 42 links is what makes a refusal actionable.
+ */
+function respondPortabilityImportBlocked(
+	c: Context<AppContext>,
+	plan: PortabilityImportPlan,
+	conflicts: string[],
+	blockers: PortabilityImportBlockerCode[],
+) {
+	return c.json(
+		{
+			ok: false,
+			error: "Portability import blocked",
+			code: blockers[0] ?? "SLUG_COLLISION",
+			blockers,
+			summary: plan.summary,
+			conflicts: conflicts.slice(0, PORTABILITY_IMPORT_MAX_CONFLICTS).map((slug) => ({ slug })),
+			conflictsTotal: conflicts.length,
+			requiresPasswords: plan.protectedSlugs.map((slug) => ({ slug })),
+			warnings: PORTABILITY_IMPORT_WARNINGS,
+		},
+		409,
+		{ "Cache-Control": "no-store" },
+	);
 }
 
 function applySecurityHeaders(response: Response, path: string, requestUrl?: string) {

@@ -66,7 +66,8 @@ Unreleased / Fase 5 (working tree atual sobre o HEAD congelado da Fase 4 `cdb9f8
 - hierarquia de grupos em `link_groups.parent_id`, sem migration nova (a coluna existe desde a `0002`)
 - `parentId` é o nome na escrita; `GET /api/groups` continua plano com `parent_id` e o Admin monta a árvore no cliente
 - ciclo, profundidade, delete e concorrência decididos em um único statement condicional, nunca com `SELECT` seguido de `UPDATE`/`INSERT`
-- exportação administrativa da configuração lógica (`GET /api/export`) no formato `boltlink-portability` v1, somente leitura no request inteiro: sem `password_hash`, sem métricas, sem IDs internos (grupos usam `ref` local e links usam `groupRef`), sem DDL no primeiro request em handle frio (não cria `boltlink_metric_fence`, ao contrário das demais rotas `/api`); não é backup do D1 e ainda não existe import
+- exportação administrativa da configuração lógica (`GET /api/export`) no formato `boltlink-portability` v1, somente leitura no request inteiro: sem `password_hash`, sem métricas, sem IDs internos (grupos usam `ref` local e links usam `groupRef`), sem DDL no primeiro request em handle frio (não cria `boltlink_metric_fence`, ao contrário das demais rotas `/api`); não é backup do D1
+- importação administrativa da mesma configuração (`POST /api/import/preview` e `POST /api/import/apply`), sem migration nova: o preview é somente leitura e o apply grava o documento em um único `batch` (tudo ou nada), exige nova senha para cada link protegido, bloqueia com `409` colisão de slug, feature que o banco não suporta e árvore acima de 16 níveis, e não restaura métricas
 
 O produto não mantém:
 

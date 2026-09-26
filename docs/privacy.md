@@ -73,13 +73,14 @@ Stateless A/B testing distributes each eligible request independently without bu
 - A Fase 4 não adiciona nenhuma persistência nova de visitante: sem IP, sem `User-Agent`, sem país, sem dispositivo, sem visitor ID, sem eventos de referrer e sem clickstream.
 - A minimização de dados e a privacidade por arquitetura apoiam a adequação LGPD do operador, mas não a substituem: quem implanta e opera a instância continua sendo o controlador dos tratamentos que realizar.
 
-## Exportação de configuração (Unreleased / Fase 5)
+## Portabilidade de configuração (Unreleased / Fase 5)
 
-> Escopo: working tree da Fase 5. A tag publicada `v2.2.1` não possui `GET /api/export`.
+> Escopo: working tree da Fase 5. A tag publicada `v2.2.1` não possui `GET /api/export` nem as rotas de importação.
 
 - O export contém apenas **configuração administrativa**: destino, tipo de redirect, tags, grupo, lifecycle, existência de senha e configuração de A/B e de Smart Routing. É a mesma informação que o operador vê e digita no painel; nenhum dado individual entra no documento.
 - Explicitamente ausentes do JSON: IP, hash de IP, `User-Agent`, país, dispositivo derivado, visitor ID, eventos de referrer, clickstream e qualquer métrica por visitante.
-- `password_hash` **não** é exportado: a consulta nem seleciona a coluna e o documento traz apenas `passwordProtected: true/false`. Uma nova senha será exigida quando existir um import.
+- `password_hash` **não** é exportado: a consulta nem seleciona a coluna e o documento traz apenas `passwordProtected: true/false`. A importação exige uma **nova** senha para cada link protegido, enviada no corpo do `apply`, usada só para gerar o hash e nunca devolvida, registrada ou guardada no navegador.
+- O import grava apenas **configuração administrativa** (as mesmas linhas que o operador digitaria no painel): não cria visitor data, não cria métrica, não cria histórico de importações e não registra auditoria de quem importou. Como toda rota administrativa, ele usa upload apenas do arquivo escolhido pelo operador na própria instalação — nenhum documento é enviado a serviço externo.
 - Métricas agregadas também ficam de fora (`clicks_total` e contadores A/B): o export é configuração, não histórico. Backup completo do D1 continua sendo o caminho para recuperar estado operacional.
 - Por ser leitura administrativa autenticada, o export compartilha o boundary de `/api` (Cloudflare Access, `requireAdmin` ou chave de API) e o mesmo rate limit; nenhuma autenticação paralela foi criada.
 - O export é somente leitura: não grava nada no banco e não cria tabela de auditoria nem histórico de exportações. Guardar o arquivo gerado é responsabilidade do operador, como qualquer material administrativo baixado do painel.

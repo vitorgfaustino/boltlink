@@ -179,7 +179,9 @@ describe("Phase 5, Gate 5.2: admin wiring", () => {
 
 		expect(ids).toContain("export-button");
 		expect(ids).toContain("export-status");
-		expect(html).toMatch(/<button type="button"[^>]*id="export-button"[^>]*>Exportar dados<\/button>/);
+		// Gate 5.3 renamed the control: it now names what it produces (a configuration
+		// document) instead of the generic "dados", and it sits next to the import one.
+		expect(html).toMatch(/<button type="button"[^>]*id="export-button"[^>]*>Exportar configuração<\/button>/);
 		expect(html).toMatch(/id="export-status" role="status" aria-live="polite"/);
 	});
 
@@ -222,13 +224,27 @@ describe("Phase 5, Gate 5.2: admin wiring", () => {
 		}
 	});
 
-	it("exposes no import affordance", () => {
-		const html = readPublic("admin.html");
+	/**
+	 * Gate 5.2 pinned "there is no import yet" here. Gate 5.3 delivers the import, so the
+	 * claim moves to the other half of the boundary: the export stays a download-only
+	 * surface, and the file-reading, reviewing and applying live in their own module and
+	 * their own drawer. What was unexportable data staying out of an HTML sink is asserted
+	 * above, and the import surface has its own suite (`portability-import-admin.spec.ts`).
+	 */
+	it("keeps the export surface download-only now that import exists", () => {
 		const admin = readPublic("admin.js");
 		const ui = readPublic("portability-ui.js");
+		const exportBody = functionBody(admin, "exportConfiguration");
 
-		expect(html).not.toMatch(/type="file"/);
-		expect(admin).not.toMatch(/\/api\/import|FileReader|type="file"|Importar/i);
-		expect(ui).not.toMatch(/FileReader|\bupload\b|\bimport\b/i);
+		// The export path reads no file, posts nothing and opens nothing.
+		expect(exportBody).not.toMatch(/FileReader|\.text\(\)\s*;?\s*$|\/api\/import|importApply|importPreview/);
+		expect(exportBody).not.toMatch(/type="file"|FormData|enctype/i);
+		// The export helper module stays free of DOM access and of import vocabulary.
+		expect(ui).not.toMatch(/FileReader|\bupload\b|type="file"/);
+		expect(ui).not.toMatch(/IMPORT_/);
+
+		// The import affordance exists, and it is not the export button.
+		expect(readPublic("admin.html")).toContain('id="import-drawer-open"');
+		expect(admin).toContain("handleImportFileSelection");
 	});
 });
