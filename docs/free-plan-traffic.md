@@ -169,11 +169,18 @@ Fonte oficial: https://developers.cloudflare.com/workers/wrangler/configuration/
 
 O `wrangler.jsonc` publico pode continuar amigavel para Deploy Button e testes iniciais. A configuracao privada de producao deve ser ajustada pelo operador da instancia.
 
-## O que nao e baseline gratuita
+## WAF e Rate Limiting no plano gratuito
 
-Cloudflare WAF Rate Limiting Rules, Bot Management avancado e regras mais granulares podem depender de plano ou produto pago.
+O Cloudflare Free **já inclui** capacidade limitada de Rate Limiting/WAF. O escopo exato dessa capacidade depende da oferta vigente do provedor e muda com o tempo: por exemplo, a quantidade de regras e quais campos/características de contagem estão disponíveis variam por plano. Recursos mais avançados ou de maior capacidade (regras mais granulares, características de contagem adicionais e Bot Management avançado) podem exigir plano ou produto pago.
 
-Por isso, a baseline do BoltLink nao exige WAF pago. Se o operador tiver esses recursos, pode usa-los como camada adicional fora da aplicacao.
+Como esses limites mudam, o BoltLink **não fixa números** nem promete uma cota específica de WAF ou Rate Limiting: consulte a documentação oficial vigente do provedor antes de planejar.
+
+A baseline do BoltLink **não exige** WAF nem Rate Limiting configurados no painel Cloudflare. Se o operador tiver esses recursos, pode usá-los como camada adicional fora da aplicação.
+
+Fontes oficiais:
+
+- WAF Rate limiting rules (disponibilidade e limites por plano): https://developers.cloudflare.com/waf/rate-limiting-rules/
+- Planos e recursos incluídos por plano: https://www.cloudflare.com/plans/
 
 ## Trafego dos EUA
 

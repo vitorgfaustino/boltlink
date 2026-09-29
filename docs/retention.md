@@ -2,25 +2,72 @@
 
 ## Estado atual
 
-BoltLink não mantém mais tabela de eventos de clique.
+BoltLink não mantém tabela de eventos de clique.
 
 Por isso:
 
 - não existe retenção de `stats`
 - não existe endpoint de purge de analytics
-- a única métrica persistida é `links.clicks_total`
+- não existe event log por clique
+- a métrica total agregada vive em `links.clicks_total`, dentro da própria linha do link
 
-## Reset de estatísticas
+O que o BoltLink persiste são **agregados e metadados operacionais**, nunca eventos individuais. Além do total, bases com o teste A/B aplicado persistem contadores agregados por variante e metadados de fencing; o modelo completo está na seção seguinte (Unreleased).
 
-O admin pode zerar a métrica agregada de um link ativo.
+## Métricas agregadas e metadados persistidos (Unreleased)
 
-Essa ação atualiza somente a linha em `links`:
+> Escopo: modelo completo a partir do baseline local da Fase 2 (migration `0004`). A tag publicada `v2.2.1` termina na `0003` e só possui `clicks_total` como métrica.
+
+A. Métricas agregadas persistidas:
+
+- `clicks_total` — total acumulado de cliques contados do link (existe em todas as bases)
+- `ab_clicks_a` e `ab_clicks_b` — contadores agregados do Split Test A/B por variante (migration `0004`)
+
+B. Metadados operacionais necessários ao fencing e à exibição das métricas:
+
+- `metric_epoch` — época da métrica, avançada a cada reset para descartar escritas atrasadas de épocas anteriores
+- `ab_generation` — geração da configuração A/B, usada para não associar contadores zerados ao teste anterior
+- `ab_started_at` — timestamp operacional de quando o teste A/B vigente começou a contar
+- a projeção `boltlink_metric_fence` (`id`, `metric_epoch`) existe apenas para cercar escritas de métrica atrasadas; é view sobre a própria `links`, não guarda dado de visitante
+
+Agregados não são tracking individual: são contadores sem identidade. Nenhum evento individual de clique é gravado, em nenhuma tabela.
+
+## O que nunca é persistido (Unreleased)
+
+Válido em todas as bases, inclusive na working tree atual:
+
+- IP do visitante
+- hash estável de IP
+- país aproximado usado pelo Smart Routing em memória
+- `User-Agent` e dispositivo derivado
+- identificador de visitante ou de sessão pública
+- clickstream ou histórico de eventos
+- histórico individual de referrer
+- evento individual de QR Code (existe apenas a flag operacional `has_qrcode`)
+
+## Reset de estatísticas e fencing de métricas (Unreleased)
+
+O admin pode zerar as métricas agregadas de um link ativo (`POST /api/links/:slug/reset-clicks`; slug reservado responde `400`, link inexistente ou desabilitado responde `404`).
+
+Em banco com a migration `0004` aplicada, a ação atualiza somente a linha em `links`:
 
 - `clicks_total` volta para `0`
+- `ab_clicks_a` e `ab_clicks_b` voltam para `0`
+- `metric_epoch` avança `+1`: uma escrita de métrica atrasada de época anterior não ressuscita o reset
+- `ab_generation` avança `+1`: os contadores zerados não pertencem à geração anterior do teste
+- `ab_started_at` é renovado apenas quando o link tem A/B ativo (`ab_enabled = 1`); sem A/B, permanece como está
 - `updated_at` é renovado
 - `version` é incrementado
 
-Não há ganho relevante de espaço no D1, porque `clicks_total` é apenas um número dentro da própria linha do link.
+Em banco anterior à `0004`, o mesmo endpoint continua existindo e atualiza apenas `clicks_total`, `updated_at` e `version`, porque as colunas A/B ainda não existem nesse schema.
+
+Não há ganho relevante de espaço no D1: todos os campos afetados são números e timestamps dentro da própria linha do link.
+
+## Bases anteriores à migration 0004 (Unreleased)
+
+> Escopo: colunas A/B a partir do baseline local da Fase 2 (migration `0004`). A tag publicada `v2.2.1` termina na `0003` e não contém nenhuma delas.
+
+- Uma base em `0003` possui apenas `clicks_total` como métrica; `ab_clicks_a`, `ab_clicks_b`, `metric_epoch`, `ab_generation` e `ab_started_at` passam a existir somente depois de aplicar a `0004`.
+- O modelo agregado atual não existia desde a `0000`: a migration `0003_lgpd_minimization.sql` removeu `stats`, `last_clicked_at` e `notes`; a `0004` adicionou os contadores A/B e seus metadados de fencing.
 
 ## Exclusão de links
 

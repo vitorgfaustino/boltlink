@@ -12,7 +12,49 @@ Os documentos abaixo descrevem cinco estados de código diferentes. Confirme em 
 | Fase 4 congelada | HEAD `cdb9f83`, Unreleased | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
 | Fase 5 (working tree) | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
 
-Nenhum bump de versão acompanha estas correções: a tag publicada continua sendo `v2.2.1` e termina na `0003`.
+Estas correções não foram publicadas: a tag publicada continua sendo `v2.2.1` e termina na `0003`. A versão desta release está finalizada localmente como `3.0.0` e ainda **não foi publicada** (sem tag, sem push e sem deploy); o fluxo de upgrade consolidado está na seção seguinte.
+
+## Upgrade: v2.2.1 → v3.0.0 (Unreleased — versão finalizada localmente, ainda não publicada)
+
+> Escopo: fluxo operacional consolidado da release `3.0.0`, com versão finalizada localmente e ainda **não publicada** (o `package.json` já está em `3.0.0`) partindo da tag publicada `v2.2.1` (commit `8b3895e`, migrations `0000` a `0003`). As seções por migration abaixo permanecem como referência; este é o fluxo único.
+
+1. **Backup do D1 antes das migrations.** Faça backup do estado do banco conforme o procedimento da instância, antes de aplicar qualquer migration. O **Portability Export não é backup**: o documento `boltlink-portability` carrega apenas configuração lógica, sem métricas, sem hashes e sem IDs internos — a recuperação integral do estado operacional continua sendo backup do D1.
+2. **Atualize o código:**
+
+   ```bash
+   git pull --ff-only
+   npm install
+   npm run wrangler:init
+   ```
+
+3. **Aplique as migrations pendentes `0004` a `0006` antes de publicar o novo Worker.** As três são additive (colunas novas adicionadas pelas migrations, sem rewrite nem rebuild de tabela; a `0004` adiciona também colunas `NOT NULL DEFAULT`, preenchidas pelo valor default nas linhas existentes) e o deploy não as aplica — a aplicação é etapa operacional explícita:
+
+   ```bash
+   npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
+   npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc
+   ```
+
+   Migrations antes do Worker minimiza a janela de código novo sobre schema antigo: sem as colunas, as features novas falham fechado (`400`/`503` conforme o recurso), enquanto colunas novas sob código antigo são simplesmente ignoradas. Reaplicar é seguro (`No migrations to apply!`).
+4. **Confirme bindings e secrets.** Não há bindings novos desde a `v2.2.1`. Variáveis: `PASSWORD_SESSION_SECRET` segue obrigatório para criar/servir links protegidos por senha (sem ele, o gate falha `503`); `ROOT_REDIRECT_URL` é opcional e não secreta; `API_KEY` permanece opcional para automação.
+5. **Publique o Worker e os Assets** (`npm run deploy` ou o fluxo que a instância já usa).
+6. **Valide o Admin**: login via Cloudflare Access, painel abre e `GET /api/capabilities` reporta `abTesting`, `smartRouting` e `expiredRedirect` como `true`.
+7. **Smoke de redirects**: um link normal responde com o redirect configurado; unknown slug continua `404`; se configurado, valide senha, A/B, Smart Routing, expiração (`410` ou destino `302`) e o redirect da raiz.
+8. **Valide as superfícies administrativas novas**: árvore de grupos (criar/mover/excluir), `Exportar configuração`, `Importar configuração` (preview antes do apply) e o diálogo de QR Code (preview, PNG, SVG).
+
+### Impacto em clientes da API administrativa (Groups)
+
+Se você usa diretamente a API administrativa de grupos:
+
+- revise o `PATCH /api/groups/:id`: `expectedParentId` é obrigatório sempre que `parentId` é enviado (`400` sem a precondição; `409` quando o pai observado mudou);
+- revise o `DELETE /api/groups/:id`: grupo com subgrupos ou com qualquer link, desabilitado incluído, responde `409` — não há mais remoção de grupo ocupado nem promoção de filhos a raiz;
+- trate os novos `400`/`409` conforme o contrato acima.
+
+Se você usa apenas o Admin UI: o painel já envia o contrato atual (inclusive `expectedParentId`), comprovado por código e testes — nenhuma ação além do upgrade normal.
+
+### Rollback e downgrade
+
+- Voltar o código sem mexer no banco é benigno nos casos documentados: banco em `0006` sob código da Fase 3 ignora a coluna extra; groups, portabilidade e QR não alteram schema (detalhes nas seções por feature abaixo).
+- **Downgrade geral não é garantido**: não existe procedimento testado de reversão das migrations `0004` a `0006`; restaurar o backup do D1 do passo 1 é o caminho documentado.
 
 ## Upgrade para a versão publicada (v2.2.1)
 

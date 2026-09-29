@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## Unreleased — 3.0.0
 
-> Este bloco cobre o baseline local da **Fase 2** (Split Test A/B, migration `0004`), o estado **Unreleased da Fase 3** (Smart Routing, migration `0005`), a working tree **Unreleased da Fase 4** (destino de expiração + `ROOT_REDIRECT_URL`, migration `0006`) e a working tree **Unreleased da Fase 5** (hierarquia de grupos, portabilidade de configuração e QR Code com preview e downloads, sem migration nova). A tag publicada `v2.2.1` termina na `0003` e não contém nenhum deles. Nenhum bump de versão está associado a estas correções.
+> Este bloco cobre o baseline local da **Fase 2** (Split Test A/B, migration `0004`), o estado **Unreleased da Fase 3** (Smart Routing, migration `0005`), a working tree **Unreleased da Fase 4** (destino de expiração + `ROOT_REDIRECT_URL`, migration `0006`) e a working tree **Unreleased da Fase 5** (hierarquia de grupos, portabilidade de configuração e QR Code com preview e downloads, sem migration nova). A tag publicada `v2.2.1` termina na `0003` e não contém nenhum deles. Esta é a release **3.0.0**, com a versão finalizada localmente (o `package.json` está em `3.0.0`) e ainda **não publicada** — sem tag, sem push e sem deploy —, então o bloco permanece `Unreleased` e a data só é preenchida quando a release for efetivamente publicada (todo heading datado deste arquivo corresponde a uma tag já publicada).
 
 ### Adicionado
 

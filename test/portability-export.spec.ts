@@ -425,7 +425,7 @@ describe("Phase 5, Gate 5.2: portability format", () => {
 		expect(document.links).toEqual([]);
 		expect(Number.isNaN(Date.parse(document.exportedAt))).toBe(false);
 		// The format version is its own identity, never the product version.
-		expect(text).not.toContain("2.2.1");
+		expect(text).not.toContain("3.0.0");
 	});
 
 	it("carries only the format keys the contract defines", async () => {

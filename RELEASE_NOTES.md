@@ -1,3 +1,96 @@
+## BoltLink 3.0.0 (Unreleased — versão finalizada localmente, ainda não publicada)
+
+Notas consolidadas da release **3.0.0**, cobrindo toda a mudança acumulada desde a tag publicada `v2.2.1` (commit `8b3895e`, migrations `0000` a `0003`). **Baseline do upgrade:** `v2.2.1`. **Alvo:** `3.0.0`. A versão está **finalizada localmente** — o `package.json` está em `3.0.0` — e a release ainda **não foi publicada**: não existe tag nova, não houve push nem deploy. O major se justifica pelo breaking change administrativo em Groups descrito abaixo.
+
+### Breaking changes (API administrativa de grupos)
+
+- `PATCH /api/groups/:id` passa a exigir a precondição `expectedParentId` sempre que `parentId` é enviado: mover sem informar o pai observado responde `400`, e um pai que mudou desde a leitura responde `409` em vez de sobrescrever a movimentação alheia. Renomear sem `parentId` continua last-write-wins.
+- `DELETE /api/groups/:id` ficou mais conservador: só remove grupo sem subgrupos e sem nenhum link, **incluindo links desabilitados**. Antes do upgrade, um grupo com links desabilitados ou com subgrupos podia ser removido e os filhos eram promovidos a raiz pela FK — fluxos que dependiam da remoção antiga precisam ser revisados.
+- Este breaking é **administrativo**: o contrato básico da short URL pública (`GET /:slug`) não muda.
+
+### Split Test A/B
+
+- Duas variantes por link: Control A (`target_url`) e Variant B (`ab_target_url`), com alocação stateless decidida por request (`ab_weight_b`, 1 a 99) — sem tabela auxiliar e sem estado por visitante.
+- Runtime previsível: A/B responde sempre `302` com `Cache-Control: no-store`; bots e previews recebem o Control.
+- Métricas **agregadas apenas**: `ab_clicks_a` e `ab_clicks_b` na própria linha do link. Nenhum dado individual (IP, `User-Agent`, país, visitante) é coletado ou persistido para o sorteio.
+- Requer a migration `0004_ab_testing.sql`: sem ela o restante do produto funciona normalmente, a API recusa A/B com `400` e o Admin oculta a seção.
+- Integrado à Portability: a configuração do teste viaja no documento portátil; as métricas não.
+
+### Smart Routing
+
+- Destino por país e/ou dispositivo com regras ordenadas (first-match-wins) e fallback no destino principal, em `links.smart_routing_rules` (JSON em linha) — sem SELECT adicional no redirect público.
+- Privacidade preservada: país aproximado da Cloudflare e `User-Agent` são usados apenas em memória para escolher o destino; nada é persistido.
+- Links com Smart Routing usam sempre `302` + `no-store`; exclusão mútua com A/B; migration `0005_smart_routing.sql`.
+
+### Lifecycle, destino de expiração e redirect da raiz
+
+- O lifecycle vence senha, A/B e Smart Routing: request de link expirado não exibe gate, não roda RNG, não avalia regras e faz **zero escritas** — nunca conta clique.
+- Link expirado com destino configurado responde `302` + `no-store`; sem destino, `410` + `no-store`.
+- `expiredRedirectUrl` requer `expiresAt`; limpar os dois na mesma edição é a limpeza atômica permitida. Migration `0006_expired_redirect.sql` (additive, nullable).
+- `ROOT_REDIRECT_URL`: variável opcional e não secreta que redireciona `GET /` com `302` + `no-store` sem consultar o D1; ausente ou inválida serve a landing normal. Unknown slugs continuam `404`.
+
+### Hardening de redirect, senha e operação
+
+- O `POST /:slug` valida agendamento e expiração antes de decidir se um link possui senha.
+- `version` e `privacidade` passam a ser slugs reservados.
+- Filtros de métrica classificam User-Agents reconhecidos antes de aceitar `Sec-Fetch-Mode: navigate`, e reconhecem `Purpose`/`Sec-Purpose`/`X-Purpose` tokenizados (inclusive `prefetch;prerender`) — o redirect continua aberto para previews e crawlers, sem contaminar contadores.
+- Links protegidos por senha: tipos inválidos no campo `password` respondem `400` sem mutação; o recurso segue exigindo `PASSWORD_SESSION_SECRET` configurado (`API_KEY` não é fallback) e falha fechado com `503` sem ele.
+
+### Grupos hierárquicos e Groups Drawer
+
+- Hierarquia sobre `link_groups.parent_id`, sem migration nova: limite de 16 níveis, auto-parentesco e ciclos respondem `409` sem escrita, e a movimentação é um único `UPDATE` condicional com CTE recursiva.
+- Fim da exclusão automática de grupos: mover ou excluir o último link preserva o grupo; remover é sempre uma decisão explícita do operador.
+- O painel `Grupos` vira um drawer com árvore expansível, caminho completo (`Clientes / Brasil / Campinas`), criação com grupo pai opcional e movimentação/exclusão validadas pelo backend.
+- O redirect público continua sem consultar `link_groups`.
+
+### Portabilidade de configuração (export e import)
+
+- Novos `GET /api/export` e `POST /api/import/preview` / `POST /api/import/apply`, com as ações `Exportar configuração` e `Importar configuração` no Admin.
+- Formato **BoltLink Portability JSON v1**: `format: "boltlink-portability"`, `schemaVersion: 1` — identidade de formato independente da versão do produto.
+- O artefato é **configuração lógica** (destinos, tipo de redirect, tags, grupo, lifecycle, existência de senha, A/B, Smart Routing, tombstones) e **não é backup do D1**: métricas, `password_hash`, `has_qrcode`, `version` e IDs internos não viajam.
+- Capability gates por migration: documento que usa A/B exige a `0004`, Smart Routing exige a `0005` e destino de expiração exige a `0006`; feature usada que falta bloqueia com `409`, sem degradar.
+- Import é tudo ou nada (um único `batch` do D1), colisão de slug bloqueia sem overwrite, links protegidos exigem senha nova no apply e métricas não são inventadas nem restauradas.
+
+### QR Code no painel
+
+- A ação `QR Code` abre um diálogo com preview e três ações: copiar o short link, baixar **PNG** (rasterizado no navegador a partir do SVG, 512×512) e baixar **SVG** (byte a byte o corpo que o Worker devolve).
+- O QR codifica apenas a short URL pública: quem escaneia entra no redirect normal, com senha, A/B, Smart Routing e lifecycle decididos pelo runtime — nenhum destino ou segredo vai para o código.
+- `has_qrcode` é memória operacional, escrita apenas no download: sem QR analytics e sem imagem persistida.
+
+### Migrations da release
+
+Obrigatórias (o deploy não aplica migrations; a aplicação é etapa operacional explícita):
+
+- `0004_ab_testing.sql` — Split Test A/B
+- `0005_smart_routing.sql` — Smart Routing
+- `0006_expired_redirect.sql` — `expired_redirect_url`
+
+Sem migration nova (usam tabelas/colunas já existentes): hierarquia de grupos e Groups Drawer (`link_groups` da `0002`), Portability de configuração e QR Code com preview e downloads (endpoints e `has_qrcode` já existentes na base publicada).
+
+### Impacto em clientes da API administrativa
+
+Se você usa diretamente a API administrativa de Groups:
+
+- revise o `PATCH /api/groups/:id`: envie `expectedParentId` junto de `parentId` e trate os novos `400`/`409` do contrato;
+- revise fluxos que dependem do `DELETE /api/groups/:id`: grupo com subgrupos ou com qualquer link (desabilitado incluído) responde `409`, sem cascade e sem reparent.
+
+Se você usa apenas o Admin UI: o painel já envia o contrato atual (inclusive `expectedParentId`), comprovado por código e testes — nenhuma ação além do upgrade normal.
+
+### Privacidade
+
+- O produto persiste **agregados** (`clicks_total`, `ab_clicks_a`/`ab_clicks_b`) e metadados operacionais de fencing (`metric_epoch`, `ab_generation`, `ab_started_at`); não persiste eventos individuais. Detalhes em `docs/retention.md`.
+- IP, hash estável de IP, país, `User-Agent`, dispositivo derivado, regra selecionada e referrer individual continuam fora do banco.
+- `password_hash` nunca sai no Portability; senhas de links protegidos são redefinidas no import.
+
+### Known limitations / dívida técnica conhecida
+
+- `TS7016` no módulo `qrcode` (sem `@types/qrcode`) — dívida técnica **aceita para a 3.0.0** e **não bloqueante**: o runtime, o bundle do Wrangler e a suíte completa passam, e o CI atual não usa `tsc` como gate de release. Não há declaração manual nem mudança de `tsconfig` só para zerar `tsc`; o runtime continua correto porque o módulo é resolvido pela entrada de browser que o bundle usa.
+- Downgrade geral não é garantido: não existe procedimento testado de reversão das migrations; os casos benignos de voltar o código sem voltar o banco estão documentados em `docs/upgrading.md`.
+- Produção ainda requer configuração correta do Cloudflare Access; a validação do token dentro do Worker não é substituída pela proteção fora dele.
+- Scan online de advisory de vulnerabilidades não foi executado nesta release.
+
+Os detalhes de implementação por fase (gates de trabalho) permanecem nas seções de trabalho abaixo.
+
 ## Unreleased - Fase 5 (hierarquia de grupos, portabilidade de configuração e QR Code)
 
 Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.

@@ -2,7 +2,7 @@
 
 BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel administrativo estático.
 
-**Versão 2.2.1 - AGPL-3.0**
+**Versão 3.0.0 (finalizada localmente, ainda não publicada) - AGPL-3.0**
 
 > Release publicada: **v2.2.1**. O Smart Routing (Fase 3, migration `0005_smart_routing.sql`) e o destino de expiração + `ROOT_REDIRECT_URL` (Fase 4, migration `0006_expired_redirect.sql`) descritos neste documento estão em **Unreleased** nesta branch de desenvolvimento e ainda não fazem parte da release/tag publicada. Os recursos da Fase 5 — hierarquia de grupos com integridade, portabilidade de configuração (exportação e importação) e o QR Code com preview e downloads no painel — também estão **Unreleased**, todos sem migration nova. Um checkout da tag `v2.2.1` não contém nenhum desses recursos nem as migrations `0005`/`0006`.
 

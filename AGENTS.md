@@ -32,12 +32,15 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 
 A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura nem a portabilidade da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência, e não existem `GET /api/export`, `POST /api/import/preview` nem `POST /api/import/apply`). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
 
-### Status de desenvolvimento (Fase 5)
+### Status de desenvolvimento (Fase 5 congelada; Phase 6 em andamento)
 
-- Baseline pre-freeze: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Versão continua `2.2.1`; a Fase 5 está **Unreleased**.
+- Baseline pre-freeze: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. A Fase 5 está **Unreleased** e a versão desta release está **finalizada localmente como `3.0.0`** (o `package.json` está em `3.0.0`); a release ainda **não foi publicada** — sem tag, sem push e sem deploy.
 - Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
 - Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fecha o finding BL-54-04 e reconcilia a documentação; não adicionou feature, migration, bump de versão, tag nem deploy.
-- Com o freeze do Gate 5.5, a Fase 5 está **FEATURE FROZEN**: nenhuma feature adicional deve ser iniciada. O próximo passo é a **Phase 6 — Release Readiness** (auditoria global final, versão, release notes finais, upgrade path, migrations review, configuração Cloudflare, passe de segurança/privacidade e só então tag/release/deploy). Não inicie a Phase 6 dentro de um gate da Fase 5.
+- Com o freeze do Gate 5.5, a Fase 5 está **FEATURE FROZEN**: nenhuma feature adicional deve ser iniciada, e a Phase 6 não pode ser iniciada dentro de um gate da Fase 5.
+- **Phase 6 — Release Readiness (em andamento)**: Gate 6.1 (auditoria global final) concluído com P0 = 0, P1 = 0 e P2 = 0; Gate 6.2 (correção dos blockers) concluído, fechando BL-61-01 e BL-61-02; Gate 6.3 (version finalization) **FINALIZED LOCALLY** — versão `3.0.0` finalizada e os P3 BL-61-03, BL-61-04 e o wording "nullable" de `docs/upgrading.md` fechados; Gate 6.4 (local release commit) **FINALIZED LOCALLY** — commit local de preparação da release criado sobre o pre-release baseline `04a6873`. Estado da release: **NOT TAGGED / NOT PUSHED / NOT DEPLOYED / NOT PUBLISHED**. Next: release publication/deployment gate.
+- A dívida técnica `TS7016` do módulo `qrcode` foi **aceita para a 3.0.0** como **não bloqueante** (runtime, bundle do Wrangler e suíte passam; o CI atual não usa `tsc` como gate de release).
+- O estado correto da versão é **"finalizada localmente"**, nunca "publicada": nenhum documento pode afirmar que a `3.0.0` foi taggeada, publicada, enviada ou implantada.
 
 ## Regra obrigatória para tarefas Cloudflare
 
@@ -192,5 +195,5 @@ Para mudanças de banco:
 
 ---
 
-Versão 2.2.1
+Versão 3.0.0 (finalizada localmente, não publicada)
 Criado por Vitor Faustino - vitorfaustino.com.br
