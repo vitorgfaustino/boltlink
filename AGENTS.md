@@ -17,7 +17,7 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 - hierarquia de grupos em `link_groups.parent_id` (**Unreleased / Fase 5**, sem migration nova: a coluna existe desde a `0002`)
 - exportação administrativa da configuração lógica em BoltLink Portability JSON v1 via `GET /api/export` (**Unreleased / Fase 5**, sem migration nova)
 - importação administrativa dessa mesma configuração via `POST /api/import/preview` (somente leitura) e `POST /api/import/apply` (**Unreleased / Fase 5**, sem migration nova)
-- QR Code com diálogo de preview e download PNG no Admin (**Unreleased / Fase 5**; os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada, sem migration nova)
+- QR Code com diálogo de preview e download PNG/SVG no Admin (**Unreleased / Fase 5**; os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada, sem migration nova)
 - autenticação administrativa via Cloudflare Access
 
 ### Cinco bases de código que não podem ser confundidas
@@ -28,9 +28,16 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 | Fase 2 local | baseline local `23353a1`, não publicado | `0000` a `0004` | Split Test A/B |
 | Fase 3 congelada | HEAD `548f179`, Unreleased | `0000` a `0005` | Split Test A/B + Smart Routing |
 | Fase 4 congelada | HEAD `cdb9f83`, Unreleased | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
-| Fase 5 working tree | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG no painel |
+| Fase 5 working tree | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
 
 A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura nem a portabilidade da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência, e não existem `GET /api/export`, `POST /api/import/preview` nem `POST /api/import/apply`). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
+
+### Status de desenvolvimento (Fase 5)
+
+- Baseline pre-freeze: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Versão continua `2.2.1`; a Fase 5 está **Unreleased**.
+- Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
+- Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fecha o finding BL-54-04 e reconcilia a documentação; não adicionou feature, migration, bump de versão, tag nem deploy.
+- Com o freeze do Gate 5.5, a Fase 5 está **FEATURE FROZEN**: nenhuma feature adicional deve ser iniciada. O próximo passo é a **Phase 6 — Release Readiness** (auditoria global final, versão, release notes finais, upgrade path, migrations review, configuração Cloudflare, passe de segurança/privacidade e só então tag/release/deploy). Não inicie a Phase 6 dentro de um gate da Fase 5.
 
 ## Regra obrigatória para tarefas Cloudflare
 

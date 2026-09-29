@@ -1,4 +1,4 @@
-## Unreleased - Fase 5 (hierarquia de grupos e portabilidade de configuração)
+## Unreleased - Fase 5 (hierarquia de grupos, portabilidade de configuração e QR Code)
 
 Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.
 
@@ -33,6 +33,10 @@ Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.
 - **Falha fechado, nunca parcial**: qualquer linha inválida — Smart Routing corrompido, destino de expiração sem expiração, URL inválida, slug reservado, **nome de grupo em forma não canônica (espaços nas pontas, só espaços ou acima de 120 caracteres, nunca normalizado no export)**, grafo de grupos com ciclo ou pai órfão, A/B inválido ou linha híbrida A/B + Smart — recusa o export inteiro com `409`. Acima de 50 grupos, 100 links ou 256 KiB (bytes UTF-8) a resposta é `413`. O documento nunca é truncado, nunca recebe `null` no lugar de estado corrompido e nunca é parcial.
 - **Determinismo e leitura consistente**: a mesma configuração produz o mesmo documento funcional (só `exportedAt` varia). Os dois `SELECT` viajam em um único `batch`, com a semântica que o D1 oferece para o batch; como o export também lê fora desse conjunto (contagem prévia e sondagens de capability), **não** há promessa de snapshot do request inteiro — a consistência vem da validação: os grupos são lidos antes dos links e uma corrida que criaria referência órfã responde `409` em vez de documento inconsistente.
 - **Somente leitura no request inteiro**: o export não escreve nada no banco e não executa DDL — nem no middleware: ele usa a readiness de schema somente leitura, então a projeção `boltlink_metric_fence` que as demais rotas `/api` instalam **não** é criada ao pedir o export, inclusive no primeiro request em handle frio. Usa o mesmo boundary administrativo e o mesmo rate limit das outras rotas `/api`, e downloads usam nome de arquivo constante com `Cache-Control: no-store`.
+- **QR Code com preview e downloads (Gates 5.4 e 5.4.1)**: o painel ganha um diálogo de preview com três ações — copiar o short link, baixar **PNG** (rasterizado no navegador a partir do SVG, em 512×512) e baixar **SVG** (byte a byte o corpo que o Worker devolveu). Os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada; a Fase 5 não adiciona migration.
+- **O QR só codifica a short URL**: quem escaneia entra no redirect normal, com senha, A/B, Smart Routing e lifecycle decididos pelo runtime — nenhum destination, variante, alvo de roteamento ou segredo vai para o código.
+- **`has_qrcode` é memória operacional, não analytics**: a flag só é escrita quando o operador baixa o QR (PNG ou SVG), nunca no preview nem ao copiar o link; a geração não conta clique e nenhuma imagem é persistida.
+- **QR fora da portabilidade**: o documento portátil não carrega `has_qrcode` nem imagem de QR; depois de um import, o QR de cada link pode ser gerado de novo porque deriva da short URL.
 
 ## Unreleased - Fase 4 (destino de expiração e redirect da raiz)
 

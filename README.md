@@ -4,7 +4,7 @@ BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel ad
 
 **Versão 2.2.1 - AGPL-3.0**
 
-> Release publicada: **v2.2.1**. O Smart Routing (Fase 3, migration `0005_smart_routing.sql`) e o destino de expiração + `ROOT_REDIRECT_URL` (Fase 4, migration `0006_expired_redirect.sql`) descritos neste documento estão em **Unreleased** nesta branch de desenvolvimento e ainda não fazem parte da release/tag publicada. Um checkout da tag `v2.2.1` não contém nenhum desses recursos nem as migrations `0005`/`0006`.
+> Release publicada: **v2.2.1**. O Smart Routing (Fase 3, migration `0005_smart_routing.sql`) e o destino de expiração + `ROOT_REDIRECT_URL` (Fase 4, migration `0006_expired_redirect.sql`) descritos neste documento estão em **Unreleased** nesta branch de desenvolvimento e ainda não fazem parte da release/tag publicada. Os recursos da Fase 5 — hierarquia de grupos com integridade, portabilidade de configuração (exportação e importação) e o QR Code com preview e downloads no painel — também estão **Unreleased**, todos sem migration nova. Um checkout da tag `v2.2.1` não contém nenhum desses recursos nem as migrations `0005`/`0006`.
 
 Ele funciona como encurtador de URLs, mas o objetivo real do projeto é maior: manter links públicos estáveis, simples de operar e independentes de plataformas terceiras, com controle do redirect, proteção do painel e uma baseline de privacidade mais rígida do que a maioria das ferramentas desse tipo.
 
@@ -184,6 +184,8 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 - permite redirecionar a raiz (`GET /`) para uma URL operacional via `ROOT_REDIRECT_URL`, sem consultar D1 (Unreleased / Fase 4)
 - organiza links em grupos hierárquicos, com prevenção de ciclos, limite de 16 níveis, movimentação com detecção de concorrência e exclusão só de grupo realmente vazio (Unreleased / Fase 5)
 - exporta a configuração lógica da instância em um JSON portátil, com download pelo Admin e sem senhas, métricas ou IDs internos (Unreleased / Fase 5)
+- importa de volta um documento BoltLink Portability previamente exportado, com preview, validação estrita e aplicação atômica de grupos e links (Unreleased / Fase 5)
+- oferece QR Code com preview no painel e download em PNG e SVG; o código carrega só a short URL e quem escaneia entra no redirect normal (Unreleased / Fase 5)
 - conta cliques de forma agregada sem eventos detalhados
 - permite zerar a estatística agregada de um link ativo
 - inclui orientações para reduzir tráfego desnecessário no plano gratuito da Cloudflare

@@ -1,6 +1,6 @@
 # Operação Guiada por IA
 
-> Escopo: release publicada = **v2.2.1** (tag real, migrations até `0003`). O baseline local da **Fase 2** adiciona a `0004` e o Split Test A/B; o estado **Unreleased (Fase 3)** adiciona a `0005` e o Smart Routing; a working tree **Unreleased (Fase 4)** adiciona a `0006`, o destino de expiração e o `ROOT_REDIRECT_URL`; a working tree **Unreleased (Fase 5)** adiciona a hierarquia de grupos de `link_groups` e a exportação portátil (`GET /api/export`), sem migration nova. As referências a esses estados abaixo valem apenas nas bases locais, nunca no checkout da tag.
+> Escopo: release publicada = **v2.2.1** (tag real, migrations até `0003`). O baseline local da **Fase 2** adiciona a `0004` e o Split Test A/B; o estado **Unreleased (Fase 3)** adiciona a `0005` e o Smart Routing; a working tree **Unreleased (Fase 4)** adiciona a `0006`, o destino de expiração e o `ROOT_REDIRECT_URL`; a working tree **Unreleased (Fase 5)** adiciona a hierarquia de grupos de `link_groups`, a portabilidade de configuração (`GET /api/export`, `POST /api/import/preview`, `POST /api/import/apply`) e o QR Code com preview e downloads no painel, sem migration nova. As referências a esses estados abaixo valem apenas nas bases locais, nunca no checkout da tag.
 
 ## Objetivo
 

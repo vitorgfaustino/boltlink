@@ -32,7 +32,7 @@ Existem cinco estados distintos. A tag publicada **não** é igual ao baseline l
 | **Fase 2 local** | baseline local `23353a1`, **não publicado** | `0000` a `0004` | Split Test A/B |
 | **Fase 3 congelada** | HEAD `548f179`, **Unreleased** | `0000` a `0005` | Split Test A/B + Smart Routing |
 | **Fase 4 congelada** | HEAD `cdb9f83`, **Unreleased** | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
-| **Fase 5 working tree** | working tree atual sobre `cdb9f83`, **Unreleased** | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG no painel |
+| **Fase 5 working tree** | working tree atual sobre `cdb9f83`, **Unreleased** | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
 
 Não chame o baseline local da Fase 2 de "v2.2.1 publicada": a tag publicada não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a integridade de hierarquia de grupos nem a exportação portátil da Fase 5 (a tag tem a tabela `link_groups` desde a `0002`, mas sem validação de ciclo, profundidade, delete ou concorrência, e não existe `GET /api/export`).
 
@@ -68,7 +68,14 @@ Unreleased / Fase 5 (working tree atual sobre o HEAD congelado da Fase 4 `cdb9f8
 - ciclo, profundidade, delete e concorrência decididos em um único statement condicional, nunca com `SELECT` seguido de `UPDATE`/`INSERT`
 - exportação administrativa da configuração lógica (`GET /api/export`) no formato `boltlink-portability` v1, somente leitura no request inteiro: sem `password_hash`, sem métricas, sem IDs internos (grupos usam `ref` local e links usam `groupRef`), sem DDL no primeiro request em handle frio (não cria `boltlink_metric_fence`, ao contrário das demais rotas `/api`); não é backup do D1
 - importação administrativa da mesma configuração (`POST /api/import/preview` e `POST /api/import/apply`), sem migration nova: o preview é somente leitura e o apply grava o documento em um único `batch` (tudo ou nada), exige nova senha para cada link protegido, bloqueia com `409` colisão de slug, feature que o banco não suporta e árvore acima de 16 níveis, e não restaura métricas
-- QR Code com diálogo de preview e download PNG no painel: o QR codifica apenas a short URL pública (nunca o destination nem segredos), a geração é cold path administrativo que não conta clique nem persiste imagem, e `has_qrcode` continua sendo memória operacional escrita só quando o operador baixa o QR (Unreleased / Fase 5; os endpoints e a coluna existem desde a base publicada)
+- QR Code com diálogo de preview e download PNG/SVG no painel: o QR codifica apenas a short URL pública (nunca o destination nem segredos), a geração é cold path administrativo que não conta clique nem persiste imagem, e `has_qrcode` continua sendo memória operacional escrita só quando o operador baixa o QR em PNG ou SVG — preview e copiar link não escrevem nada (Unreleased / Fase 5; os endpoints e a coluna existem desde a base publicada)
+
+### Status de desenvolvimento (Fase 5)
+
+- Baseline pre-freeze: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Versão continua `2.2.1`; a Fase 5 está **Unreleased**.
+- Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
+- Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fecha o finding BL-54-04 e reconcilia a documentação, sem feature nova, sem migration, sem bump de versão, sem tag e sem deploy.
+- Com o freeze do Gate 5.5, a Fase 5 está **FEATURE FROZEN**: nenhuma feature adicional deve ser iniciada. O próximo passo é a **Phase 6 — Release Readiness** (auditoria global final, versão, release notes finais, upgrade path, migrations review, configuração Cloudflare, passe de segurança/privacidade e só então tag/release/deploy). Não inicie a Phase 6 dentro de um gate da Fase 5.
 
 O produto não mantém:
 

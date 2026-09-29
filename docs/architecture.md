@@ -35,16 +35,16 @@ Não existe mais persistência de evento por clique e nenhum dado de visitante (
 
 1. O acesso passa por `requireAdmin`.
 2. O token do Access é validado no próprio Worker.
-3. O painel consome `/api/links`, `/api/groups`, `/api/preview`, `/api/export` e endpoints auxiliares.
+3. O painel consome `/api/links`, `/api/groups`, `/api/preview`, `/api/export`, `/api/import/*` e endpoints auxiliares (incluindo `GET/POST /api/links/:slug/qrcode`).
 4. O painel permite zerar `clicks_total` de um link ativo sem apagar o link.
 
 ### QR Code no painel (Unreleased / Fase 5)
 
-Escopo: o **diálogo com preview e download em PNG**. Os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada (`0001`).
+Escopo: o **diálogo com preview e downloads em PNG e SVG**. Os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada (`0001`).
 
 - O QR codifica apenas a short URL pública (`https://<origem>/<slug>`), nunca o destination, a Variant B, um alvo de Smart Routing ou qualquer segredo; quem escaneia entra no redirect normal, com senha, A/B, Smart Routing e lifecycle decididos pelo runtime.
-- A geração é cold path administrativo: o Worker renderiza o SVG sob demanda (`Cache-Control: no-store`) e o painel rasteriza para PNG no navegador. Nenhuma imagem é persistida — o QR é derivável da URL a qualquer momento — e a geração não conta clique nem grava no banco.
-- `has_qrcode` continua sendo apenas a memória operacional de que um QR já foi obtido: é escrita pelo `POST` quando o operador baixa o QR, não quando o diálogo apenas exibe o preview, e não influencia redirect, exportação ou importação (fica de fora do Portability JSON v1).
+- A geração é cold path administrativo: o Worker renderiza o SVG sob demanda (`Cache-Control: no-store`) e o painel rasteriza o PNG em 512×512 no navegador. O download em SVG entrega byte a byte o corpo que o Worker devolveu; o PNG é o raster desse mesmo SVG. Nenhuma imagem é persistida — o QR é derivável da URL a qualquer momento — e a geração não conta clique nem grava no banco.
+- `has_qrcode` continua sendo apenas a memória operacional de que um QR já foi obtido: é escrita pelo `POST` quando o operador baixa o QR (PNG ou SVG), nunca quando o diálogo apenas exibe o preview nem ao copiar o link, e não influencia redirect, exportação ou importação (fica de fora do Portability JSON v1).
 - Slug reservado responde `400`; slug inexistente ou link desabilitado (tombstone) responde `404` nas duas rotas.
 
 ## Modelo de dados

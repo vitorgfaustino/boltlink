@@ -108,7 +108,7 @@ redirect da raiz (ROOT_REDIRECT_URL válida):
 
 O destino é uma coluna da própria linha lida pelo SELECT existente, decidido no lifecycle antes de qualquer classificação ou métrica. O redirect da raiz decide antes de qualquer acesso a D1. Nenhuma quota ou preço novo é introduzido por esta fase; os limites listados no topo do documento continuam os mesmos.
 
-## Exportação portátil no caminho crítico (Unreleased / Fase 5)
+## Portabilidade e QR Code fora do caminho crítico (Unreleased / Fase 5)
 
 > Escopo: release publicada/baseline = **v2.2.1**. Esta seção pertence ao estado Unreleased da working tree da Fase 5.
 
@@ -125,7 +125,9 @@ GET /api/export (admin, quando solicitado):
 + 0 escrita
 ```
 
-É esperado que uma exportação use mais leituras e mais CPU do que um redirect, e isso é aceitável porque a operação é rara, exige sessão administrativa e é limitada pelo próprio formato (50 grupos, 100 links e 256 KiB). O export não adiciona KV, Durable Objects, cron, API externa nem processamento em background, e não introduz nenhuma quota ou preço novo: os limites do topo deste documento continuam os mesmos. O rate limit administrativo de `/api/*` já existente é o mesmo para esta rota.
+É esperado que uma exportação use mais leituras e mais CPU do que um redirect, e isso é aceitável porque a operação é rara, exige autenticação administrativa e é limitada pelo próprio formato (50 grupos, 100 links e 256 KiB). O export não adiciona KV, Durable Objects, cron, API externa nem processamento em background, e não introduz nenhuma quota ou preço novo: os limites do topo deste documento continuam os mesmos. O rate limit administrativo de `/api/*` já existente é o mesmo para esta rota.
+
+O import (`POST /api/import/preview` e `POST /api/import/apply`) e o QR Code do painel (`GET/POST /api/links/:slug/qrcode`) são administrativos como o export: executam dentro do boundary administrativo de `/api/*`, satisfeito por uma sessão válida do Cloudflare Access do painel ou por uma chave de API válida (`Authorization: Bearer`, quando `API_KEY` está configurada na instalação), e limitados pelo mesmo rate limit de `/api/*`. O preview é somente leitura, o apply é um único lote transacional (sem retry automático nem processamento em background) e o QR é gerado sob demanda — SVG no Worker, PNG rasterizado no navegador — sem persistir imagem e sem contar clique. Nenhum dos três adiciona KV, R2, Queue, cron ou API externa, e nenhum deles toca o redirect público, que continua sendo o produto principal.
 
 ## O que o código faz
 

@@ -85,6 +85,15 @@ Stateless A/B testing distributes each eligible request independently without bu
 - Por ser leitura administrativa autenticada, o export compartilha o boundary de `/api` (Cloudflare Access, `requireAdmin` ou chave de API) e o mesmo rate limit; nenhuma autenticação paralela foi criada.
 - O export é somente leitura: não grava nada no banco e não cria tabela de auditoria nem histórico de exportações. Guardar o arquivo gerado é responsabilidade do operador, como qualquer material administrativo baixado do painel.
 
+## QR Code (Unreleased / Fase 5)
+
+> Escopo: working tree da Fase 5. Os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada; a Fase 5 acrescenta o diálogo de preview e os downloads no painel.
+
+- O QR codifica apenas a short URL pública do link; nenhum dado de visitante entra na geração, no preview ou no download.
+- `has_qrcode` é memória operacional de que um QR foi obtido — escrita pelo `POST` que acompanha um download (PNG ou SVG) —, não telemetria: não conta clique, não identifica visitante e não cria histórico.
+- Nenhuma imagem de QR é persistida; o QR é derivável da short URL a qualquer momento.
+- A portabilidade de configuração não transporta `has_qrcode` nem imagem de QR: nada de QR entra no export e nada de QR é importado.
+
 ## Referrer
 
 Nos redirects públicos, BoltLink envia `Referrer-Policy: strict-origin`.
