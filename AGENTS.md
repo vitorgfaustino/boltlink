@@ -17,6 +17,7 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 - hierarquia de grupos em `link_groups.parent_id` (**Unreleased / Fase 5**, sem migration nova: a coluna existe desde a `0002`)
 - exportação administrativa da configuração lógica em BoltLink Portability JSON v1 via `GET /api/export` (**Unreleased / Fase 5**, sem migration nova)
 - importação administrativa dessa mesma configuração via `POST /api/import/preview` (somente leitura) e `POST /api/import/apply` (**Unreleased / Fase 5**, sem migration nova)
+- QR Code com diálogo de preview e download PNG no Admin (**Unreleased / Fase 5**; os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada, sem migration nova)
 - autenticação administrativa via Cloudflare Access
 
 ### Cinco bases de código que não podem ser confundidas
@@ -27,7 +28,7 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 | Fase 2 local | baseline local `23353a1`, não publicado | `0000` a `0004` | Split Test A/B |
 | Fase 3 congelada | HEAD `548f179`, Unreleased | `0000` a `0005` | Split Test A/B + Smart Routing |
 | Fase 4 congelada | HEAD `cdb9f83`, Unreleased | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
-| Fase 5 working tree | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil |
+| Fase 5 working tree | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG no painel |
 
 A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura nem a portabilidade da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência, e não existem `GET /api/export`, `POST /api/import/preview` nem `POST /api/import/apply`). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
 

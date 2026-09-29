@@ -367,8 +367,24 @@ const requireAdmin: MiddlewareHandler<AppContext> = async (c, next) => {
  */
 const NON_BOOTSTRAPPING_DATABASE_PATHS = new Set(["/api/export", "/api/import/preview", "/api/import/apply"]);
 
-const ensureDatabaseReady: MiddlewareHandler<AppContext> = async (c, next) => {
+/**
+ * `GET /api/links/:slug/qrcode` renders the short URL and reads nothing but the link's
+ * existence, so answering it cannot justify installing the metric fence projection — the
+ * whole request is a read. The exemption is decided per request rather than per pathname
+ * because the `POST` on the same route writes `has_qrcode` and keeps the bootstrapping
+ * readiness, exactly like every other administrative write.
+ */
+const READ_ONLY_QRCODE_GET_PATH = /^\/api\/links\/[^/]+\/qrcode$/;
+
+function usesReadOnlyDatabaseReadiness(c: Context<AppContext>) {
 	if (NON_BOOTSTRAPPING_DATABASE_PATHS.has(c.req.path)) {
+		return true;
+	}
+	return c.req.method === "GET" && READ_ONLY_QRCODE_GET_PATH.test(c.req.path);
+}
+
+const ensureDatabaseReady: MiddlewareHandler<AppContext> = async (c, next) => {
+	if (usesReadOnlyDatabaseReadiness(c)) {
 		await inspectDatabaseSchema(c.env.db_boltlink);
 	} else {
 		await ensurePreparedDatabase(c.env.db_boltlink);
@@ -826,6 +842,9 @@ app.post("/api/links/:slug/reset-clicks", async (c) => {
 
 app.post("/api/links/:slug/qrcode", async (c) => {
 	const slug = c.req.param("slug");
+	if (isReservedSlug(slug)) {
+		return c.json({ error: "Reserved slug cannot be marked with a QR code" }, 400);
+	}
 	const now = isoNow();
 	const updated = await c.env.db_boltlink
 		.prepare(
@@ -846,6 +865,9 @@ app.post("/api/links/:slug/qrcode", async (c) => {
 
 app.get("/api/links/:slug/qrcode", async (c) => {
 	const slug = c.req.param("slug");
+	if (isReservedSlug(slug)) {
+		return c.json({ error: "Reserved slug cannot generate a QR code" }, 400);
+	}
 	const link = await c.env.db_boltlink
 		.prepare("SELECT slug FROM links WHERE slug = ? AND disabled_at IS NULL")
 		.bind(slug)
@@ -856,11 +878,21 @@ app.get("/api/links/:slug/qrcode", async (c) => {
 	}
 
 	const shortUrl = new URL(`/${link.slug}`, c.req.url).toString();
-	const svg = await QRCode.toString(shortUrl, {
-		type: "svg",
-		margin: 2,
-		errorCorrectionLevel: "M",
-	});
+	let svg: string;
+	try {
+		// The SVG carries an explicit intrinsic size so the browser can rasterize it into
+		// the PNG the operator downloads instead of guessing one from the viewBox alone.
+		svg = await QRCode.toString(shortUrl, {
+			type: "svg",
+			margin: 2,
+			errorCorrectionLevel: "M",
+			width: 512,
+		});
+	} catch {
+		// A generation failure must surface as a controlled API error, never as a raw
+		// Worker exception with stack details.
+		return c.json({ error: "QR code generation failed" }, 500);
+	}
 
 	return new Response(svg, {
 		status: 200,

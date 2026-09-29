@@ -53,6 +53,18 @@ const state = {
   // describes a selection the drawer is no longer showing and is dropped.
   importSelection: null,
   importPreviewAbort: null,
+  // QR dialog. `qrRequestToken` identifies the open request: it moves on every open and
+  // every close, so a generation that arrives late for a link the dialog is no longer
+  // showing is dropped instead of replacing the current preview. `qrPreviewSrc` is the
+  // data URL the preview `<img>` renders (some webviews won't load `blob:` URLs as
+  // images) and `qrObjectUrl` is the single object URL alive at a time — the one the
+  // download anchor hands over.
+  qrDialogOpen: false,
+  qrSlug: null,
+  qrRequestToken: 0,
+  qrObjectUrl: null,
+  qrPreviewSrc: null,
+  qrOpener: null,
 };
 
 const smartRoutingUi = window.BoltLinkSmartRouting || null;
@@ -231,6 +243,15 @@ const importApplyButton = document.getElementById("import-apply-button");
 const importResetButton = document.getElementById("import-reset-button");
 const importDoneButton = document.getElementById("import-done-button");
 const importStatus = document.getElementById("import-status");
+const qrDialog = document.getElementById("qr-dialog");
+const qrDialogBackdrop = document.getElementById("qr-dialog-backdrop");
+const qrDialogCloseButton = document.getElementById("qr-dialog-close");
+const qrDialogSlug = document.getElementById("qr-dialog-slug");
+const qrImage = document.getElementById("qr-image");
+const qrUrl = document.getElementById("qr-url");
+const qrDownloadButton = document.getElementById("qr-download-button");
+const qrCopyButton = document.getElementById("qr-copy-button");
+const qrStatus = document.getElementById("qr-status");
 const appVersion = document.getElementById("app-version");
 const footerYear = document.getElementById("footer-year");
 const footerTimezone = document.getElementById("footer-timezone");
@@ -1115,34 +1136,312 @@ function toggleGroupExpansion(groupId) {
   renderGroupTree();
 }
 
+/**
+ * Persists the "QR Ativo" flag and reports whether the API confirmed it.
+ *
+ * The browser cannot prove that a download reached the disk, so the answer to this write —
+ * not the click that started the file — is the only trustworthy signal about the persisted
+ * state. The caller announces the flag from this result alone.
+ */
 async function markQrCodeGenerated(slug) {
   try {
     await request(`/api/links/${encodeURIComponent(slug)}/qrcode`, { method: "POST" });
+    return true;
   } catch {
-    // Keep UX resilient even if the QR flag fails
+    return false;
   }
 }
 
-async function downloadQrForSlug(slug) {
-  const shortLink = buildShortLink(slug);
-  const response = await fetch(`/api/links/${encodeURIComponent(slug)}/qrcode`, {
-    method: "GET",
-    credentials: "same-origin",
+/** Side of the PNG the operator downloads; the Worker serves the QR as SVG. */
+const QR_PNG_SIZE = 512;
+
+/**
+ * Rasterizes the Worker's SVG into the PNG that is previewed and downloaded.
+ *
+ * The SVG reaches the decoder through a data URL on purpose: WebKit-based webviews
+ * refuse to load `blob:` URLs as image sources, and the preview has to render
+ * everywhere. The PNG comes back in the same two shapes for the same reason — a
+ * data URL for the `<img>`, and a blob whose object URL (the only one the dialog
+ * owns) is handed to the download anchor.
+ */
+function rasterizeQrSvg(svgText) {
+  return new Promise((resolve, reject) => {
+    const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
+    const image = new Image();
+    image.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = QR_PNG_SIZE;
+        canvas.height = QR_PNG_SIZE;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          throw new Error("Canvas 2D unavailable");
+        }
+        // The SVG already carries a white quiet zone; filling first keeps the PNG
+        // scannable even if that background ever changes upstream.
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, QR_PNG_SIZE, QR_PNG_SIZE);
+        context.drawImage(image, 0, 0, QR_PNG_SIZE, QR_PNG_SIZE);
+        const previewSrc = canvas.toDataURL("image/png");
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve({ blob, previewSrc });
+          } else {
+            reject(new Error("PNG encoding failed"));
+          }
+        }, "image/png");
+      } catch (error) {
+        reject(error);
+      }
+    };
+    image.onerror = () => {
+      reject(new Error("QR image failed to load"));
+    };
+    image.src = svgDataUrl;
+  });
+}
+
+/** A generation is only honored while the dialog still shows the link that asked for it. */
+function qrRequestIsCurrent(token) {
+  return state.qrDialogOpen && state.qrRequestToken === token;
+}
+
+/**
+ * A download may only render into the dialog that started it. The token moves on every
+ * open and every close, and the slug is re-checked against the request it was captured
+ * with, so a completion that arrives late can never be mistaken for the current link.
+ */
+function qrDownloadIsCurrent(token, slug) {
+  return qrRequestIsCurrent(token) && state.qrSlug === slug;
+}
+
+function releaseQrObjectUrl() {
+  if (state.qrObjectUrl) {
+    URL.revokeObjectURL(state.qrObjectUrl);
+    state.qrObjectUrl = null;
+  }
+  state.qrPreviewSrc = null;
+  qrImage.removeAttribute("src");
+}
+
+function resetQrDialogSurface() {
+  releaseQrObjectUrl();
+  qrImage.alt = "";
+  qrDialogSlug.textContent = "";
+  qrUrl.textContent = "";
+  qrDownloadButton.disabled = true;
+  setStatus(qrStatus, "");
+}
+
+/** Controls the dialog owns, in document order. A hidden or disabled one is skipped. */
+function qrDialogFocusables() {
+  const selector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]';
+  return Array.from(qrDialog.querySelectorAll(selector)).filter((element) => {
+    const style = getComputedStyle(element);
+    return !element.hidden && style.display !== "none" && style.visibility !== "hidden";
+  });
+}
+
+/**
+ * The dialog is modal, so Tab stays inside it while it is open. Wrapping at both ends is
+ * enough: every control in it is a plain tab stop, with no shadow root to cross.
+ */
+function keepQrDialogFocus(event) {
+  if (event.key !== "Tab") {
+    return;
+  }
+  const focusables = qrDialogFocusables();
+  if (!focusables.length) {
+    return;
+  }
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (!qrDialog.contains(active)) {
+    event.preventDefault();
+    first.focus();
+    return;
+  }
+  if (event.shiftKey && active === first) {
+    event.preventDefault();
+    last.focus();
+    return;
+  }
+  if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function onQrDialogKeydown(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeQrDialog();
+    return;
+  }
+  keepQrDialogFocus(event);
+}
+
+async function openQrDialog(link) {
+  const slug = link.slug;
+  // The `…` menu that hosts the action would otherwise stay open behind the modal.
+  document.querySelectorAll("details.more-actions-dropdown[open]").forEach((dropdown) => {
+    dropdown.removeAttribute("open");
   });
 
-  if (!response.ok) {
-    throw new Error("Falha ao gerar QR Code");
+  if (state.qrDialogOpen) {
+    closeQrDialog();
+  }
+  state.qrDialogOpen = true;
+  state.qrSlug = slug;
+  state.qrRequestToken += 1;
+  const token = state.qrRequestToken;
+  state.qrOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+  // No trace of a previous link survives into the new dialog: the preview is cleared
+  // before anything is awaited, so an error later never shows a stale QR either.
+  releaseQrObjectUrl();
+  qrImage.alt = "";
+  qrDialogSlug.textContent = `/${slug}`;
+  qrUrl.textContent = buildShortLink(slug);
+  qrDownloadButton.disabled = true;
+  setStatus(qrStatus, "Gerando QR Code…");
+
+  lockBodyScroll();
+  qrDialog.removeAttribute("inert");
+  qrDialog.setAttribute("aria-hidden", "false");
+  qrDialog.classList.add("is-open");
+  qrDialogBackdrop.classList.add("is-open");
+  document.addEventListener("keydown", onQrDialogKeydown);
+  qrDialogCloseButton.focus();
+
+  try {
+    const response = await fetch(`/api/links/${encodeURIComponent(slug)}/qrcode`, {
+      method: "GET",
+      credentials: "same-origin",
+    });
+    if (!qrRequestIsCurrent(token)) {
+      return;
+    }
+    if (!response.ok) {
+      throw new Error("Falha ao gerar QR Code");
+    }
+    const svgText = await response.text();
+    if (!qrRequestIsCurrent(token)) {
+      return;
+    }
+    const png = await rasterizeQrSvg(svgText);
+    if (!qrRequestIsCurrent(token)) {
+      return;
+    }
+    releaseQrObjectUrl();
+    state.qrObjectUrl = URL.createObjectURL(png.blob);
+    state.qrPreviewSrc = png.previewSrc;
+    qrImage.alt = `QR Code do short link ${buildShortLink(slug)}`;
+    qrImage.src = state.qrPreviewSrc;
+    qrDownloadButton.disabled = false;
+    setStatus(qrStatus, "");
+  } catch {
+    if (!qrRequestIsCurrent(token)) {
+      return;
+    }
+    setStatus(qrStatus, "Não foi possível gerar o QR Code deste link. Verifique a conexão e tente de novo.", "error");
+  }
+}
+
+function closeQrDialog() {
+  if (!state.qrDialogOpen) {
+    return;
+  }
+  const slug = state.qrSlug;
+  state.qrDialogOpen = false;
+  state.qrSlug = null;
+  // A generation still in flight for this dialog must not render into it after closing.
+  state.qrRequestToken += 1;
+  resetQrDialogSurface();
+  document.removeEventListener("keydown", onQrDialogKeydown);
+  qrDialog.classList.remove("is-open");
+  qrDialogBackdrop.classList.remove("is-open");
+  qrDialog.setAttribute("inert", "");
+  qrDialog.setAttribute("aria-hidden", "true");
+  unlockBodyScroll();
+
+  const opener = state.qrOpener;
+  state.qrOpener = null;
+  if (opener && opener.isConnected) {
+    opener.focus();
+    return;
+  }
+  // A download reloads the list, so the button that opened the dialog can be gone. The
+  // same action on the refreshed card is the closest place to return to; a slug never
+  // contains a character that would escape the quoted attribute selector.
+  const sameAction = slug
+    ? linksList.querySelector(`[data-action="qrcode"][data-slug="${slug}"]`)
+    : null;
+  if (sameAction instanceof HTMLElement) {
+    sameAction.focus();
+    return;
+  }
+  searchTermInput.focus();
+}
+
+/**
+ * Hands the prepared PNG to the browser and records the "QR Ativo" flag.
+ *
+ * The download and the flag are two different facts: the file is delivered locally, while
+ * the flag is a server write that can fail on its own. The dialog only claims the flag once
+ * the API confirms it. A confirmation that arrives after the dialog moved on still keeps
+ * its global effect — the list reflects the flag — but writes nothing into the link the
+ * dialog is showing now.
+ */
+async function downloadQrCode() {
+  if (!state.qrDialogOpen || !state.qrSlug || !state.qrObjectUrl) {
+    return;
+  }
+  const slug = state.qrSlug;
+  const token = state.qrRequestToken;
+  const anchor = document.createElement("a");
+  anchor.href = state.qrObjectUrl;
+  anchor.download = `boltlink-${slug}-qr.png`;
+  anchor.click();
+
+  // The flag records that the operator actually obtained a QR, exactly as the previous
+  // direct-download flow did; previewing alone keeps writing nothing.
+  const marked = await markQrCodeGenerated(slug);
+  if (marked) {
+    // The flag really changed on the server, so the list is re-read whatever the dialog is
+    // showing; only the request that asked for it may describe the result.
+    await loadLinks(searchTermInput.value, searchGroupIdInput.value);
+    if (!qrDownloadIsCurrent(token, slug)) {
+      return;
+    }
+    setStatus(qrStatus, `QR Code baixado: ${buildShortLink(slug)}`, "success");
+    return;
   }
 
-  const svgText = await response.text();
-  const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
-  const url = URL.createObjectURL(svgBlob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${slug}-qrcode.svg`;
-  anchor.click();
-  URL.revokeObjectURL(url);
-  return shortLink;
+  if (!qrDownloadIsCurrent(token, slug)) {
+    return;
+  }
+  // The PNG was delivered, but the persisted state was not: the panel must never announce
+  // a flag the API did not confirm.
+  setStatus(
+    qrStatus,
+    `QR Code baixado, mas não foi possível confirmar o estado "QR Ativo" de ${buildShortLink(slug)}.`,
+    "error",
+  );
+}
+
+async function copyQrLink() {
+  if (!state.qrDialogOpen || !state.qrSlug) {
+    return;
+  }
+  const shortLink = buildShortLink(state.qrSlug);
+  try {
+    await copyToClipboard(shortLink);
+    setStatus(qrStatus, `Link copiado: ${shortLink}`);
+  } catch {
+    setStatus(qrStatus, `Copie manualmente: ${shortLink}`, "error");
+  }
 }
 
 /**
@@ -2894,6 +3193,22 @@ importResetButton.addEventListener("click", () => {
   importFileInput.focus();
 });
 
+qrDialogCloseButton.addEventListener("click", () => {
+  closeQrDialog();
+});
+
+qrDialogBackdrop.addEventListener("click", () => {
+  closeQrDialog();
+});
+
+qrDownloadButton.addEventListener("click", () => {
+  downloadQrCode();
+});
+
+qrCopyButton.addEventListener("click", () => {
+  copyQrLink();
+});
+
 groupExpandAllButton.addEventListener("click", () => {
   state.collapsedGroups.clear();
   renderGroupTree();
@@ -3045,10 +3360,7 @@ linksList.addEventListener("click", async (event) => {
   }
 
   if (action === "qrcode") {
-    const shortLink = await downloadQrForSlug(link.slug);
-    await markQrCodeGenerated(link.slug);
-    await loadLinks(searchTermInput.value, searchGroupIdInput.value);
-    setStatus(listStatus, `QR Code gerado para ${shortLink}`, "success");
+    await openQrDialog(link);
     return;
   }
 

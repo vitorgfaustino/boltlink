@@ -491,6 +491,49 @@
     </div>
   </aside>
 
+  <!-- QR Code preview (Unreleased / Phase 5, Gate 5.4). A small centered modal rather than
+       an off-canvas drawer: the content is one image and the short URL it encodes, so it
+       appears over the list under the same dialog rules — backdrop, focus trapped, Escape
+       closes — and can never be open together with a drawer. The image and the URL are
+       filled through textContent and attribute assignment only; nothing derived from a
+       link reaches an HTML sink here. -->
+  <div class="qr-dialog-backdrop" id="qr-dialog-backdrop"></div>
+  <div
+    class="qr-dialog"
+    id="qr-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="qr-dialog-title"
+    aria-hidden="true"
+    inert
+  >
+    <header class="qr-dialog-header">
+      <div class="panel-heading-copy">
+        <h2 id="qr-dialog-title">QR Code</h2>
+        <p class="qr-dialog-subtitle" id="qr-dialog-slug"></p>
+      </div>
+      <button type="button" class="secondary compact qr-dialog-close" id="qr-dialog-close" aria-label="Fechar diálogo de QR Code">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="m6 6 12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+    </header>
+
+    <div class="qr-dialog-body">
+      <p class="qr-dialog-help">O QR Code aponta para o short link público. Ele continua válido mesmo se você trocar o destino, e quem escanear passa pelo mesmo redirect, senha e métricas do link.</p>
+      <div class="qr-preview">
+        <img id="qr-image" alt="" width="512" height="512" />
+      </div>
+      <p class="qr-url" id="qr-url"></p>
+      <div class="qr-actions">
+        <button type="button" class="primary" id="qr-download-button" disabled>Baixar QR Code</button>
+        <button type="button" class="secondary" id="qr-copy-button">Copiar link</button>
+      </div>
+      <div class="status" id="qr-status" role="status" aria-live="polite" aria-atomic="true"></div>
+    </div>
+  </div>
+
   <script src="/ab-display.js"></script>
   <script src="/smart-routing-ui.js"></script>
   <script src="/expired-redirect-ui.js"></script>

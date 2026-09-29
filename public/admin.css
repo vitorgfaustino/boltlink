@@ -1934,3 +1934,160 @@ button.icon-btn {
   min-height: 0;
   margin-top: 0;
 }
+
+/* QR Code dialog (Unreleased / Phase 5, Gate 5.4).
+
+   The same modal vocabulary as the drawers — backdrop, `is-open`, `inert` when closed —
+   on a small centered card instead of an off-canvas panel: the content is one image and
+   the short URL it encodes, so it stays compact on any viewport. */
+
+.qr-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(3, 4, 6, 0.62);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--motion-medium), visibility 0s linear var(--motion-medium);
+}
+
+.qr-dialog-backdrop.is-open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--motion-medium), visibility 0s;
+}
+
+.qr-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 60;
+  /* The card breathes on desktop and never touches the edges on a 390px viewport. */
+  width: min(400px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+  background: #0b0d10;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, -48%) scale(0.98);
+  transition:
+    opacity var(--motion-medium),
+    transform var(--motion-medium),
+    visibility 0s linear var(--motion-medium);
+}
+
+.qr-dialog.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, -50%) scale(1);
+  transition:
+    opacity var(--motion-medium),
+    transform var(--motion-medium),
+    visibility 0s;
+}
+
+.qr-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.qr-dialog-subtitle {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.qr-dialog-close {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 10px;
+  flex-shrink: 0;
+}
+
+.qr-dialog-help {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+/* The scannable artifact on its white quiet zone: the square keeps its shape and never
+   stretches the card, whatever the viewport width is. */
+.qr-preview {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+}
+
+.qr-preview img {
+  display: block;
+  width: 100%;
+  max-width: 264px;
+  height: auto;
+}
+
+.qr-preview img:not([src]) {
+  /* A dialog that is still generating shows the frame, not a broken-image glyph. */
+  visibility: hidden;
+  aspect-ratio: 1 / 1;
+}
+
+/* The encoded URL is operator-visible text: it wraps instead of overflowing, which is
+   also what keeps the 390px layout free of horizontal scroll. */
+.qr-url {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.qr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.qr-actions .primary {
+  flex: 1 1 auto;
+}
+
+.qr-actions .secondary {
+  flex: 0 1 auto;
+}
+
+/* A closed dialog never keeps a hidden control in the layout. */
+.qr-dialog [hidden] {
+  display: none !important;
+}
+
+#qr-status {
+  margin-top: 4px;
+}
+
+#qr-status:empty {
+  min-height: 0;
+  margin-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The reveal rides on a delayed `visibility`, which the shared duration reset does
+     not cover. */
+  .qr-dialog,
+  .qr-dialog-backdrop {
+    transition-delay: 0s !important;
+  }
+}
