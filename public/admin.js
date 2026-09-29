@@ -58,12 +58,15 @@ const state = {
   // showing is dropped instead of replacing the current preview. `qrPreviewSrc` is the
   // data URL the preview `<img>` renders (some webviews won't load `blob:` URLs as
   // images) and `qrObjectUrl` is the single object URL alive at a time — the one the
-  // download anchor hands over.
+  // download anchor hands over. `qrSvgText` is the exact SVG body the Worker returned
+  // for the current generation, so the SVG download replays the served artifact byte
+  // for byte instead of regenerating anything.
   qrDialogOpen: false,
   qrSlug: null,
   qrRequestToken: 0,
   qrObjectUrl: null,
   qrPreviewSrc: null,
+  qrSvgText: null,
   qrOpener: null,
 };
 
@@ -249,7 +252,8 @@ const qrDialogCloseButton = document.getElementById("qr-dialog-close");
 const qrDialogSlug = document.getElementById("qr-dialog-slug");
 const qrImage = document.getElementById("qr-image");
 const qrUrl = document.getElementById("qr-url");
-const qrDownloadButton = document.getElementById("qr-download-button");
+const qrDownloadPngButton = document.getElementById("qr-download-png-button");
+const qrDownloadSvgButton = document.getElementById("qr-download-svg-button");
 const qrCopyButton = document.getElementById("qr-copy-button");
 const qrStatus = document.getElementById("qr-status");
 const appVersion = document.getElementById("app-version");
@@ -1221,7 +1225,14 @@ function releaseQrObjectUrl() {
     state.qrObjectUrl = null;
   }
   state.qrPreviewSrc = null;
+  state.qrSvgText = null;
   qrImage.removeAttribute("src");
+}
+
+/** The two downloads are one fact — the current generation is usable or it is not. */
+function setQrDownloadsDisabled(disabled) {
+  qrDownloadPngButton.disabled = disabled;
+  qrDownloadSvgButton.disabled = disabled;
 }
 
 function resetQrDialogSurface() {
@@ -1229,7 +1240,7 @@ function resetQrDialogSurface() {
   qrImage.alt = "";
   qrDialogSlug.textContent = "";
   qrUrl.textContent = "";
-  qrDownloadButton.disabled = true;
+  setQrDownloadsDisabled(true);
   setStatus(qrStatus, "");
 }
 
@@ -1304,7 +1315,7 @@ async function openQrDialog(link) {
   qrImage.alt = "";
   qrDialogSlug.textContent = `/${slug}`;
   qrUrl.textContent = buildShortLink(slug);
-  qrDownloadButton.disabled = true;
+  setQrDownloadsDisabled(true);
   setStatus(qrStatus, "Gerando QR Code…");
 
   lockBodyScroll();
@@ -1335,11 +1346,12 @@ async function openQrDialog(link) {
       return;
     }
     releaseQrObjectUrl();
+    state.qrSvgText = svgText;
     state.qrObjectUrl = URL.createObjectURL(png.blob);
     state.qrPreviewSrc = png.previewSrc;
     qrImage.alt = `QR Code do short link ${buildShortLink(slug)}`;
     qrImage.src = state.qrPreviewSrc;
-    qrDownloadButton.disabled = false;
+    setQrDownloadsDisabled(false);
     setStatus(qrStatus, "");
   } catch {
     if (!qrRequestIsCurrent(token)) {
@@ -1386,7 +1398,51 @@ function closeQrDialog() {
 }
 
 /**
- * Hands the prepared PNG to the browser and records the "QR Ativo" flag.
+ * Prepares the artifact a format asks for, or `null` when the current generation cannot
+ * serve it. The PNG rides the object URL the dialog already owns; the SVG becomes a fresh
+ * blob of the exact body the Worker returned — an object URL created for that download
+ * alone and revoked with it, never kept in state.
+ */
+function qrDownloadArtifact(format, slug) {
+  if (format === "svg") {
+    if (!state.qrSvgText) {
+      return null;
+    }
+    return {
+      href: URL.createObjectURL(new Blob([state.qrSvgText], { type: "image/svg+xml;charset=utf-8" })),
+      filename: `boltlink-${slug}-qr.svg`,
+      ownsHref: true,
+    };
+  }
+  if (!state.qrObjectUrl) {
+    return null;
+  }
+  return {
+    href: state.qrObjectUrl,
+    filename: `boltlink-${slug}-qr.png`,
+    ownsHref: false,
+  };
+}
+
+/**
+ * Returns a URL borrowed for one download on the next task, whatever else is in flight.
+ *
+ * The browser takes the file during the click itself, so the URL only has to survive that
+ * frame; releasing it on a later task is the part that must not be done in the same frame,
+ * where some browsers lose the download. The `finally` of the download already covers every
+ * outcome the async block can report, but it cannot cover the one it never reaches: a
+ * `has_qrcode` write that never settles holds that block open forever, and with it the URL.
+ * This release is armed at the click and waits for nothing, so the client-side resource
+ * stops depending on a server round trip it has no part in.
+ */
+function scheduleQrDownloadRevoke(href) {
+  setTimeout(() => {
+    URL.revokeObjectURL(href);
+  }, 0);
+}
+
+/**
+ * Hands the prepared artifact to the browser and records the "QR Ativo" flag.
  *
  * The download and the flag are two different facts: the file is delivered locally, while
  * the flag is a server write that can fail on its own. The dialog only claims the flag once
@@ -1394,41 +1450,60 @@ function closeQrDialog() {
  * its global effect — the list reflects the flag — but writes nothing into the link the
  * dialog is showing now.
  */
-async function downloadQrCode() {
-  if (!state.qrDialogOpen || !state.qrSlug || !state.qrObjectUrl) {
+async function downloadQrCode(format) {
+  if (!state.qrDialogOpen || !state.qrSlug) {
     return;
   }
   const slug = state.qrSlug;
   const token = state.qrRequestToken;
+  const artifact = qrDownloadArtifact(format, slug);
+  if (!artifact) {
+    return;
+  }
+  const formatLabel = format.toUpperCase();
   const anchor = document.createElement("a");
-  anchor.href = state.qrObjectUrl;
-  anchor.download = `boltlink-${slug}-qr.png`;
+  anchor.href = artifact.href;
+  anchor.download = artifact.filename;
   anchor.click();
+  // Only a URL this call created is this call's to return; the PNG one belongs to the
+  // dialog and stays alive until the dialog releases it.
+  if (artifact.ownsHref) {
+    scheduleQrDownloadRevoke(artifact.href);
+  }
 
-  // The flag records that the operator actually obtained a QR, exactly as the previous
-  // direct-download flow did; previewing alone keeps writing nothing.
-  const marked = await markQrCodeGenerated(slug);
-  if (marked) {
-    // The flag really changed on the server, so the list is re-read whatever the dialog is
-    // showing; only the request that asked for it may describe the result.
-    await loadLinks(searchTermInput.value, searchGroupIdInput.value);
+  try {
+    // The flag records that the operator actually obtained a QR, exactly as the previous
+    // direct-download flow did; previewing alone keeps writing nothing.
+    const marked = await markQrCodeGenerated(slug);
+    if (marked) {
+      // The flag really changed on the server, so the list is re-read whatever the dialog is
+      // showing; only the request that asked for it may describe the result.
+      await loadLinks(searchTermInput.value, searchGroupIdInput.value);
+      if (!qrDownloadIsCurrent(token, slug)) {
+        return;
+      }
+      setStatus(qrStatus, `QR Code ${formatLabel} baixado: ${buildShortLink(slug)}`, "success");
+      return;
+    }
+
     if (!qrDownloadIsCurrent(token, slug)) {
       return;
     }
-    setStatus(qrStatus, `QR Code baixado: ${buildShortLink(slug)}`, "success");
-    return;
+    // The file was delivered, but the persisted state was not: the panel must never
+    // announce a flag the API did not confirm.
+    setStatus(
+      qrStatus,
+      `QR Code ${formatLabel} baixado, mas não foi possível confirmar o estado "QR Ativo" de ${buildShortLink(slug)}.`,
+      "error",
+    );
+  } finally {
+    // Redundant with the deferred release on purpose, and it is the deferred one that
+    // carries the guarantee: this only runs when the block ends, so it can shorten the
+    // URL's life on the ordinary paths and can never lengthen it.
+    if (artifact.ownsHref) {
+      URL.revokeObjectURL(artifact.href);
+    }
   }
-
-  if (!qrDownloadIsCurrent(token, slug)) {
-    return;
-  }
-  // The PNG was delivered, but the persisted state was not: the panel must never announce
-  // a flag the API did not confirm.
-  setStatus(
-    qrStatus,
-    `QR Code baixado, mas não foi possível confirmar o estado "QR Ativo" de ${buildShortLink(slug)}.`,
-    "error",
-  );
 }
 
 async function copyQrLink() {
@@ -3201,8 +3276,12 @@ qrDialogBackdrop.addEventListener("click", () => {
   closeQrDialog();
 });
 
-qrDownloadButton.addEventListener("click", () => {
-  downloadQrCode();
+qrDownloadPngButton.addEventListener("click", () => {
+  downloadQrCode("png");
+});
+
+qrDownloadSvgButton.addEventListener("click", () => {
+  downloadQrCode("svg");
 });
 
 qrCopyButton.addEventListener("click", () => {

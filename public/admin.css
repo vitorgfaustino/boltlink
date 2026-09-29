@@ -2015,9 +2015,18 @@ button.icon-btn {
 }
 
 .qr-dialog-help {
+  margin: 0;
   color: var(--muted);
   font-size: 0.86rem;
   line-height: 1.5;
+}
+
+/* One rhythm for the whole body: a 12px row gap between the blocks, with margin-block
+   accents around the QR and before the actions, so no two blocks sit flush and the card
+   breathes the most around the scannable artifact. */
+.qr-dialog-body {
+  display: grid;
+  row-gap: 12px;
 }
 
 /* The scannable artifact on its white quiet zone: the square keeps its shape and never
@@ -2025,6 +2034,7 @@ button.icon-btn {
 .qr-preview {
   display: flex;
   justify-content: center;
+  margin-block: 2px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -2055,18 +2065,31 @@ button.icon-btn {
   overflow-wrap: anywhere;
 }
 
+/* The three actions stay explicit — both formats are visible at a glance — on one row
+   while the card is at its full width, and never squeeze their labels. */
 .qr-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+  margin-block-start: 2px;
 }
 
-.qr-actions .primary {
-  flex: 1 1 auto;
+.qr-actions button {
+  min-width: 0;
+  padding-inline: 12px;
 }
 
-.qr-actions .secondary {
-  flex: 0 1 auto;
+@media (max-width: 431px) {
+  /* Below 432px of viewport the card leaves its 400px cap (min(400px, 100vw - 32px)
+     starts shrinking), and three nowrap labels no longer fit a track each: the two
+     downloads pair up and copy takes the full row. */
+  .qr-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #qr-copy-button {
+    grid-column: 1 / -1;
+  }
 }
 
 /* A closed dialog never keeps a hidden control in the layout. */
@@ -2075,7 +2098,7 @@ button.icon-btn {
 }
 
 #qr-status {
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 #qr-status:empty {
