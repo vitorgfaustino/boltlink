@@ -137,7 +137,7 @@ Depois do deploy:
 5. opcionalmente configurar `API_KEY`; configurar `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
 6. opcionalmente trocar para domínio próprio
 
-Se você utiliza o recurso de links protegidos por senha, **deve obrigatoriamente** configurar o `PASSWORD_SESSION_SECRET`. Se não for configurado, a criação e o acesso aos links com senha falharão.
+Se você utiliza o recurso de links protegidos por senha, **deve obrigatoriamente** configurar o `PASSWORD_SESSION_SECRET`. Se não for configurado, a criação e o acesso aos links com senha falharão. O `API_KEY` não serve para isso: na `v2.2.1` ele ainda podia ser fallback da sessão de senha, mas a `3.0.0` removeu esse fallback e exige o secret dedicado.
 Se você usa GitHub auto-deploy ou o botão de deploy da Cloudflare, configure `PASSWORD_SESSION_SECRET` no painel da Cloudflare como `Secret`.
 Se você publica com Wrangler local, use `.dev.vars` para desenvolvimento e `wrangler secret put PASSWORD_SESSION_SECRET` para o Worker implantado.
 
@@ -421,6 +421,27 @@ BoltLink não mantém eventos individuais de clique.
 - não há ganho relevante de espaço no D1 ao zerar ou apagar estatística, porque não existe tabela de eventos
 
 Para reduzir tráfego automatizado sem depender de WAF pago, consulte `docs/free-plan-traffic.md`.
+
+## Runtime Variables e Secrets no upgrade
+
+"Preciso criar alguma variável nova para atualizar da `v2.2.1` para a `3.0.0`?" — **não**: nenhuma variável ou secret novo é obrigatório para todas as instalações. O upgrade obrigatório é backup do D1 + migrations pendentes `0004`–`0006` + deploy/validação, conforme `docs/upgrading.md`. Existe um requisito **condicional** para quem usa links protegidos por senha: confirme `PASSWORD_SESSION_SECRET` antes do deploy (casos A/B/C abaixo da tabela).
+
+| Name | Type | Obrigatória? | Quando | Mudança na 3.0.0? |
+| --- | --- | --- | --- | --- |
+| `TEAM_DOMAIN` | Text | quando o Cloudflare Access está configurado | proteção de `/admin` e `/api` | não — sem mudança |
+| `POLICY_AUD` | Text | quando o Cloudflare Access está configurado | proteção de `/admin` e `/api` | não — sem mudança |
+| `APP_TIMEZONE` | Text | opcional | timezone dos campos de agenda; fallback/default `America/Sao_Paulo` | não — sem mudança |
+| `PASSWORD_SESSION_SECRET` | Secret | apenas quando a instalação usa/cria/serve links protegidos por senha | assinar sessões do gate de senha; a variável já existia na `v2.2.1`, mas lá o `API_KEY` servia de fallback — a `3.0.0` removeu esse fallback e passou a exigir o secret dedicado; se já configurado, preserve o valor existente e não gere um novo apenas pelo upgrade | **sim** — o fallback de `API_KEY` foi removido (a variável em si já existia) |
+| `API_KEY` | Secret | opcional | apenas automação administrativa; na `3.0.0` não assina mais sessão do gate de senha | não — segue opcional (perdeu o papel de fallback de sessão) |
+| `ROOT_REDIRECT_URL` | Text | opcional | apenas para quem quer redirect de `GET /` (`302` + `no-store`, sem D1); ausente/inválida serve a landing | **sim** (variável nova e opcional) |
+
+`PASSWORD_SESSION_SECRET` é o único caso condicional do upgrade, e não é uma variável nova — é uma mudança de obrigatoriedade introduzida pela `3.0.0`:
+
+- **A. usa links protegidos e já tem `PASSWORD_SESSION_SECRET`**: preserve o valor existente; não rotacione e não regenere o secret apenas por causa do upgrade.
+- **B. usa links protegidos e dependia apenas do `API_KEY`**: na `v2.2.1` o `API_KEY` podia assinar as sessões do gate de senha; na `3.0.0` não pode mais. Crie um `PASSWORD_SESSION_SECRET` dedicado **antes** de publicar o Worker da `3.0.0` — sem ele, criar link com senha responde `400` e o gate de senha responde `503`. Gere um valor aleatório próprio (por exemplo `openssl rand -hex 32`); não copie o valor do `API_KEY`.
+- **C. não usa links protegidos por senha**: não precisa criar esse secret apenas pelo upgrade; ele só passa a ser exigido se o recurso passar a ser usado.
+
+`API_KEY` continua opcional para automação administrativa, mas não assina mais sessão do gate de senha, e o valor dele nunca deve ser reutilizado como `PASSWORD_SESSION_SECRET`.
 
 ## Configuração segura
 

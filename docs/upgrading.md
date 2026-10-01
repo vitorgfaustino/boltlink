@@ -35,7 +35,24 @@ A release `3.0.0` é o estado atual deste repositório (tag `v3.0.0`); a release
    ```
 
    Migrations antes do Worker minimiza a janela de código novo sobre schema antigo: sem as colunas, as features novas falham fechado (`400`/`503` conforme o recurso), enquanto colunas novas sob código antigo são simplesmente ignoradas. Reaplicar é seguro (`No migrations to apply!`).
-4. **Confirme bindings e secrets.** Não há bindings novos desde a `v2.2.1`. Variáveis: `PASSWORD_SESSION_SECRET` segue obrigatório para criar/servir links protegidos por senha (sem ele, o gate falha `503`); `ROOT_REDIRECT_URL` é opcional e não secreta; `API_KEY` permanece opcional para automação.
+4. **Confirme bindings e secrets.** Não há bindings novos desde a `v2.2.1` — e nenhuma variável ou secret novo é obrigatório para todas as instalações nesta atualização: o obrigatório do upgrade é backup do D1 + migrations pendentes `0004`–`0006` + deploy/validação. Para links protegidos por senha existe um requisito **condicional**: confirme `PASSWORD_SESSION_SECRET` antes do deploy (casos A/B/C abaixo da tabela).
+
+   | Name | Type | Required? | When | Changed in 3.0.0? |
+   | --- | --- | --- | --- | --- |
+   | `TEAM_DOMAIN` | Text | quando o Cloudflare Access está configurado | proteção de `/admin` e `/api` | existente, sem mudança |
+   | `POLICY_AUD` | Text | quando o Cloudflare Access está configurado | proteção de `/admin` e `/api` | existente, sem mudança |
+   | `APP_TIMEZONE` | Text | opcional | timezone dos campos de agenda; fallback/default `America/Sao_Paulo` | existente, sem mudança |
+   | `PASSWORD_SESSION_SECRET` | Secret | apenas quando a instalação usa/cria/serve links protegidos por senha | assinar sessões do gate de senha; sem ele o gate falha `503`; a variável já existia na `v2.2.1`, mas lá o `API_KEY` servia de fallback — a `3.0.0` removeu esse fallback e passou a exigir o secret dedicado; se já configurado, preserve o valor existente e **não** gere um novo | **sim** — o fallback de `API_KEY` foi removido (a variável em si já existia) |
+   | `API_KEY` | Secret | opcional | apenas automação administrativa; na `3.0.0` não assina mais sessão do gate de senha | existente — perdeu o papel de fallback de sessão |
+   | `ROOT_REDIRECT_URL` | Text | opcional | apenas para quem quer redirect de `GET /` (`302` + `no-store`, sem D1); ausente/inválida serve a landing | **NEW / OPTIONAL** |
+
+   O caso de senha em detalhe (vale para o fluxo inteiro do upgrade):
+
+   - **A. instalação com links protegidos que já tem `PASSWORD_SESSION_SECRET`**: preserve o valor existente. Não rotacione, não regenere e não substitua o secret apenas por causa do upgrade.
+   - **B. instalação com links protegidos que dependia apenas do `API_KEY`**: na `v2.2.1` o `API_KEY` podia assinar as sessões do gate de senha; na `3.0.0` não pode mais. Crie o `PASSWORD_SESSION_SECRET` **antes** de publicar o Worker da `3.0.0` — sem ele, criar link com senha responde `400` e o gate de senha responde `503`. Gere um valor aleatório novo e dedicado (por exemplo `openssl rand -hex 32`); não copie o valor do `API_KEY`.
+   - **C. instalação sem links protegidos por senha**: não precisa criar esse secret apenas pelo upgrade; o requisito só passa a valer se o recurso for usado.
+
+   Em resumo: `ROOT_REDIRECT_URL` é a única variável nova — opcional. `PASSWORD_SESSION_SECRET` não é novo, mas **mudou na `3.0.0`**: existia na `v2.2.1` (onde o `API_KEY` podia servir de fallback) e agora é exigido para links protegidos, sem fallback. `TEAM_DOMAIN`/`POLICY_AUD` seguem variáveis existentes condicionais ao Access, `APP_TIMEZONE` é existente/opcional com default e `API_KEY` é existente/opcional para automação.
 5. **Publique o Worker e os Assets** (`npm run deploy` ou o fluxo que a instância já usa).
 6. **Valide o Admin**: login via Cloudflare Access, painel abre e `GET /api/capabilities` reporta `abTesting`, `smartRouting` e `expiredRedirect` como `true`.
 7. **Smoke de redirects**: um link normal responde com o redirect configurado; unknown slug continua `404`; se configurado, valide senha, A/B, Smart Routing, expiração (`410` ou destino `302`) e o redirect da raiz.
@@ -164,11 +181,12 @@ SELECT id, name, parent_id FROM link_groups;
 
 ## PASSWORD_SESSION_SECRET e links protegidos por senha
 
-Esta versão passa a exigir `PASSWORD_SESSION_SECRET` para todo o recurso de links protegidos por senha. `API_KEY` deixou de ser fallback de sessão.
+Esta versão exige `PASSWORD_SESSION_SECRET` para todo o recurso de links protegidos por senha. A variável **já existia na `v2.2.1`**, mas lá o gate aceitava `PASSWORD_SESSION_SECRET || API_KEY`: o `API_KEY` podia assinar as sessões do gate de senha como fallback. Na `3.0.0` esse fallback foi removido — o secret dedicado é a única fonte, e a mudança é de obrigatoriedade, não de variável nova.
 
-- Instalações sem links protegidos por senha: nenhuma ação necessária.
-- Instalações com links protegidos por senha: configure `PASSWORD_SESSION_SECRET` como secret do Worker **antes** do upgrade/deploy desta versão.
-- `API_KEY` não é mais utilizado para assinar sessões de links protegidos por senha.
+- **A. instalação com links protegidos que já tem `PASSWORD_SESSION_SECRET`**: preserve o valor existente. Não rotacione, não regenere e não substitua o secret apenas por causa do upgrade — a troca de valor invalida as sessões de senha já emitidas.
+- **B. instalação com links protegidos que dependia apenas do `API_KEY`** (funcionava na `v2.2.1` por causa do fallback): crie o `PASSWORD_SESSION_SECRET` como secret do Worker **antes** do upgrade/deploy desta versão, com um valor aleatório novo e dedicado (por exemplo `openssl rand -hex 32`); não copie o valor do `API_KEY`.
+- **C. instalações sem links protegidos por senha**: nenhuma ação necessária; o secret só passa a ser exigido se o recurso for usado.
+- `API_KEY` não é mais utilizado para assinar sessões de links protegidos por senha; segue opcional para automação administrativa.
 - Links protegidos legados sem `PASSWORD_SESSION_SECRET` falham fechados com HTTP 503, tanto no `GET` quanto no `POST`, sem redirect e sem cookie de sessão.
 - HTTP 503 significa configuração pendente no servidor; não é senha incorreta nem link inexistente.
 - Não existe fallback inseguro: sem o secret, o recurso fica indisponível em vez de degradar.

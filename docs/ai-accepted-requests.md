@@ -25,17 +25,17 @@
 ## Notas da linha atual
 
 - não existe mais `IP_HASH_SECRET`
-- a release publicada `v2.2.1` (tag real) termina na `0003_lgpd_minimization.sql`; a `0004` pertence ao baseline local da Fase 2, a `0005` ao estado Unreleased / Fase 3 e a `0006` (+ `ROOT_REDIRECT_URL`) à Fase 4
+- a release atual publicada é a `3.0.0` (tag `v3.0.0`, migrations `0000` a `0006`); a release anterior `v2.2.1` (tag real) termina na `0003_lgpd_minimization.sql`. A `0004` (Split Test A/B, origem Fase 2), a `0005` (Smart Routing, origem Fase 3) e a `0006` + `ROOT_REDIRECT_URL` (origem Fase 4) estão publicadas desde a `3.0.0`
 - a hierarquia de grupos da Fase 5 não adiciona migration: ela usa `link_groups.parent_id`, criado pela `0002`. `PATCH /api/groups/:id` com `parentId` exige `expectedParentId`, e `409` (ciclo, profundidade, delete não vazio, pai desatualizado, grafo corrompido) é resultado normal da API, não falha a esconder
 - a exportação portátil da Fase 5 (`GET /api/export`, formato `boltlink-portability` v1) também não adiciona migration e é somente leitura no **request inteiro**, não apenas no handler: `409` significa estado persistido que o BoltLink não aceitaria hoje (incluindo nome de grupo em forma não canônica, que nunca é normalizado no export) e `413` significa acima dos limites do formato (50 grupos, 100 links ou 256 KiB); o JSON não substitui backup do D1
 - a importação portátil da Fase 5 (`POST /api/import/preview` e `POST /api/import/apply`) consome exatamente o documento do export e também não adiciona migration. O preview é somente leitura no request inteiro (zero escrita, zero DDL, zero bootstrap de schema) e o apply grava o documento em um **único `batch`** — uma transação, portanto tudo ou nada. `400` significa documento malformado (chave desconhecida, tipo errado, referência órfã, ciclo, slug duplicado) ou corpo que não é UTF-8 válido (recusado, nunca reparado com U+FFFD), `409` significa que o destino não aceita o documento como está (colisão de slug com link ativo/desabilitado/tombstone, link do destino apontando para grupo inexistente, feature usada que o banco não suporta, árvore acima de 16 níveis, grafo de destino corrompido, `PASSWORD_SESSION_SECRET` ausente, senha de substituição faltando) e `413` significa acima dos limites do formato. Falha de batch que não seja a `UNIQUE` de `links.slug` responde `500` controlado, nunca `SLUG_COLLISION`. O import nunca sobrescreve slug, nunca faz merge de grupo por nome, nunca reutiliza um id que a sequência `AUTOINCREMENT` do destino já gastou, nunca restaura métricas e exige nova senha para cada link protegido; no drawer, o apply exige preview aprovado para o mesmo arquivo mostrado e toda falha terminal descarta as senhas digitadas
 - o QR Code do painel (Fase 5) é o diálogo de preview com download em PNG e SVG sobre os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode`, que existem desde a base publicada: o QR codifica só a short URL pública, a geração é cold path administrativo que não conta clique, e o `POST` que marca `has_qrcode` acontece quando o operador baixa o QR (PNG ou SVG) — preview e copiar link não escrevem nada; nenhuma imagem é persistida e nada de QR entra no export/import
 - o endpoint `/api/links/:slug/stats` não faz mais parte do produto
 - o endpoint `/api/maintenance/purge-stats` não faz mais parte do produto
-- para pedido de teste local/manual nas bases locais (Fase 2 e Fase 3), a IA deve aplicar migrations no D1 local do Worker com `npm run dev-prepare` antes de `npm run dev`; no checkout da tag `v2.2.1` esse script não existe e o comando é `npm run wrangler -- d1 migrations apply ... --local`
+- para pedido de teste local/manual na release atual, a IA deve aplicar migrations no D1 local do Worker com `npm run dev-prepare` (cadeia `0000`–`0006`) antes de `npm run dev`; no checkout histórico da tag `v2.2.1` esse script não existe e o comando é `npm run wrangler -- d1 migrations apply ... --local`
 - `npm run dev-init` é opcional em qualquer base e cria apenas o SQLite auxiliar `.dev-env/db.sqlite3`
 
 ---
 
-Versão 2.2.1
+Versão 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

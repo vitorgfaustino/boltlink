@@ -3,7 +3,7 @@
  * AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
  *
  * Shared portability-export presentation helpers for the admin UI
- * (Unreleased / Phase 5, Gate 5.2).
+ * (published in 3.0.0; origin Phase 5, Gate 5.2).
  *
  * Framework-free and DOM-free so the filename policy and the error mapping can be
  * unit tested in Node. It never builds HTML: callers write every value through

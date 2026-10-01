@@ -10,37 +10,39 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 - painel administrativo estático em `public/admin.html`
 - CRUD de links em D1
 - contagem agregada em `links.clicks_total`
-- Split Test A/B stateless (**Phase 2 local**; migration `0004_ab_testing.sql`, ausente da tag publicada)
-- Smart Routing stateless por país/dispositivo em `links.smart_routing_rules` (**Unreleased / Fase 3**; migration `0005`, ausente da tag publicada)
-- destino opcional para links expirados em `links.expired_redirect_url` (**Unreleased / Fase 4**; migration `0006_expired_redirect.sql`, ausente da tag publicada)
-- redirect opcional da raiz (`GET /`) via variável `ROOT_REDIRECT_URL` (**Unreleased / Fase 4**, sem D1)
-- hierarquia de grupos em `link_groups.parent_id` (**Unreleased / Fase 5**, sem migration nova: a coluna existe desde a `0002`)
-- exportação administrativa da configuração lógica em BoltLink Portability JSON v1 via `GET /api/export` (**Unreleased / Fase 5**, sem migration nova)
-- importação administrativa dessa mesma configuração via `POST /api/import/preview` (somente leitura) e `POST /api/import/apply` (**Unreleased / Fase 5**, sem migration nova)
-- QR Code com diálogo de preview e download PNG/SVG no Admin (**Unreleased / Fase 5**; os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada, sem migration nova)
+- Split Test A/B stateless (**publicado na 3.0.0**; origem Fase 2 — migration `0004_ab_testing.sql`, ausente da release anterior `v2.2.1`)
+- Smart Routing stateless por país/dispositivo em `links.smart_routing_rules` (**publicado na 3.0.0**; origem Fase 3 — migration `0005`, ausente da release anterior `v2.2.1`)
+- destino opcional para links expirados em `links.expired_redirect_url` (**publicado na 3.0.0**; origem Fase 4 — migration `0006_expired_redirect.sql`, ausente da release anterior `v2.2.1`)
+- redirect opcional da raiz (`GET /`) via variável `ROOT_REDIRECT_URL` (**publicado na 3.0.0**; origem Fase 4, sem D1)
+- hierarquia de grupos em `link_groups.parent_id` (**publicado na 3.0.0**; origem Fase 5, sem migration nova: a coluna existe desde a `0002`)
+- exportação administrativa da configuração lógica em BoltLink Portability JSON v1 via `GET /api/export` (**publicado na 3.0.0**; origem Fase 5, sem migration nova)
+- importação administrativa dessa mesma configuração via `POST /api/import/preview` (somente leitura) e `POST /api/import/apply` (**publicado na 3.0.0**; origem Fase 5, sem migration nova)
+- QR Code com diálogo de preview e download PNG/SVG no Admin (**publicado na 3.0.0**; origem Fase 5 — os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada, sem migration nova)
 - autenticação administrativa via Cloudflare Access
 
-### Cinco bases de código que não podem ser confundidas
+### Bases de código que não podem ser confundidas
 
 | Base | Como identificar | Migrations | Recursos extras |
 | --- | --- | --- | --- |
-| Publicada | tag `v2.2.1` (`git rev-parse v2.2.1` → `8b3895e`) | `0000` a `0003` | — |
-| Fase 2 local | baseline local `23353a1`, não publicado | `0000` a `0004` | Split Test A/B |
-| Fase 3 congelada | HEAD `548f179`, Unreleased | `0000` a `0005` | Split Test A/B + Smart Routing |
-| Fase 4 congelada | HEAD `cdb9f83`, Unreleased | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
-| Fase 5 working tree | working tree atual sobre `cdb9f83`, Unreleased | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
+| **Release atual publicada** (`3.0.0`) | tag `v3.0.0` (`git rev-parse v3.0.0` → `60c8575`), HEAD de `main` | `0000` a `0006` | todos abaixo: Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
+| **Release anterior** (`v2.2.1`) | tag `v2.2.1` (`git rev-parse v2.2.1` → `8b3895e`) | `0000` a `0003` | — |
+| Fase 2 (checkpoint histórico) | baseline local `23353a1` | `0000` a `0004` | Split Test A/B |
+| Fase 3 (checkpoint congelado) | HEAD `548f179` | `0000` a `0005` | Fase 2 + Smart Routing |
+| Fase 4 (checkpoint congelado) | HEAD `cdb9f83` | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
+| Fase 5 (checkpoint pre-freeze) | `3670a44` sobre `cdb9f83` | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code — evoluiu para a release `3.0.0` |
 
-A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura nem a portabilidade da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência, e não existem `GET /api/export`, `POST /api/import/preview` nem `POST /api/import/apply`). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
+A release atual é a **`3.0.0`**, publicada como tag `v3.0.0` sobre `60c8575`. Ela contém as migrations `0004` a `0006` e todos os recursos das Fases 2–5. A `v2.2.1` é a **release anterior** e o **baseline histórico do upgrade** das features — conceitos que hoje coincidem, mas são distintos: a release anterior imediata muda a cada publicação, o baseline histórico do upgrade muda apenas em novos upgrades major. A `v2.2.1` não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura nem a portabilidade da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência, e não existem `GET /api/export`, `POST /api/import/preview` nem `POST /api/import/apply`). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
 
-### Status de desenvolvimento (Fase 5 congelada; Phase 6 em andamento)
+### Status de desenvolvimento (Fases 2–5 congeladas; Phase 6 completa; Phase 7 em andamento)
 
-- Baseline pre-freeze: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. A versão desta release é **`3.0.0`** (o `package.json` está em `3.0.0`).
+- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. A versão da release originada dessa linha é **`3.0.0`** (o `package.json` está em `3.0.0`).
 - Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
-- Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fecha o finding BL-54-04 e reconcilia a documentação; não adicionou feature, migration, bump de versão, tag nem deploy.
-- Com o freeze do Gate 5.5, a Fase 5 está **FEATURE FROZEN**: nenhuma feature adicional deve ser iniciada, e a Phase 6 não pode ser iniciada dentro de um gate da Fase 5.
-- **Phase 6 — Release Readiness (em andamento)**: Gate 6.1 (auditoria global final) concluído com P0 = 0, P1 = 0 e P2 = 0; Gate 6.2 (correção dos blockers) concluído, fechando BL-61-01 e BL-61-02; Gate 6.3 (version finalization) **FINALIZED LOCALLY** — versão `3.0.0` finalizada e os P3 BL-61-03, BL-61-04 e o wording "nullable" de `docs/upgrading.md` fechados; Gate 6.4 (local release commit) **FINALIZED LOCALLY** — commit local de preparação da release `6847e47` (`release: prepare 3.0.0`), sobre o pre-release baseline `04a6873`; Gate 6.5A (publication preflight): **RECLASSIFIED** — BL-65A-01 é **NOT APPLICABLE** (o finding assumia uma instalação canônica Cloudflare/D1 vinculada ao repositório-base, e ela não existe; Cloudflare login, D1/Worker remotos e production smoke não são requisito da release do repositório), e BL-65A-02 (wording de release não publicada no commit de preparação) foi fechado no Gate 6.5B; Gate 6.5B (final publication metadata) **FINALIZED LOCALLY** — a metadata de publicação final está neste commit, que é o alvo da tag `v3.0.0`. Modelo de distribuição: a release do repositório é **source distribution** (source commit + tag `v3.0.0` + push de `main` + push da tag + GitHub Release); Cloudflare deploy, migrations e D1 são **por instalação** e não fazem parte da release do repositório. Estado da release: **NOT TAGGED / NOT PUSHED**. Next: GitHub publication.
+- Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fechou o finding BL-54-04 e reconciliou a documentação; não adicionou feature, migration, bump de versão, tag nem deploy.
+- Com o freeze do Gate 5.5, a Fase 5 ficou **FEATURE FROZEN**: nenhuma feature adicional deve ser iniciada, e a Phase 6 não pode ser iniciada dentro de um gate da Fase 5.
+- **Phase 6 — Release Readiness: COMPLETE.** Gate 6.1 (auditoria global final) concluído com P0 = 0, P1 = 0 e P2 = 0; Gate 6.2 (correção dos blockers) concluído, fechando BL-61-01 e BL-61-02; Gate 6.3 (version finalization) concluído — versão `3.0.0` finalizada e os P3 BL-61-03, BL-61-04 e o wording "nullable" de `docs/upgrading.md` fechados; Gate 6.4 (local release commit) concluído — commit de preparação `6847e47` (`release: prepare 3.0.0`) sobre o pre-release baseline `04a6873`; Gate 6.5A (publication preflight): **RECLASSIFIED** — BL-65A-01 é **NOT APPLICABLE** (o finding assumia uma instalação canônica Cloudflare/D1 vinculada ao repositório-base, e ela não existe; Cloudflare login, D1/Worker remotos e production smoke não são requisito da release do repositório), e BL-65A-02 (wording de release não publicada no commit de preparação) foi fechado no Gate 6.5B; Gate 6.5B (final publication metadata) concluído — a metadata de publicação final entrou no commit `60c8575` (`release: finalize 3.0.0`), alvo da tag `v3.0.0`; **Gate 6.6 (publicação da release): PASSED** — tag `v3.0.0` criada sobre `60c8575`, push de `main` e da tag e GitHub Release concluídos. Modelo de distribuição: a release do repositório é **source distribution** (source commit + tag `v3.0.0` + push de `main` + push da tag + GitHub Release); Cloudflare deploy, migrations e D1 são **por instalação** e não fazem parte da release do repositório. Estado da release: **PUBLICADA**.
+- **Phase 7 — Current-State Reconciliation (em andamento)**: Gate 7.2 corrige o finding **BL-66-01** (P2, release-state documentation drift, identificado na publicação): reconciliação documental do estado corrente (release publicada = `v3.0.0`, commit `60c8575`; `v2.2.1` = release anterior/baseline histórico; Fases 2–5 = origem histórica, não estados ativos). É trabalho de patch de documentação: sem bump de versão, sem migration, sem mudança funcional e sem nova tag.
 - A dívida técnica `TS7016` do módulo `qrcode` foi **aceita para a 3.0.0** como **não bloqueante** (runtime, bundle do Wrangler e suíte passam; o CI atual não usa `tsc` como gate de release).
-- A versão `3.0.0` é o estado do repositório e a tag alvo é `v3.0.0`; nenhum documento pode afirmar que instalações foram atualizadas, que migrations remotas foram aplicadas por quem publica a tag, ou que existe Worker/D1/hostname/Cloudflare Account oficial — cada instalação é self-hosted e executa o próprio upgrade (`docs/upgrading.md`).
+- A release atual publicada é a **`3.0.0`** (tag `v3.0.0` sobre `60c8575`, publicada no GitHub no Gate 6.6); nenhum documento pode afirmar que instalações foram atualizadas, que migrations remotas foram aplicadas por quem publica a tag, ou que existe Worker/D1/hostname/Cloudflare Account oficial — cada instalação é self-hosted e executa o próprio upgrade (`docs/upgrading.md`).
 
 ## Regra obrigatória para tarefas Cloudflare
 
@@ -62,7 +64,7 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - se bindings mudarem, rode `npm run cf-typegen`
 - se schema mudar, crie uma nova migration; `schema.sql` é apenas o baseline da `0000_initial_schema.sql` e não deve receber colunas de features
 - o runtime não pode executar `schema.sql`, criar/alterar colunas, aplicar migrations implicitamente nem reconstruir tabelas durante requests; banco não preparado deve falhar fechado com `503`
-- desenvolvimento local do Worker exige migrations no D1 do Wrangler; nas bases locais (Fase 2, Fase 3 e Fase 4) isso é `npm run dev-prepare`, que **não existe** no checkout da tag `v2.2.1` (lá use `npm run wrangler -- d1 migrations apply ... --local`); `npm run dev-init` prepara apenas o SQLite auxiliar `.dev-env/db.sqlite3`, que o Worker não usa
+- desenvolvimento local do Worker exige migrations no D1 do Wrangler: `npm run dev-prepare` (parte da release `3.0.0`, aplica a cadeia `0000`–`0006`) cobre isso; o script **não existe** no checkout histórico da tag `v2.2.1` (lá use `npm run wrangler -- d1 migrations apply ... --local`); `npm run dev-init` prepara apenas o SQLite auxiliar `.dev-env/db.sqlite3`, que o Worker não usa
 
 ## Restrições funcionais que devem ser preservadas
 

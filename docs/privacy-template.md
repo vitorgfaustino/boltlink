@@ -27,7 +27,7 @@ Esta Política de Privacidade descreve como tratamos dados pessoais relacionados
 
 ## 3. Dados tratados pelo sistema
 
-No estado padrão do BoltLink v2.2.1, o produto foi configurado para minimizar coleta e persistência de dados.
+No estado padrão do BoltLink 3.0.0, o produto foi configurado para minimizar coleta e persistência de dados.
 
 O sistema pode persistir:
 
@@ -37,8 +37,8 @@ O sistema pode persistir:
 - datas operacionais do link
 - tags e grupos definidos pelo operador
 - hash de senha do link, quando houver proteção por senha
-- quando o Split Test A/B estiver ativo (**Phase 2 local**, não presente na tag publicada `v2.2.1`): URL da Variant B, alocação de tráfego e contadores agregados `ab_clicks_a`/`ab_clicks_b`
-- quando o Smart Routing estiver configurado (**Unreleased / Fase 3** na branch de desenvolvimento, não presente na tag publicada `v2.2.1`): as regras administrativas (país, dispositivo e destino) em `smart_routing_rules`, sem qualquer dado de visitante
+- quando o Split Test A/B estiver ativo (publicado desde a `3.0.0`; ausente na tag anterior `v2.2.1`): URL da Variant B, alocação de tráfego e contadores agregados `ab_clicks_a`/`ab_clicks_b`
+- quando o Smart Routing estiver configurado (publicado desde a `3.0.0`; ausente na tag anterior `v2.2.1`): as regras administrativas (país, dispositivo e destino) em `smart_routing_rules`, sem qualquer dado de visitante
 
 O sistema não persiste, por padrão:
 
@@ -80,7 +80,7 @@ Liste aqui os subprocessadores e provedores efetivamente utilizados:
 
 ## 7. Retenção
 
-No estado padrão do BoltLink v2.2.1, não existe tabela de eventos de clique.
+No estado padrão do BoltLink 3.0.0, não existe tabela de eventos de clique.
 
 Ainda assim, o operador deve definir e documentar:
 
@@ -116,5 +116,5 @@ Toda responsabilidade pela operação concreta deste ambiente, pela configuraç�
 
 ---
 
-Versão 2.2.1
+Versão 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

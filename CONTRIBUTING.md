@@ -82,5 +82,5 @@ npm test
 
 ---
 
-Versão 2.0.0
+Versão 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

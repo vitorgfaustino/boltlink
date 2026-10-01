@@ -1,6 +1,6 @@
 # Desenvolvimento Local
 
-> Escopo: release publicada = **v2.2.1** (tag real, migrations até `0003`; sem `npm run dev-prepare`). Este documento descreve as **bases locais**: o baseline da Fase 2 (`0004`, Split Test A/B), o estado Unreleased / Fase 3 (`0005`, Smart Routing), a working tree Unreleased / Fase 4 (`0006`, destino de expiração) e a working tree Unreleased / Fase 5 (hierarquia de grupos, portabilidade de configuração e QR Code com preview e downloads, **sem migration nova**).
+> Escopo: release atual = **`3.0.0`** (tag `v3.0.0`, migrations `0000` a `0006`, com `npm run dev-prepare`). Este documento descreve o desenvolvimento local da release atual; os checkpoints de desenvolvimento (Fase 2 = `0004`/Split Test A/B, Fase 3 = `0005`/Smart Routing, Fase 4 = `0006`/destino de expiração, Fase 5 = hierarquia de grupos, portabilidade e QR Code sem migration nova) são **origem histórica** desses recursos, publicados juntos na `3.0.0` — não são estados ativos.
 
 Este projeto suporta desenvolvimento local com banco SQLite isolado para teste manual e validação rápida.
 
@@ -19,9 +19,7 @@ Este projeto suporta desenvolvimento local com banco SQLite isolado para teste m
 
 Esse diretório **não vai para o GitHub**.
 
-## Fluxo rápido (Unreleased / Fase 3)
-
-Vale para as bases locais; no baseline da Fase 2 a cadeia para na `0004`, no estado Unreleased / Fase 3 (HEAD congelado `548f179`) ela vai até a `0005` e na working tree da Fase 4 ela vai até a `0006`.
+## Fluxo rápido (release atual v3.0.0)
 
 1. Instale dependências:
 
@@ -41,9 +39,17 @@ npm run setup
 npm run dev-prepare
 ```
 
-`npm run dev-prepare` lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc` e aplica a cadeia de migrations em `.wrangler/state/v3/d1`: `0000` a `0004` no baseline da Fase 2, `0000` a `0005` no estado Unreleased / Fase 3, e `0000` a `0006` na working tree da Fase 4 e também na da Fase 5 (a Fase 5 não adiciona migration: a hierarquia de grupos usa `link_groups.parent_id`, criado pela `0002`; a portabilidade de configuração lê colunas existentes e grava links/grupos como qualquer criação pelo painel; e o QR Code usa os endpoints e a coluna `has_qrcode` que existem desde a base publicada). Sem isso o Worker responde `503 Database schema is not initialized`.
+`npm run dev-prepare` faz parte da release `3.0.0` e lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc`, aplicando a cadeia completa de migrations em `.wrangler/state/v3/d1`: `0000` a `0006` — o que habilita o Split Test A/B (`0004`), o Smart Routing (`0005`), o destino de expiração (`0006`) e os recursos sem migration nova da Fase 5 (hierarquia de grupos via `link_groups.parent_id`, criado pela `0002`; portabilidade de configuração, que lê colunas existentes; e QR Code, que usa os endpoints e a coluna `has_qrcode` existentes desde a base publicada). Sem isso o Worker responde `503 Database schema is not initialized`.
 
-O script `dev-prepare` **não existe** no checkout da tag `v2.2.1`, que termina na `0003`; lá o comando é `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
+Os checkpoints históricos de desenvolvimento aplicavam cadeias mais curtas no mesmo script: a Fase 2 (`23353a1`) parava na `0004`, a Fase 3 (`548f179`) na `0005` e a Fase 4 (`cdb9f83`) na `0006` — todas essas fases são origem dos recursos publicados na `3.0.0`.
+
+### Referência histórica: checkout da release anterior (v2.2.1)
+
+No checkout histórico da tag `v2.2.1`, que termina na `0003_lgpd_minimization.sql`, o script de preparação local do D1 não existe; lá a cadeia é aplicada manualmente:
+
+```bash
+npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
+```
 
 4. (Opcional) Crie o SQLite auxiliar para inspeção manual:
 
@@ -67,10 +73,10 @@ npm test
 
 - cria `.dev-env/`
 - cria `.dev-env/db.sqlite3` (auxiliar, não usado pelo Worker)
-- aplica a cadeia de migrations (`migrations/0000` a `0006` nesta working tree da Fase 4) nesse arquivo
+- aplica a cadeia de migrations (`migrations/0000` a `0006` na release atual `3.0.0`) nesse arquivo
 - insere links fictícios para navegação local
 
-Para o Worker, o comando correto nas bases locais é `npm run dev-prepare`. `npm run dev-init` também existe na tag `v2.2.1`, mas lá a cadeia disponível termina na `0003`.
+Para o Worker, o comando correto na release atual é `npm run dev-prepare`. `npm run dev-init` também existe na tag `v2.2.1`, mas lá a cadeia disponível termina na `0003`.
 
 ## Reset do banco auxiliar
 
@@ -96,5 +102,5 @@ Quando o usuário pedir para iniciar o projeto localmente, a IA deve incluir `np
 
 ---
 
-Versão 2.2.1
+Versão 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

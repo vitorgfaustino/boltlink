@@ -16,7 +16,7 @@
  */
 
 /**
- * Group hierarchy integrity for the administrative API (Unreleased / Phase 5).
+ * Group hierarchy integrity for the administrative API (published in 3.0.0; origin Phase 5).
  *
  * The tree already exists in the schema: `link_groups.parent_id` arrives with
  * `migrations/0002_advanced_features.sql` together with its self-referencing

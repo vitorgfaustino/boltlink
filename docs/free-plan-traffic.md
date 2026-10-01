@@ -44,9 +44,9 @@ Um redirect público normal deve permanecer aproximadamente:
 
 A escrita é feita somente para uma requisição elegível e não atrasa a resposta de redirect. Links protegidos podem executar a verificação de sessão/gate, mas não adicionam consultas externas ou uma tabela de eventos. A contagem agregada não cria clickstream.
 
-## Split Test A/B no caminho crítico (Phase 2 local)
+## Split Test A/B no caminho crítico (release 3.0.0)
 
-> Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não tem Split Test A/B.
+> Escopo: release `3.0.0` (migration `0004`, introduzida originalmente na Fase 2 e publicada desde a `3.0.0`). A tag anterior `v2.2.1` não tem Split Test A/B.
 
 O Split Test A/B é stateless e não aumenta o custo normal:
 
@@ -69,9 +69,9 @@ crawler/preview em link A/B:
 
 Não existe tabela separada de variantes, lookup extra ou segunda escrita por clique. A decisão A/B usa um sorteio em memória e retorna sempre o Control A quando o filtro de métricas reconhece automação, sem bloquear o redirect.
 
-## Smart Routing no caminho crítico (Unreleased / Fase 3)
+## Smart Routing no caminho crítico (release 3.0.0)
 
-> Escopo: release publicada/baseline = **v2.2.1**. O Smart Routing abaixo pertence ao estado Unreleased da branch de desenvolvimento.
+> Escopo: release `3.0.0` (migration `0005`, introduzida originalmente na Fase 3 e publicada desde a `3.0.0`). A tag anterior `v2.2.1` não processa Smart Routing.
 
 O Smart Routing é stateless e não adiciona lookup extra:
 
@@ -89,9 +89,9 @@ crawler/preview em link Smart Routing:
 
 As regras vivem em uma coluna JSON na própria linha do link, então não há tabela secundária, JOIN auxiliar, SELECT adicional nem API externa de geolocalização. O país vem do metadado da Cloudflare e o dispositivo é derivado do `User-Agent` em memória. O pior caso do teste de capability é uma sondagem de schema por isolate, não por clique.
 
-## Destino de expiração e redirect da raiz no caminho crítico (Unreleased / Fase 4)
+## Destino de expiração e redirect da raiz no caminho crítico (release 3.0.0)
 
-> Escopo: release publicada/baseline = **v2.2.1**. Esta seção pertence ao estado Unreleased da working tree da Fase 4.
+> Escopo: release `3.0.0` (migration `0006` e `ROOT_REDIRECT_URL`, introduzidos originalmente na Fase 4 e publicados desde a `3.0.0`). A tag anterior `v2.2.1` não contém estes recursos.
 
 O destino de expiração não adiciona lookup nem escrita:
 
@@ -108,9 +108,9 @@ redirect da raiz (ROOT_REDIRECT_URL válida):
 
 O destino é uma coluna da própria linha lida pelo SELECT existente, decidido no lifecycle antes de qualquer classificação ou métrica. O redirect da raiz decide antes de qualquer acesso a D1. Nenhuma quota ou preço novo é introduzido por esta fase; os limites listados no topo do documento continuam os mesmos.
 
-## Portabilidade e QR Code fora do caminho crítico (Unreleased / Fase 5)
+## Portabilidade e QR Code fora do caminho crítico (release 3.0.0)
 
-> Escopo: release publicada/baseline = **v2.2.1**. Esta seção pertence ao estado Unreleased da working tree da Fase 5.
+> Escopo: release `3.0.0` (introduzidos originalmente na Fase 5 e publicados desde a `3.0.0`).
 
 O export é uma leitura administrativa sob demanda e **não** toca o caminho crítico:
 
@@ -194,5 +194,5 @@ Antes de bloquear por pais:
 
 ---
 
-Versão 2.2.1
+Versão 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

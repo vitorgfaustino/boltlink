@@ -1360,7 +1360,7 @@ button.icon-btn {
   }
 }
 
-/* Configuration import drawer (Unreleased / Phase 5, Gate 5.3).
+/* Configuration import drawer (published in 3.0.0; origin Phase 5, Gate 5.3).
 
    The same off-canvas surface as the group drawer, kept as its own block rather than
    folded into the group rules: the group drawer is a frozen, reviewed layout, and the
@@ -1565,7 +1565,7 @@ button.icon-btn {
   }
 }
 
-/* Group hierarchy panel (Unreleased / Phase 5, Gate 5.1).
+/* Group hierarchy panel (published in 3.0.0; origin Phase 5, Gate 5.1).
 
    Group management is an on-demand off-canvas drawer rather than a card in the page:
    it sits outside `main`, so the editor is reachable from the top of the interface no
@@ -1935,7 +1935,7 @@ button.icon-btn {
   margin-top: 0;
 }
 
-/* QR Code dialog (Unreleased / Phase 5, Gate 5.4).
+/* QR Code dialog (published in 3.0.0; origin Phase 5, Gate 5.4).
 
    The same modal vocabulary as the drawers — backdrop, `is-open`, `inert` when closed —
    on a small centered card instead of an off-canvas panel: the content is one image and

@@ -1,6 +1,6 @@
-# Privacy (BoltLink v2.2.1)
+# Privacy (BoltLink 3.0.0)
 
-> Escopo: release publicada/baseline = **v2.2.1**. Uma feature **Unreleased (Fase 3)** é descrita em seção própria abaixo; a release publicada não a processa.
+> Escopo: release atual = **`3.0.0`** (publicada; os recursos abaixo têm origem nas Fases 2–5 do desenvolvimento e foram publicados juntos na `3.0.0`). A release anterior `v2.2.1` não contém Split Test A/B, Smart Routing, destino de expiração, `ROOT_REDIRECT_URL`, portabilidade nem o diálogo de QR Code.
 
 ## Princípio
 
@@ -16,9 +16,9 @@ Redirecionar, contar de forma agregada e evitar coleta desnecessária.
 - campos operacionais do link: `redirect_type`, `expires_at`, `go_live_at`, `tags`, `has_qrcode`, `group_id`, `password_hash`, `disabled_at`, `version`
 - nomes de grupos em `link_groups`
 
-### Split Test A/B (Phase 2 local)
+### Split Test A/B (release 3.0.0, migration 0004)
 
-> Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não tem Split Test A/B.
+> Escopo: release `3.0.0` (migration `0004`, introduzida originalmente na Fase 2 e publicada desde a `3.0.0`). A tag anterior `v2.2.1` não tem Split Test A/B.
 
 - quando o Split Test A/B está ativo, o link passa a persistir também `ab_target_url`, `ab_weight_b`, `ab_enabled`, `ab_started_at`, a geração/epóque do experimento e os contadores agregados `ab_clicks_a` e `ab_clicks_b`
 
@@ -48,34 +48,34 @@ O operador pode zerar manualmente `links.clicks_total` de um link ativo pelo adm
 
 Excluir um link não remove fisicamente a linha do D1. O produto marca `disabled_at` para impedir novo redirect e preservar o slug como não reutilizável.
 
-### Contagem no Split Test A/B (Phase 2 local)
+### Contagem no Split Test A/B (release 3.0.0)
 
-> Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não tem Split Test A/B.
+> Escopo: release `3.0.0` (migration `0004`, origem Fase 2). A tag anterior `v2.2.1` não tem Split Test A/B.
 
 Stateless A/B testing distributes each eligible request independently without building visitor profiles. Em links com Split Test A/B, a variante é sorteada por requisição e apenas os contadores agregados (`ab_clicks_a`, `ab_clicks_b`) são persistidos.
 
-## Smart Routing (Unreleased / Fase 3)
+## Smart Routing (release 3.0.0, migration 0005)
 
-> Escopo: release publicada/baseline = **v2.2.1**. Esta seção descreve uma feature Unreleased da branch de desenvolvimento; a release publicada não a processa.
+> Escopo: release `3.0.0` (migration `0005`, introduzida originalmente na Fase 3 e publicada desde a `3.0.0`). A tag anterior `v2.2.1` não processa Smart Routing.
 
 - quando configurado, o link persiste apenas as regras administrativas em `smart_routing_rules` (país, dispositivo e destino); nenhum dado de visitante é armazenado.
 - a seleção de destino usa, de forma transitória e apenas em memória durante o request, o país aproximado fornecido pela Cloudflare (`request.cf.country`) e o `User-Agent` para derivar o tipo de dispositivo. Esses valores não são persistidos por visitante e não produzem analytics de país ou dispositivo.
 - não existe cookie de roteamento, visitor ID, fingerprint nem registro da regra selecionada por visita.
 - quando o link usa essa feature, apenas `clicks_total` é incrementado; não há contador por regra.
 
-## Destino de expiração e redirect da raiz (Unreleased / Fase 4)
+## Destino de expiração e redirect da raiz (release 3.0.0)
 
-> Escopo: release publicada/baseline = **v2.2.1**. Esta seção descreve features Unreleased da branch de desenvolvimento; a release publicada não as processa.
+> Escopo: release `3.0.0` (migration `0006` e `ROOT_REDIRECT_URL`, introduzidos originalmente na Fase 4 e publicados desde a `3.0.0`). A tag anterior `v2.2.1` não contém estes recursos.
 
 - `links.expired_redirect_url` é configuração administrativa (a URL de destino usada depois que o link expira), no mesmo plano de `target_url`: não é dado de visitante.
 - requests de link expirado não gravam nada: zero escritas, zero métrica, sem classificação bot/humano e sem avaliação de país/dispositivo.
 - `ROOT_REDIRECT_URL` é variável de ambiente de configuração operacional, não um secret e não um dado pessoal. O redirect da raiz não consulta D1 e não gera métrica.
-- A Fase 4 não adiciona nenhuma persistência nova de visitante: sem IP, sem `User-Agent`, sem país, sem dispositivo, sem visitor ID, sem eventos de referrer e sem clickstream.
+- A release `3.0.0` não adiciona nenhuma persistência nova de visitante: sem IP, sem `User-Agent`, sem país, sem dispositivo, sem visitor ID, sem eventos de referrer e sem clickstream.
 - A minimização de dados e a privacidade por arquitetura apoiam a adequação LGPD do operador, mas não a substituem: quem implanta e opera a instância continua sendo o controlador dos tratamentos que realizar.
 
-## Portabilidade de configuração (Unreleased / Fase 5)
+## Portabilidade de configuração (release 3.0.0)
 
-> Escopo: working tree da Fase 5. A tag publicada `v2.2.1` não possui `GET /api/export` nem as rotas de importação.
+> Escopo: release `3.0.0` (introduzida originalmente na Fase 5 e publicada desde a `3.0.0`). A tag anterior `v2.2.1` não possui `GET /api/export` nem as rotas de importação.
 
 - O export contém apenas **configuração administrativa**: destino, tipo de redirect, tags, grupo, lifecycle, existência de senha e configuração de A/B e de Smart Routing. É a mesma informação que o operador vê e digita no painel; nenhum dado individual entra no documento.
 - Explicitamente ausentes do JSON: IP, hash de IP, `User-Agent`, país, dispositivo derivado, visitor ID, eventos de referrer, clickstream e qualquer métrica por visitante.
@@ -85,9 +85,9 @@ Stateless A/B testing distributes each eligible request independently without bu
 - Por ser leitura administrativa autenticada, o export compartilha o boundary de `/api` (Cloudflare Access, `requireAdmin` ou chave de API) e o mesmo rate limit; nenhuma autenticação paralela foi criada.
 - O export é somente leitura: não grava nada no banco e não cria tabela de auditoria nem histórico de exportações. Guardar o arquivo gerado é responsabilidade do operador, como qualquer material administrativo baixado do painel.
 
-## QR Code (Unreleased / Fase 5)
+## QR Code (release 3.0.0)
 
-> Escopo: working tree da Fase 5. Os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada; a Fase 5 acrescenta o diálogo de preview e os downloads no painel.
+> Escopo: release `3.0.0`. Os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada; o diálogo de preview e os downloads no painel foram introduzidos na Fase 5 e publicados desde a `3.0.0`.
 
 - O QR codifica apenas a short URL pública do link; nenhum dado de visitante entra na geração, no preview ou no download.
 - `has_qrcode` é memória operacional de que um QR foi obtido — escrita pelo `POST` que acompanha um download (PNG ou SVG) —, não telemetria: não conta clique, não identifica visitante e não cria histórico.
@@ -128,5 +128,5 @@ A instância pública padrão também expõe uma página em `/privacidade`, serv
 
 ---
 
-Versão 2.2.1
+Versão 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

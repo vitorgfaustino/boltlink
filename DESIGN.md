@@ -190,7 +190,7 @@ O sistema usa camadas com transparência e blur, não sombras pesadas. A profund
 - **Layout:** Row principal (input + botão de busca) + row secundária (label "Filtrar por grupo" + select). Em ≤640px, filtro colapsa para coluna única.
 - **Filtro:** continua significando associação direta ao grupo escolhido; a opção "Sem grupo" é um sentinela separado e subgrupos não entram por padrão.
 
-### Group Tree (painel `Grupos`, Unreleased / Fase 5)
+### Group Tree (painel `Grupos`, release 3.0.0; origem Fase 5)
 - **Painel:** ocupa as duas colunas do `.layout` (`grid-column: 1 / -1`) para não alterar a grade formulário + links.
 - **Estrutura:** listas aninhadas (`ul` dentro do `li` pai) em vez de indentação calculada; cada linha é um `.group-node` com botão de expandir/recolher (só quando há filhos), nome, caminho completo e ações `Mover` / `Excluir`.
 - **Toggle:** botão real com `aria-expanded` e `aria-label` nomeando o grupo, com o estado visível no glifo (`▸` / `▾`).
@@ -218,7 +218,7 @@ O sistema usa camadas com transparência e blur, não sombras pesadas. A profund
 - **Copy:** `País`, `Dispositivo`, `Destino`, `Fallback`, `Qualquer país`, `Qualquer dispositivo`. UI-only fields (id de linha) nunca são enviados à API.
 - **Restraint:** no máximo 20 regras, sem país/device analytics, sem contador por regra, sem UTM injection e sem sticky routing.
 
-### Após expirar (destino de expiração, Unreleased / Fase 4)
+### Após expirar (destino de expiração, release 3.0.0; origem Fase 4)
 - **Container:** fieldset `Após expirar` dentro do bloco de agendamento/expiração do formulário, com radios `Resposta padrão (410)` e `Redirecionar para URL` e input de URL habilitado apenas na segunda opção. Quando a capability `expiredRedirect` é falsa (instalação pré-`0006`), a seção fica oculta com uma nota curta apontando a migration pendente e o payload não recebe o campo.
 - **Coupling:** o destino só existe com expiração preenchida. Sem "Expira em", os radios ficam desabilitados/ocultos e a limpeza da expiração remove o destino junto (limpeza atômica na mesma edição, sem request intermediário).
 - **Copy:** `Após expirar`, `Resposta padrão (410)`, `Redirecionar para URL`, `Destino após expiração`. Sem nomes de coluna (`expired_redirect_url`) na UI; o nome técnico do campo (`expiredRedirectUrl`) aparece apenas em contexto de API.

@@ -16,7 +16,7 @@
  */
 
 /**
- * BoltLink Portability Format v1 — import domain (Unreleased / Phase 5, Gate 5.3).
+ * BoltLink Portability Format v1 — import domain (published in 3.0.0; origin Phase 5, Gate 5.3).
  *
  * The inverse of {@link ./portability}: it consumes exactly the document the export
  * produces and turns it into the statements that rebuild the configuration. Like the

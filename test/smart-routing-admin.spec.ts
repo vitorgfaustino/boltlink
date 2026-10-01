@@ -12,9 +12,10 @@
 import { spawnSync } from "node:child_process";
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import vm from "node:vm";
 import { describe, expect, it } from "vitest";
+import ts from "typescript";
 
 type Rule = { country?: string; device?: string; url: string };
 type Validation = { ok: boolean; code?: string };
@@ -1702,9 +1703,14 @@ describe("Phase 3: CommonMark fenced opener contract (BL-SR-007-P2-01)", () => {
 		const doc = ["    ```md", "## Published setup", "smartRouting: true"].join("\n");
 
 		const sections = parseMarkdownSections(doc);
-		expect(sections.map((section) => section.heading)).toEqual(["## Published setup"]);
-		expect(classifySectionScope(sections[0])).toBe("published");
-		expect(findForbiddenTokens(sections[0].text)).toContain("Smart Routing");
+		// The indented ```md is not a fence, so it is real content before the
+		// first heading: under BL-73-02 that content is the "(preamble)"
+		// section instead of vanishing from every scanner.
+		expect(sections.map((section) => section.heading)).toEqual([PREAMBLE_SECTION_TITLE, "## Published setup"]);
+		expect(sections[0].body).toContain("```md");
+		const published = sections.find((section) => section.heading === "## Published setup")!;
+		expect(classifySectionScope(published)).toBe("published");
+		expect(findForbiddenTokens(published.text)).toContain("Smart Routing");
 	});
 
 	it("does not treat a tab-indented fence as an opener", () => {
@@ -2046,6 +2052,9 @@ const POST_PUBLISHED_FEATURE_TOKENS: FeatureArtifact[] = [
 
 const PUBLISHED_FORBIDDEN_TOKENS = POST_PUBLISHED_FEATURE_TOKENS;
 
+/** Title given to the implicit section that holds content before the first heading. */
+const PREAMBLE_SECTION_TITLE = "(preamble)";
+
 /** Parses Markdown headings (#..######) into sections with ancestry. */
 function parseMarkdownSections(markdown: string): MarkdownSection[] {
 	const lines = markdown.split(/\r?\n/);
@@ -2062,6 +2071,26 @@ function parseMarkdownSections(markdown: string): MarkdownSection[] {
 	}
 
 	const sections: MarkdownSection[] = [];
+
+	// BL-73-02: content before the first heading used to escape every scanner
+	// because it belonged to no section. It is now the "(preamble)" section —
+	// scope-neutral, but fully visible to the stale-marker and framing scans.
+	// A preamble that is nothing but fenced code produces no section: there is
+	// nothing outside fences to scan.
+	const firstHeadingIndex = headings.length > 0 ? headings[0].index : lines.length;
+	const preambleLines = lines.slice(0, firstHeadingIndex);
+	if (preambleLines.some((line, index) => !fenced[index] && line.trim().length > 0)) {
+		const body = preambleLines.join("\n");
+		sections.push({
+			level: 0,
+			title: PREAMBLE_SECTION_TITLE,
+			heading: PREAMBLE_SECTION_TITLE,
+			body,
+			ancestors: [],
+			text: body,
+		});
+	}
+
 	const stack: Array<{ level: number; title: string }> = [];
 	for (let position = 0; position < headings.length; position += 1) {
 		const current = headings[position];
@@ -2528,16 +2557,27 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 		expect(section.body).toMatch(/0004/);
 	});
 
-	it("keeps the cloudflare Fluxo A published-scoped", () => {
+	it("keeps the cloudflare Fluxo A led by the shipped release with a historical v2.2.1 child", () => {
 		const setup = readDoc("docs/cloudflare-setup.md");
-		const fluxoA = markdownSection(setup, "## Fluxo A: Wrangler local (release publicada v2.2.1)");
-		expect(fluxoA).not.toBeNull();
-		expect(fluxoA).not.toMatch(/0005|Smart Routing|smart_routing_rules/i);
+		const sections = parseMarkdownSections(setup);
 
-		const unreleased = markdownSection(setup, "## Unreleased / Fase 3 (próxima release)");
-		expect(unreleased).not.toBeNull();
-		expect(unreleased).toMatch(/0005/);
-		expect(unreleased).toMatch(/Smart Routing/i);
+		// The leading flow is the shipped release and carries its full chain.
+		const fluxoA = markdownSection(setup, "## Fluxo A: Wrangler local (release atual v3.0.0)");
+		expect(fluxoA).not.toBeNull();
+		expect(fluxoA).toMatch(/dev-prepare/);
+		expect(fluxoA).toMatch(/0006/);
+
+		// The previous release stays documented as an explicitly historical child
+		// section; the published boundary applies there.
+		const historical = sections.find((section) => section.heading === "### Procedimento histórico: checkout da release anterior (v2.2.1)")!;
+		expect(historical).toBeTruthy();
+		expect(classifySectionScope(historical)).toBe("published");
+		expect(findScopeViolations(historical)).toEqual([]);
+
+		const smart = markdownSection(setup, "### Smart Routing e migration 0005 (origem Fase 3)");
+		expect(smart).not.toBeNull();
+		expect(smart).toMatch(/0005/);
+		expect(smart).toMatch(/Smart Routing/i);
 	});
 
 	it("keeps the historical upgrading section free of Smart Routing and 0005", () => {
@@ -2551,36 +2591,51 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 		expect(current).toMatch(/0005/);
 	});
 
-	it("keeps each migration attributed to its own baseline in cloudflare-setup", () => {
+	it("keeps each migration attributed to its own origin in cloudflare-setup", () => {
 		const setup = readDoc("docs/cloudflare-setup.md");
 		const lines = setup.split("\n");
 
-		// The published upgrade step ends at 0003 and must not import a Phase 2 or
-		// Phase 3 migration into the published procedure.
-		const publishedStep = lines.findIndex((line) => line.includes("última migration da release publicada"));
-		expect(publishedStep).toBeGreaterThan(-1);
-		expect(lines[publishedStep]).toContain("0003");
-		expect(lines[publishedStep]).not.toMatch(/0004|0005/);
+		// The previous release's chain ends at 0003, and the historical procedure
+		// for that release must not import a later migration.
+		const previousEnd = lines.find((line) => line.includes("é a última daquela release"));
+		expect(previousEnd).toBeTruthy();
+		expect(previousEnd).toContain("0003");
 
-		// 0004 is attributed to the Phase 2 baseline and 0005 to Phase 3.
-		const phase2Line = lines.find((line) => line.includes("`0004_ab_testing.sql` habilita"));
-		expect(phase2Line).toBeTruthy();
-		expect(phase2Line).toMatch(/Phase 2 local/);
-		expect(phase2Line).not.toMatch(/0005/);
+		// Every shipped migration names where it came from and where it shipped.
+		const abLine = lines.find((line) => line.includes("`0004_ab_testing.sql` habilita"));
+		expect(abLine).toBeTruthy();
+		expect(abLine).toMatch(/origem Fase 2/);
 
-		const phase3Line = lines.find((line) => line.includes("Unreleased / Fase 3") && line.includes("0005"));
-		expect(phase3Line).toBeTruthy();
+		const smartLine = lines.find((line) => line.includes("`0005_smart_routing.sql` habilita"));
+		expect(smartLine).toBeTruthy();
+		expect(smartLine).toMatch(/origem Fase 3/);
+
+		const expiredLine = lines.find((line) => line.includes("`0006_expired_redirect.sql` habilita"));
+		expect(expiredLine).toBeTruthy();
+		expect(expiredLine).toMatch(/origem Fase 4/);
+		expect(expiredLine).toMatch(/publicadas? na `3\.0\.0`|publicada na `3\.0\.0`/);
 	});
 
 	it("keeps the architecture clean-install scope separated", () => {
 		const sections = parseMarkdownSections(readDoc("docs/architecture.md"));
-		const publishedSection = sections.find((section) => section.heading === "### Migrações e runtime (release publicada v2.2.1)");
-		expect(publishedSection).toBeTruthy();
-		expect(findForbiddenTokens(publishedSection!.text)).toEqual([]);
 
-		const unreleasedSection = sections.find((section) => section.heading === "#### Instalação limpa e upgrade (Unreleased / Fase 3)");
-		expect(unreleasedSection).toBeTruthy();
-		expect(findForbiddenTokens(unreleasedSection!.text)).toContain("0005_smart_routing");
+		// The main runtime section documents the shipped release and its full chain.
+		const currentSection = sections.find((section) => section.heading === "### Migrações e runtime (release 3.0.0)");
+		expect(currentSection).toBeTruthy();
+		expect(classifySectionScope(currentSection!)).toBe("current");
+		expect(currentSection!.text).toContain("`0000` até `0006`");
+
+		// The previous release stays documented as an explicitly historical child
+		// section, and the published boundary applies there.
+		const historical = sections.find((section) => section.heading === "#### Procedimento histórico: instalação da release anterior (v2.2.1)");
+		expect(historical).toBeTruthy();
+		expect(classifySectionScope(historical!)).toBe("published");
+		expect(findForbiddenTokens(historical!.text)).toEqual([]);
+
+		// Each shipped migration keeps its own origin subsection.
+		const smartSection = sections.find((section) => section.heading === "#### Instalação limpa e upgrade com a 0005 (origem Fase 3)");
+		expect(smartSection).toBeTruthy();
+		expect(findForbiddenTokens(smartSection!.text)).toContain("0005_smart_routing");
 	});
 
 	it("never lists Smart Routing under a published v2.2.1 heading", () => {
@@ -2645,6 +2700,813 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 				expect(scope, `${file} > ${section.heading} must not be historical or pre-release`).not.toBe("unreleased");
 			}
 		}
+	});
+});
+
+/**
+ * BL-66-01 (Gate 7.2): before the v3.0.0 publication the documentation framed
+ * every shipped feature as "Unreleased / Fase N" and described the release as
+ * pending ("NOT TAGGED / NOT PUSHED", "Next: GitHub publication"). Gate 6.6
+ * published the release (tag `v3.0.0` on `60c8575`, push and GitHub Release),
+ * which turned those framings into stale current-state claims. The guards below
+ * keep the reconciled state checkable: a manifest of current-scope docs that
+ * must name the current release, a stale-marker scan with a structural
+ * (explicitly-historical section) allowlist, a feature release map, and
+ * metadata guards for `package.json`, for the runtime-variable matrix and for
+ * the inventoried src/public comments.
+ *
+ * Gate 7.4 (BL-73-01..04) hardened the same scans without changing what they
+ * protect: the historical bypass is an explicit file+heading allowlist instead
+ * of any heading containing "histórico" (BL-73-02), the preamble before the
+ * first heading is scanned (BL-73-02), feature framing is decided per
+ * section/clause with an alias map so one feature's publication cannot
+ * sanitize another (BL-73-03), and comment extraction is lexical so strings
+ * and templates are never comments (BL-73-04).
+ */
+describe("Gate 7.2: current-state release documentation guard (BL-66-01)", () => {
+	const CURRENT_RELEASE = "3.0.0";
+	const CURRENT_RELEASE_COMMIT = "60c8575";
+
+	/**
+	 * Append-only histories keep their pre-publication wording on purpose: the
+	 * 3.0.0 blocks of CHANGELOG and RELEASE_NOTES legitimately carry phase-origin
+	 * markers, and the RELEASE_NOTES work blocks are declared historical records
+	 * of the development gates. Everything else is current-scope documentation.
+	 */
+	const MANIFEST_STRUCTURAL_EXCEPTIONS = new Set(["CHANGELOG.md", "RELEASE_NOTES.md"]);
+
+	const CURRENT_RELEASE_DOC_MANIFEST = collectDocumentationFiles(process.cwd())
+		.map((file) => relative(process.cwd(), file))
+		.filter((file) => !MANIFEST_STRUCTURAL_EXCEPTIONS.has(file))
+		.sort();
+
+	/**
+	 * Markers that describe a pre-publication world as if it were the current
+	 * one. "Fase N" alone is not here: naming where a feature originated is
+	 * lineage, not a release-state claim. The `Unreleased` marker is
+	 * case-insensitive (BL-73-03): "UNRELEASED" and "unreleased" are the same
+	 * stale claim.
+	 */
+	const STALE_CURRENT_STATE_MARKERS: Array<{ label: string; pattern: RegExp }> = [
+		{ label: "v2.2.1 presented as the published release", pattern: /release\s+publicada(?:\s*\/\s*baseline)?\s*=\s*\*{0,2}\s*`?v2\.2\.1/i },
+		{ label: "v2.2.1 presented as the published release", pattern: /release\s+publicada\s+`?v2\.2\.1/i },
+		{ label: "publication described as pending", pattern: /NOT\s+TAGGED/i },
+		{ label: "publication described as pending", pattern: /NOT\s+PUSHED/i },
+		{ label: "publication described as pending", pattern: /Next:\s*GitHub\s+publication/i },
+		{ label: "shipped release framed as upcoming", pattern: /pr[óo]xima\s+release/i },
+		{ label: "shipped release framed as upcoming", pattern: /next\s+release/i },
+		{ label: "shipped feature sent to a development branch", pattern: /branch\s+de\s+desenvolvimento|development\s+branch/i },
+		{ label: "checkout described as the working tree", pattern: /(?:working\s+tree|working-tree)\s+atual|esta\s+working\s+tree/i },
+		{ label: "shipped feature framed as unreleased", pattern: /\bunreleased\b/i },
+	];
+
+	/**
+	 * BL-73-02: the historical bypass is an explicit allowlist of file +
+	 * controlled heading — never a keyword. The sanctioned shapes are the
+	 * "Procedimento histórico:"/"Referência histórica:" procedure headings in
+	 * the real docs (each a frozen record of how an older release was
+	 * operated), plus retention's single exact legacy-bases heading.
+	 * CHANGELOG.md and RELEASE_NOTES.md are covered by their own rule: they
+	 * are append-only histories and sit outside the current-scope manifest
+	 * (`MANIFEST_STRUCTURAL_EXCEPTIONS`). A heading that merely contains
+	 * "histórico" — "Estado atual (contexto histórico)" — is NOT historical.
+	 */
+	const HISTORICAL_HEADING_ALLOWLIST: Array<{ file: string; title: RegExp }> = [
+		{ file: "README.md", title: /^Procedimento histórico:/ },
+		{ file: "docs/upgrading.md", title: /^Procedimento histórico:/ },
+		{ file: "docs/cloudflare-setup.md", title: /^Procedimento histórico:/ },
+		{ file: "docs/architecture.md", title: /^Procedimento histórico:/ },
+		{ file: "docs/local-development.md", title: /^Referência histórica:/ },
+		{ file: "docs/retention.md", title: /^Bases anteriores à migration 0004 \(histórico\)$/ },
+	];
+
+	/** A section whose own heading or an ancestor is allowlisted as historical for this file. */
+	function isHistoricalSection(file: string, section: MarkdownSection): boolean {
+		return HISTORICAL_HEADING_ALLOWLIST.some(
+			(entry) =>
+				entry.file === file &&
+				(entry.title.test(section.title) || section.ancestors.some((ancestor) => entry.title.test(ancestor.title))),
+		);
+	}
+
+	/** Stale current-state markers of one document, skipping allowlisted historical sections. */
+	function staleCurrentStateViolationsIn(file: string, markdown: string): string[] {
+		const sections = parseMarkdownSections(markdown);
+		const violations: string[] = [];
+		for (const section of sections) {
+			if (isHistoricalSection(file, section)) {
+				continue;
+			}
+			// `text` includes the heading: a stale claim can be the section title
+			// itself ("## QR Code (Unreleased / Fase 5)"), not only body prose.
+			const lines = section.text.split(/\r?\n/);
+			const fenced = fencedCodeMask(lines);
+			for (let index = 0; index < lines.length; index += 1) {
+				if (fenced[index]) {
+					continue;
+				}
+				for (const marker of STALE_CURRENT_STATE_MARKERS) {
+					if (marker.pattern.test(lines[index])) {
+						violations.push(`${file} > ${section.heading} [${marker.label}]: ${lines[index].trim()}`);
+					}
+				}
+			}
+		}
+		return violations;
+	}
+
+	function findStaleCurrentStateViolations(file: string): string[] {
+		return staleCurrentStateViolationsIn(file, readDoc(file));
+	}
+
+	/**
+	 * The feature release map (BL-73-03): every artifact the 3.0.0 release
+	 * shipped, paired with the release that contains it, with the aliases the
+	 * docs actually use — PT and EN, column names, migration numbers and file
+	 * identifiers. A clause that names one of these features together with an
+	 * unreleased/local-only qualifier contradicts the map.
+	 */
+	const FEATURE_RELEASE_MAP: Array<{ label: string; pattern: RegExp; shippedIn: string }> = [
+		{ label: "0004 / Split Test A/B", pattern: /\b0004\b|0004_ab_testing|split\s*test\s*a\/b|a\/b\s*test(?:ing)?|\bab_enabled\b|\bab_target_url\b/i, shippedIn: CURRENT_RELEASE },
+		{ label: "0005 / Smart Routing", pattern: /\b0005\b|0005_smart_routing|smart[\s-]?routing|smart_routing_rules|smartRoutingRules/i, shippedIn: CURRENT_RELEASE },
+		{ label: "0006 / destino de expiração", pattern: /\b0006\b|0006_expired_redirect|expired_redirect_url|expiredRedirectUrl|expired\s+redirect|destino\s+de\s+expira[çc][ãa]o/i, shippedIn: CURRENT_RELEASE },
+		{ label: "ROOT_REDIRECT_URL / redirect da raiz", pattern: /ROOT_REDIRECT_URL|root\s+redirect|redirect\s+da\s+raiz/i, shippedIn: CURRENT_RELEASE },
+		{ label: "hierarquia de grupos", pattern: /group[\s-]?hierarchy|hierarquia\s+de\s+grupos|\bgrupos\b|\bGroups\b|\bparent_id\b/i, shippedIn: CURRENT_RELEASE },
+		{ label: "portabilidade", pattern: /api\/export|api\/import|boltlink-portability|portabilidade|\bportability\b|export\s+(?:configuration|configura[çc][ãa]o)|import\s+(?:configuration|configura[çc][ãa]o)/i, shippedIn: CURRENT_RELEASE },
+		{ label: "QR / PNG / SVG", pattern: /\bqr\b|qr\s*code|\bqrcode\b|PNG\/SVG|download\s+(?:PNG|SVG)|di[áa]logo\s+de\s+QR/i, shippedIn: CURRENT_RELEASE },
+	];
+
+	/**
+	 * Stale qualifiers, case-insensitive (BL-73-03): "UNRELEASED", "unreleased",
+	 * "local only", "somente local", "branch de desenvolvimento" and "working
+	 * tree" all frame a shipped feature as not yet published.
+	 */
+	const UNRELEASED_QUALIFIER_PATTERN =
+		/\bunreleased\b|n[ãa]o\s+publicad|local[-\s]only|somente\s+local|pr[óo]xima\s+release|branch\s+de\s+desenvolvimento|development\s+branch|\bworking\s+tree\b/i;
+
+	/**
+	 * The sanctioned refutation: the docs deny the qualifier in the same breath
+	 * ("não são experimentais nem local-only", "not local-only"). A qualifier
+	 * the sentence itself rejects is not framing.
+	 */
+	const REFUTED_UNRELEASED_PATTERN =
+		/n[ãa]o\s+s[ãa]o?\s+[^,;]{0,60}?\s(?:e|nem)\s+(?:local[-\s]only|unreleased|experimental)|n[ãa]o\s+(?:s[ãa]o?|é|e)\s+(?:experimental|unreleased|local[-\s]only)|not\s+(?:experimental|unreleased|local[-\s]only)/i;
+
+	/**
+	 * Claim-sized fragments of a section for the framing scan: paragraphs join
+	 * their soft-wrapped lines, structural lines (headings, bullets, table
+	 * rows) stand alone, and sentence/semicolon ends split each block. Fenced
+	 * code never yields a fragment — it is documentation example, not prose.
+	 */
+	function framingFragments(text: string): string[] {
+		const lines = text.split(/\r?\n/);
+		const fenced = fencedCodeMask(lines);
+		const fragments: string[] = [];
+		let paragraph: string[] = [];
+		const flushParagraph = () => {
+			if (paragraph.length > 0) {
+				fragments.push(...paragraph.join(" ").split(/(?<=[.;!?])\s+/));
+				paragraph = [];
+			}
+		};
+		for (let index = 0; index < lines.length; index += 1) {
+			if (fenced[index]) {
+				flushParagraph();
+				continue;
+			}
+			const line = lines[index];
+			if (line.trim().length === 0 || STRUCTURAL_LINE_PATTERN.test(line)) {
+				flushParagraph();
+				if (line.trim().length > 0) {
+					fragments.push(...line.trim().split(/(?<=[.;!?])\s+/));
+				}
+				continue;
+			}
+			paragraph.push(line.trim());
+		}
+		flushParagraph();
+		return fragments.map((fragment) => fragment.trim()).filter((fragment) => fragment.length > 0);
+	}
+
+	/**
+	 * BL-73-03: framing is decided per clause, never per line. A fragment that
+	 * carries an unreleased qualifier flags every feature the SAME fragment
+	 * names — publication of `ROOT_REDIRECT_URL` in one clause does not
+	 * sanitize Smart Routing in another, and a bare publication statement
+	 * elsewhere on the line rescues nothing. A feature named in the section
+	 * heading is framed by any stale qualifier in that section's body: the
+	 * heading and its body are one claim.
+	 */
+	function featureFramingViolationsIn(file: string, markdown: string): string[] {
+		const violations: string[] = [];
+		for (const section of parseMarkdownSections(markdown)) {
+			if (isHistoricalSection(file, section)) {
+				continue;
+			}
+			for (const fragment of framingFragments(section.text)) {
+				if (!UNRELEASED_QUALIFIER_PATTERN.test(fragment) || REFUTED_UNRELEASED_PATTERN.test(fragment)) {
+					continue;
+				}
+				for (const feature of FEATURE_RELEASE_MAP.filter((entry) => entry.pattern.test(fragment))) {
+					violations.push(
+						`${file} > ${section.heading}: ${feature.label} framed as unreleased (shipped in ${feature.shippedIn}): ${fragment}`,
+					);
+				}
+			}
+			const headingFeatures = FEATURE_RELEASE_MAP.filter((feature) => feature.pattern.test(section.title));
+			if (headingFeatures.length === 0) {
+				continue;
+			}
+			const bodyLines = section.body.split(/\r?\n/);
+			const fenced = fencedCodeMask(bodyLines);
+			for (let index = 0; index < bodyLines.length; index += 1) {
+				const line = bodyLines[index];
+				if (fenced[index] || !UNRELEASED_QUALIFIER_PATTERN.test(line) || REFUTED_UNRELEASED_PATTERN.test(line)) {
+					continue;
+				}
+				for (const feature of headingFeatures) {
+					violations.push(
+						`${file} > ${section.heading}: ${feature.label} framed as unreleased via section body: ${line.trim()}`,
+					);
+				}
+			}
+		}
+		return violations;
+	}
+
+	function findFeatureFramingViolations(file: string): string[] {
+		return featureFramingViolationsIn(file, readDoc(file));
+	}
+
+	it("manifests every current-scope documentation file and names the current release", () => {
+		// The manifest is structural: root docs plus docs/, minus the append-only
+		// histories, and it must keep covering the BL-66-01 surfaces.
+		expect(CURRENT_RELEASE_DOC_MANIFEST).toEqual(expect.arrayContaining([
+			"README.md",
+			"AGENTS.md",
+			"AI-START.md",
+			"PRODUCT.md",
+			"DESIGN.md",
+			"SECURITY.md",
+			"CONTRIBUTING.md",
+			"docs/upgrading.md",
+			"docs/cloudflare-setup.md",
+			"docs/local-development.md",
+			"docs/ai-guided-operations.md",
+			"docs/ai-accepted-requests.md",
+		]));
+		expect(CURRENT_RELEASE_DOC_MANIFEST).not.toContain("CHANGELOG.md");
+		expect(CURRENT_RELEASE_DOC_MANIFEST).not.toContain("RELEASE_NOTES.md");
+
+		for (const file of CURRENT_RELEASE_DOC_MANIFEST) {
+			expect(readDoc(file), `${file} must name the current release`).toMatch(/3\.0\.0/);
+		}
+	});
+
+	it("keeps stale pre-publication state markers out of current-scope docs", () => {
+		const violations = CURRENT_RELEASE_DOC_MANIFEST.flatMap((file) => findStaleCurrentStateViolations(file));
+		expect(violations, violations.join("\n")).toEqual([]);
+	});
+
+	it("never frames a 3.0.0 feature as unreleased in current-scope docs", () => {
+		const violations = CURRENT_RELEASE_DOC_MANIFEST.flatMap((file) => findFeatureFramingViolations(file));
+		expect(violations, violations.join("\n")).toEqual([]);
+	});
+
+	it("keeps AGENTS.md and AI-START.md on the published post-Gate-6.6 state", () => {
+		for (const file of ["AGENTS.md", "AI-START.md"]) {
+			const text = readDoc(file);
+			expect(text, `${file} must record the published commit`).toMatch(new RegExp(CURRENT_RELEASE_COMMIT));
+			expect(text, `${file} must record Gate 6.6 as passed`).toMatch(/Gate\s+6\.6[^.\n]*PASSED/);
+			expect(text, `${file} must record Phase 6 as complete`).toMatch(/Phase 6[^.\n]*COMPLETE/);
+			expect(text, `${file} must not describe the release as pending`).not.toMatch(/NOT\s+TAGGED|NOT\s+PUSHED|Next:\s*GitHub\s+publication/);
+		}
+	});
+
+	/**
+	 * Supersedes the Gate 7.2 fixture (generic "histórico" keyword bypass):
+	 * under the BL-73-02 allowlist a "Registro histórico" heading that is not
+	 * in the file+heading allowlist is NOT historical, so its pre-publication
+	 * wording is a violation like any other.
+	 */
+	it("flags pre-publication state claims outside allowlisted historical sections", () => {
+		const fixture = [
+			"# Doc",
+			"## Status",
+			"Estado da release: **NOT TAGGED / NOT PUSHED**. Next: GitHub publication.",
+			"",
+			"## Smart Routing (Unreleased / Fase 3)",
+			"Escopo: release publicada = **v2.2.1**. Feature da branch de desenvolvimento.",
+			"",
+			"## Registro histórico",
+			"A release já foi descrita como NOT TAGGED aqui; o bloco é histórico.",
+		].join("\n");
+
+		const violations = staleCurrentStateViolationsIn("docs/fixture.md", fixture);
+
+		expect(violations.some((entry) => entry.includes("Status") && entry.includes("publication described as pending"))).toBe(true);
+		expect(violations.some((entry) => entry.includes("Smart Routing (Unreleased / Fase 3)") && entry.includes("shipped feature framed as unreleased"))).toBe(true);
+		expect(violations.some((entry) => entry.includes("Smart Routing (Unreleased / Fase 3)") && entry.includes("v2.2.1 presented as the published release"))).toBe(true);
+		expect(violations.some((entry) => entry.includes("Smart Routing (Unreleased / Fase 3)") && entry.includes("shipped feature sent to a development branch"))).toBe(true);
+		// The keyword-only heading no longer bypasses: its stale wording is flagged.
+		expect(violations.some((entry) => entry.includes("Registro histórico"))).toBe(true);
+	});
+
+	it("rejects a generic 'histórico' heading as a historical bypass (BL-73-02)", () => {
+		const contextFixture = [
+			"# Doc",
+			"## Estado atual (contexto histórico)",
+			"Smart Routing (Unreleased / Fase 3)",
+			"",
+			"## Estado corrente — histórico operacional",
+			"NOT TAGGED / NOT PUSHED",
+			"",
+			"## Situação histórica atual",
+			"Next: GitHub publication",
+		].join("\n");
+
+		const violations = staleCurrentStateViolationsIn("docs/fixture.md", contextFixture);
+		expect(violations.some((entry) => entry.includes("Estado atual (contexto histórico)"))).toBe(true);
+		expect(violations.some((entry) => entry.includes("Estado corrente — histórico operacional"))).toBe(true);
+		expect(violations.some((entry) => entry.includes("Situação histórica atual"))).toBe(true);
+	});
+
+	it("keeps allowlisted historical procedure sections accepted, scoped to their file (BL-73-02)", () => {
+		const historicalFixture = [
+			"# Doc",
+			"## Procedimento histórico: upgrade para a v2.2.1",
+			"Estado antigo da publicação: NOT TAGGED / NOT PUSHED.",
+		].join("\n");
+
+		// In the file the allowlist names, the frozen historical record is legal…
+		expect(staleCurrentStateViolationsIn("docs/upgrading.md", historicalFixture)).toEqual([]);
+		// …and the same heading in any other document is not.
+		expect(staleCurrentStateViolationsIn("docs/outro.md", historicalFixture).length).toBeGreaterThan(0);
+	});
+
+	it("scans the preamble before the first heading (BL-73-02)", () => {
+		const stalePreamble = "Smart Routing (Unreleased / Fase 3)\n\n# BoltLink\n";
+		const violations = staleCurrentStateViolationsIn("docs/fixture.md", stalePreamble);
+		expect(violations.length).toBeGreaterThan(0);
+		expect(violations[0]).toContain(PREAMBLE_SECTION_TITLE);
+
+		// A neutral preamble is not a violation, and documents are not required
+		// to open with a heading.
+		expect(staleCurrentStateViolationsIn("docs/fixture.md", "Texto introdutório neutro.\n\n# BoltLink\n")).toEqual([]);
+	});
+
+	it("flags a shipped feature named next to an unreleased qualifier", () => {
+		const fixture = [
+			"# Doc",
+			"## Release atual",
+			"Smart Routing (Unreleased) pertence à próxima release.",
+			"Split Test A/B (não publicado) fica em uma branch de desenvolvimento.",
+		].join("\n");
+		const violations = featureFramingViolationsIn("docs/fixture.md", fixture);
+		expect(violations.some((entry) => entry.includes("0005 / Smart Routing"))).toBe(true);
+		expect(violations.some((entry) => entry.includes("0004 / Split Test A/B"))).toBe(true);
+	});
+
+	it("binds a publication qualifier to the feature it publishes, not the whole line (BL-73-03)", () => {
+		const fixture = [
+			"# Doc",
+			"## Release atual",
+			"Smart Routing não publicado; ROOT_REDIRECT_URL publicado na 3.0.0.",
+		].join("\n");
+		const violations = featureFramingViolationsIn("docs/fixture.md", fixture);
+		expect(violations.some((entry) => entry.includes("0005 / Smart Routing"))).toBe(true);
+		expect(violations.some((entry) => entry.includes("ROOT_REDIRECT_URL / redirect da raiz"))).toBe(false);
+	});
+
+	it("flags a feature framed by its own section body (BL-73-03)", () => {
+		const abFixture = "# Doc\n\n## Split Test A/B\n\nDisponível somente local-only.\n";
+		expect(featureFramingViolationsIn("docs/fixture.md", abFixture).some((entry) => entry.includes("0004 / Split Test A/B"))).toBe(true);
+
+		const smartFixture = "# Doc\n\n## Smart Routing\n\nAinda não publicado.\n";
+		expect(featureFramingViolationsIn("docs/fixture.md", smartFixture).some((entry) => entry.includes("0005 / Smart Routing"))).toBe(true);
+	});
+
+	it("reports every feature of a multi-feature stale claim, case-insensitive (BL-73-03)", () => {
+		const fixture = "# Doc\n\n## Grupos\n\nGroups e QR: unreleased.\n";
+		const violations = featureFramingViolationsIn("docs/fixture.md", fixture);
+		expect(violations.some((entry) => entry.includes("hierarquia de grupos"))).toBe(true);
+		expect(violations.some((entry) => entry.includes("QR / PNG / SVG"))).toBe(true);
+
+		const shoutingFixture = "# Doc\n\n## Release atual\n\nO SMART ROUTING está UNRELEASED.\n";
+		expect(featureFramingViolationsIn("docs/fixture.md", shoutingFixture).some((entry) => entry.includes("0005 / Smart Routing"))).toBe(true);
+	});
+
+	it("keeps sanctioned published-origin framings legal (BL-73-03)", () => {
+		const fixture = [
+			"# Doc",
+			"## Release atual",
+			"Smart Routing foi publicado na v3.0.0.",
+			"ROOT_REDIRECT_URL foi introduzido na v3.0.0.",
+			"Groups e QR foram publicados na v3.0.0.",
+			"A tag anterior v2.2.1 não contém Smart Routing.",
+			"Smart Routing foi originalmente desenvolvido na Fase 3 e publicado na v3.0.0.",
+			"Os recursos da Fase 5 estão publicados na 3.0.0 — não são experimentais nem local-only.",
+		].join("\n");
+		expect(featureFramingViolationsIn("docs/fixture.md", fixture)).toEqual([]);
+	});
+
+	/** The package.json Cloudflare descriptions must not be release-state stale. */
+	function packageMetadataViolations(bindings: Record<string, unknown>): string[] {
+		const violations: string[] = [];
+		for (const [name, value] of Object.entries(bindings)) {
+			const description = String((value as { description?: string })?.description ?? "");
+			if (/unreleased|development[- ]only|future\s+release|pr[óo]xima\s+release/i.test(description)) {
+				violations.push(`${name}: description frames content as unreleased`);
+			}
+		}
+		return violations;
+	}
+
+	it("keeps package.json Cloudflare metadata reconciled with the shipped release", () => {
+		const pkg = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8")) as {
+			cloudflare?: { bindings?: Record<string, unknown> };
+		};
+		const bindings = pkg.cloudflare?.bindings ?? {};
+		expect(packageMetadataViolations(bindings), "package.json descriptions must not frame shipped features as unreleased").toEqual([]);
+
+		// The mandatory case: ROOT_REDIRECT_URL keeps its operational semantics
+		// without any release qualifier.
+		const rootRedirect = String((bindings.ROOT_REDIRECT_URL as { description?: string })?.description ?? "");
+		expect(rootRedirect).toMatch(/optional/i);
+		expect(rootRedirect).toMatch(/non-secret/);
+		expect(rootRedirect).toMatch(/302/);
+		expect(rootRedirect).toMatch(/no-store/);
+		expect(rootRedirect).toMatch(/landing/);
+		expect(rootRedirect).toMatch(/dashboard|wrangler\.local\.jsonc/);
+	});
+
+	it("flags stale package metadata (negative control)", () => {
+		const violations = packageMetadataViolations({
+			ROOT_REDIRECT_URL: { description: "Optional, non-secret operational variable (Unreleased / Phase 4). GET / answers 302." },
+			FUTURE_THING: { description: "development-only flag for a future release" },
+			CLEAN: { description: "Optional secret for internal API automation only." },
+		});
+		expect(violations).toContain("ROOT_REDIRECT_URL: description frames content as unreleased");
+		expect(violations).toContain("FUTURE_THING: description frames content as unreleased");
+		expect(violations).not.toContain("CLEAN: description frames content as unreleased");
+	});
+
+	/**
+	 * Comment drift guard: the inventory is the explicit list of src/public
+	 * files the reconciliation touched. Comment lines only — functional strings
+	 * are deliberately not scanned.
+	 */
+	const COMMENT_DRIFT_FILES = [
+		"src/group-hierarchy.ts",
+		"src/index.ts",
+		"src/portability.ts",
+		"src/portability-import.ts",
+		"public/group-hierarchy-ui.js",
+		"public/portability-ui.js",
+		"public/portability-import-ui.js",
+		"public/admin.js",
+		"public/admin.css",
+		"public/admin.html",
+	];
+
+	const STALE_COMMENT_PATTERN = /\bUnreleased\b|working\s+tree\s+atual|esta\s+working\s+tree|pr[óo]xima\s+release|branch\s+de\s+desenvolvimento|NOT\s+TAGGED|NOT\s+PUSHED/i;
+
+	/**
+	 * BL-73-04: comment extraction is lexical, never line-prefix-based. The
+	 * TypeScript scanner (already a devDependency) separates trivia from code
+	 * for .ts/.js — string, template and regex literals are tokens, so their
+	 * contents are never comments — while CSS and HTML get small deterministic
+	 * state machines that honor quoted strings and real comment delimiters.
+	 */
+	function tsJsCommentTexts(source: string): string[] {
+		const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, source);
+		const comments: string[] = [];
+		let token = scanner.scan();
+		while (token !== ts.SyntaxKind.EndOfFileToken) {
+			if (token === ts.SyntaxKind.SingleLineCommentTrivia || token === ts.SyntaxKind.MultiLineCommentTrivia) {
+				comments.push(scanner.getTokenText());
+			}
+			token = scanner.scan();
+		}
+		return comments;
+	}
+
+	function cssCommentTexts(source: string): string[] {
+		const comments: string[] = [];
+		let index = 0;
+		let quote: string | null = null;
+		while (index < source.length) {
+			const char = source[index];
+			if (quote) {
+				if (char === "\\") {
+					index += 2;
+					continue;
+				}
+				if (char === quote) {
+					quote = null;
+				}
+				index += 1;
+				continue;
+			}
+			if (char === '"' || char === "'") {
+				quote = char;
+				index += 1;
+				continue;
+			}
+			if (char === "/" && source[index + 1] === "*") {
+				const end = source.indexOf("*/", index + 2);
+				const stop = end === -1 ? source.length : end + 2;
+				comments.push(source.slice(index, stop));
+				index = stop;
+				continue;
+			}
+			index += 1;
+		}
+		return comments;
+	}
+
+	function htmlCommentTexts(source: string): string[] {
+		const comments: string[] = [];
+		let index = 0;
+		while (index < source.length) {
+			const open = source.indexOf("<!--", index);
+			if (open === -1) {
+				break;
+			}
+			const end = source.indexOf("-->", open + 4);
+			const stop = end === -1 ? source.length : end + 3;
+			comments.push(source.slice(open, stop));
+			index = stop;
+		}
+		return comments;
+	}
+
+	function extractComments(source: string, file: string): string[] {
+		if (file.endsWith(".html")) {
+			return htmlCommentTexts(source);
+		}
+		if (file.endsWith(".css")) {
+			return cssCommentTexts(source);
+		}
+		return tsJsCommentTexts(source);
+	}
+
+	it("keeps inventoried src/public comments free of stale release framing", () => {
+		for (const file of COMMENT_DRIFT_FILES) {
+			const comments = extractComments(readFileSync(resolve(process.cwd(), file), "utf8"), file);
+			expect(comments.length, `${file} must still have comments to guard`).toBeGreaterThan(0);
+			for (const comment of comments) {
+				expect(comment.trim(), `${file} comment carries stale release framing`).not.toMatch(STALE_COMMENT_PATTERN);
+			}
+		}
+	});
+
+	/**
+	 * Supersedes the Gate 7.2 negative control (one block comment and one
+	 * line-prefixed `//`): the BL-73-04 battery proves real comments are
+	 * detected wherever they sit and that strings, templates and regexes never
+	 * masquerade as comments.
+	 */
+	it("detects stale framing in real comments and only in comments (BL-73-04)", () => {
+		const tsSource = [
+			"const x = 1; // Unreleased / Phase 5",
+			"const masked = \"// Unreleased / Phase 5\";",
+			"const templated = `",
+			" // Unreleased / Phase 5",
+			"`;",
+			"const blockString = \"/* Unreleased / Phase 5 */\";",
+			"const regex = /\\/\\/ Unreleased/;",
+			"/*",
+			"Unreleased / Phase 5",
+			"*/",
+			"const y = 2;",
+			"/*",
+			"  qualquer linha",
+			"  Unreleased / Phase 5",
+			"*/",
+			"// published in 3.0.0; origin Phase 5",
+		].join("\n");
+		const tsComments = tsJsCommentTexts(tsSource);
+		expect(tsComments.join("\\n")).toContain("// Unreleased / Phase 5");
+		expect(tsComments.join("\\n")).toContain("/*\nUnreleased / Phase 5\n*/");
+		expect(tsComments.join("\\n")).toContain("qualquer linha\n  Unreleased / Phase 5");
+		const tsStale = tsComments.filter((comment) => STALE_COMMENT_PATTERN.test(comment));
+		expect(tsStale.length, `expected exactly the 3 real comments to be stale: ${tsComments.join("\\n")}`).toBe(3);
+		expect(tsComments.some((comment) => comment.includes("masked") || comment.includes("templated") || comment.includes("blockString") || comment.includes("regex"))).toBe(false);
+		expect(tsComments.some((comment) => comment.includes("published in 3.0.0"))).toBe(true);
+
+		const cssComments = cssCommentTexts([
+			".rule { content: \"/* Unreleased / Phase 5 */\"; color: red; }",
+			"/* Unreleased / Phase 5 */",
+			".other { background: url(\"data:image/svg+xml;utf8,<svg></svg>\"); }",
+		].join("\n"));
+		expect(cssComments.length).toBe(1);
+		expect(cssComments[0]).toMatch(STALE_COMMENT_PATTERN);
+
+		const htmlComments = htmlCommentTexts([
+			"<div>// Unreleased / Phase 5</div>",
+			"<!-- Unreleased / Phase 5 -->",
+		].join("\n"));
+		expect(htmlComments.length).toBe(1);
+		expect(htmlComments[0]).toMatch(STALE_COMMENT_PATTERN);
+	});
+
+	/**
+	 * Runtime variable matrix: the upgrade must answer "do I need a new
+	 * variable?" with "no globally-required one", and the six variables must be
+	 * documented with their required-ness. Wording is not pinned; the semantics
+	 * of each row are.
+	 */
+	it("documents the runtime variable matrix in README and upgrading", () => {
+		const readmeSection = parseMarkdownSections(readDoc("README.md")).find((section) => /^Runtime Variables/i.test(section.title))!;
+		expect(readmeSection).toBeTruthy();
+		const readmeMatrix = readmeSection.body;
+
+		const upgradingSection = parseMarkdownSections(readDoc("docs/upgrading.md")).find((section) => section.title.startsWith("Upgrade para a versão 3.0.0"))!;
+		expect(upgradingSection).toBeTruthy();
+		const upgradingMatrix = upgradingSection.body;
+
+		const variableSemantics: Array<{ name: RegExp; expectation: RegExp }> = [
+			{ name: /TEAM_DOMAIN/, expectation: /Access/i },
+			{ name: /POLICY_AUD/, expectation: /Access/i },
+			{ name: /APP_TIMEZONE/, expectation: /opcional|default|fallback/i },
+			{ name: /PASSWORD_SESSION_SECRET/, expectation: /senha/ },
+			{ name: /API_KEY/, expectation: /opcional|automa/i },
+			{ name: /ROOT_REDIRECT_URL/, expectation: /opcional/i },
+		];
+
+		for (const { name, expectation } of variableSemantics) {
+			for (const [file, matrix] of [["README.md", readmeMatrix], ["docs/upgrading.md", upgradingMatrix]] as const) {
+				// Anchored on the table-row opening so the PASSWORD_SESSION_SECRET
+				// row (which mentions `API_KEY` in passing) cannot answer for it.
+				const rowPattern = new RegExp(`^\\s*\\|\\s*\`${name.source}\``);
+				const line = matrix.split("\n").find((entry) => rowPattern.test(entry));
+				expect(line, `${file} must list ${name.source} in the runtime variable matrix`).toBeTruthy();
+				expect(line, `${file} ${name.source} row must state its required-ness`).toMatch(expectation);
+			}
+		}
+
+		// ROOT_REDIRECT_URL is the only new variable, and it is optional.
+		const rootLine = readmeMatrix.split("\n").find((entry) => /ROOT_REDIRECT_URL/.test(entry))!;
+		expect(rootLine).toMatch(/\bsim\b|\bnovo\b|NEW/i);
+
+		// The headline claim: no new globally-required variable for the upgrade.
+		const NO_NEW_REQUIRED_VARIABLE_CLAIM = /(?:nenhum|nenhuma|n[ãa]o\s+existe)[^.]{0,200}?obrigat[óo]ri/i;
+		for (const [file, text] of [["README.md", readmeSection.text], ["docs/upgrading.md", upgradingSection.text]] as const) {
+			expect(
+				text,
+				`${file} must state that no new variable is globally required for v2.2.1 -> 3.0.0`,
+			).toMatch(NO_NEW_REQUIRED_VARIABLE_CLAIM);
+		}
+	});
+});
+
+/**
+ * BL-73-01 (Gate 7.4): the runtime-variable matrix used to present
+ * `PASSWORD_SESSION_SECRET` as a "pre-existing requirement, nothing changed".
+ * The variable did exist in v2.2.1 — but there the session secret resolved as
+ * `PASSWORD_SESSION_SECRET || API_KEY`, and 3.0.0 removed the `API_KEY`
+ * fallback. Password-link installations that relied on `API_KEY` alone must
+ * configure the dedicated secret before deploying 3.0.0;
+ * already-configured installations must preserve their value; installations
+ * without password links gain no new requirement. The guard checks the
+ * semantics of each matrix row and of the upgrade prose — never exact wording.
+ */
+describe("Gate 7.4: PASSWORD_SESSION_SECRET upgrade semantics guard (BL-73-01)", () => {
+	const MATRIX_FILES = ["README.md", "docs/upgrading.md", "docs/cloudflare-setup.md"] as const;
+
+	/** A "still the fallback" claim — the opposite of the removed-fallback fact. */
+	const FALLBACK_KEEPS_PATTERN =
+		/(?:remains|continua(?:\s+a\s+ser)?|segue)\s+(?:a\s+)?(?:sendo\s+|como\s+|as\s+|the\s+)?(?:password[- ]session\s+)?\s*fallback/i;
+	const FALLBACK_REMOVED_PATTERN =
+		/(?:fallback[^.;|\n]{0,80}(?:foi\s+removido|removido|removeu|removed)|(?:foi\s+)?remov\w+[^.;|\n]{0,80}fallback|removeu[^.;|\n]{0,80}fallback|n[ãa]o\s+(?:é|aceita|serve)\s+(?:mais\s+)?(?:um\s+)?fallback)/i;
+	const EXISTED_BEFORE_PATTERN = /j[áa]\s+existia|existed\s+(?:before|in\s+v2)|antes\s+da\s*`?3\.0\.0|existia\s+na\s*`?v2\.2\.1/i;
+	const INTRODUCED_IN_300_PATTERN =
+		/(?:nov[ao]\s+(?:na|in)\s*`?3\.0\.0|new\s+in\s+`?3\.0\.0|introduced\s+in\s+(?:the\s+)?`?3\.0\.0|introduzid[oa]\s+(?:na|em)\s*`?3\.0\.0)/i;
+	const CREATE_BEFORE_DEPLOY_PATTERN =
+		/\*{0,2}antes\*{0,2}\s+de\s+(?:publicar|fazer\s+o\s+deploy|publicar\s+o\s+Worker)|\*{0,2}antes\*{0,2}\s+do\s+(?:upgrade|deploy)|before\s+(?:deploying|publishing)/i;
+
+	function passwordSecretRowViolations(row: string): string[] {
+		const violations: string[] = [];
+		const cells = row.split("|").map((cell) => cell.trim().replace(/^`|`$/g, ""));
+		const typeCell = cells[2] ?? "";
+		if (!/^Secret$/.test(typeCell)) {
+			violations.push(`type must be Secret, not "${typeCell}"`);
+		}
+		if (/\b(?:opcional|optional)\b/i.test(row)) {
+			violations.push("must not be presented as optional — it is required for password-protected links");
+		}
+		if (INTRODUCED_IN_300_PATTERN.test(row)) {
+			violations.push("variable existed before 3.0.0 — it is not new");
+		}
+		if (!EXISTED_BEFORE_PATTERN.test(row)) {
+			violations.push("must state the variable existed before 3.0.0");
+		}
+		if (!FALLBACK_REMOVED_PATTERN.test(row)) {
+			violations.push("must state the API_KEY fallback was removed in 3.0.0");
+		}
+		if (FALLBACK_KEEPS_PATTERN.test(row)) {
+			violations.push("API_KEY must not be presented as remaining the fallback");
+		}
+		if (!/(?:n[ãa]o\s+(?:gere|rotacione|regenere)\s+um\s+novo|preserve\s+(?:the\s+)?(?:existing\s+)?value|preserv\w+|mantenha\s+o\s+valor)/i.test(row)) {
+			violations.push("must tell already-configured installations to preserve the existing value");
+		}
+		return violations;
+	}
+
+	function passwordSecretClaimViolations(text: string): string[] {
+		const violations: string[] = [];
+		if (/(?:todas\s+(?:as\s+)?instala[çc][õo]es|all\s+[^;\n]{0,60}?installations)[^.;\n]{0,160}(?:j[áa]\s+)?(?:satisfeit|atendid|cobert|cumprem|satisfied|comply|covered)/i.test(text)) {
+			violations.push("must not claim every v2.2.1 installation already satisfies the dedicated-secret requirement");
+		}
+		if (/PASSWORD_SESSION_SECRET[^.;\n]{0,200}?\b(?:opcional|optional)\b/i.test(text)) {
+			violations.push("must not present the secret as optional");
+		}
+		if (new RegExp(`PASSWORD_SESSION_SECRET[^.;\\n]{0,160}?${INTRODUCED_IN_300_PATTERN.source}`, "i").test(text)) {
+			violations.push("variable existed before 3.0.0 — it is not new");
+		}
+		if (FALLBACK_KEEPS_PATTERN.test(text)) {
+			violations.push("API_KEY fallback must be stated as removed, not kept");
+		}
+		return violations;
+	}
+
+	function passwordSecretRequirementGaps(text: string): string[] {
+		const gaps: string[] = [];
+		if (!/(?:dependia(?:m)?[^.;\n]{0,120}`?API_KEY`?|relied[^.;\n]{0,80}on\s+`?API_KEY`?)/i.test(text)) {
+			gaps.push("case B: name the installations that relied on API_KEY alone in v2.2.1");
+		}
+		if (!/(?:crie|criar|cria|configure|configurar|gere|gerar)[^.;\n]{0,40}`?PASSWORD_SESSION_SECRET`?/i.test(text)) {
+			gaps.push("case B: create the dedicated secret");
+		}
+		if (!CREATE_BEFORE_DEPLOY_PATTERN.test(text)) {
+			gaps.push("case B: the before-deploy ordering");
+		}
+		if (!/(?:preserve|preserv\w+|mantenha\s+o\s+valor|n[ãa]o\s+(?:gere|rotacione|regenere))/i.test(text)) {
+			gaps.push("case A: preserve an already-configured value");
+		}
+		if (!/(?:sem\s+links\s+protegidos|n[ãa]o\s+usa(?:m)?\s+links\s+protegidos|without\s+password[- ]protected\s+links)/i.test(text)) {
+			gaps.push("case C: no requirement for installations without password links");
+		}
+		if (!/(?:n[ãa]o\s+(?:copie|reutilize)|jamais\s+use|never\s+(?:copy|reuse))\s+(?:o\s+)?valor\s+d[oae]\s+`?API_KEY`?|never\s+(?:copy|reuse)\s+the\s+`?API_KEY`?/i.test(text)) {
+			gaps.push("never reuse the API_KEY value as the secret");
+		}
+		return gaps;
+	}
+
+	it("documents the PASSWORD_SESSION_SECRET rows with the corrected history", () => {
+		for (const file of MATRIX_FILES) {
+			const rows = readDoc(file).split("\n").filter((line) => /^\s*\|\s*`?PASSWORD_SESSION_SECRET`?\s*\|/.test(line));
+			expect(rows.length, `${file} must list PASSWORD_SESSION_SECRET in its variable matrix`).toBeGreaterThan(0);
+			for (const row of rows) {
+				expect(passwordSecretRowViolations(row), `${file} row: ${row}`).toEqual([]);
+			}
+		}
+	});
+
+	it("keeps the conditional requirement and the three upgrade cases explicit", () => {
+		for (const file of MATRIX_FILES) {
+			const text = readDoc(file);
+			expect(passwordSecretClaimViolations(text), `${file} claim semantics`).toEqual([]);
+			expect(passwordSecretRequirementGaps(text), `${file} must cover cases A/B/C`).toEqual([]);
+		}
+
+		// The global claim stays true and global: no NEW variable is required
+		// for every installation — the password-secret requirement is conditional.
+		for (const file of ["README.md", "docs/upgrading.md", "docs/cloudflare-setup.md"] as const) {
+			expect(readDoc(file), `${file} must keep the no-new-global-variable claim`).toMatch(
+				/(?:nenhum|nenhuma|n[ãa]o\s+existe)[^.]{0,200}?obrigat[óo]ri/i,
+			);
+		}
+	});
+
+	it("flags wrong PASSWORD_SESSION_SECRET semantics (negative controls)", () => {
+		const rowMutants: Array<{ label: string; row: string }> = [
+			{ label: "presented as Text", row: "| `PASSWORD_SESSION_SECRET` | Text | quando usa links protegidos | assinar sessões | mudou |" },
+			{ label: "optional for password links", row: "| `PASSWORD_SESSION_SECRET` | Secret | optional when password links are used | signs sessions | changed |" },
+			{ label: "new in 3.0.0", row: "| `PASSWORD_SESSION_SECRET` | Secret | required for password links | signs sessions; new in 3.0.0 |" },
+			{ label: "API_KEY remains fallback", row: "| `PASSWORD_SESSION_SECRET` | Secret | required for password links | existed before 3.0.0; preserve the existing value; API_KEY remains the password session fallback |" },
+		];
+		for (const mutant of rowMutants) {
+			expect(passwordSecretRowViolations(mutant.row).length, mutant.label).toBeGreaterThan(0);
+		}
+		expect(passwordSecretRowViolations(rowMutants[0].row).join(" ")).toContain("Secret");
+		expect(passwordSecretRowViolations(rowMutants[1].row).join(" ")).toContain("optional");
+		expect(passwordSecretRowViolations(rowMutants[2].row).join(" ")).toContain("existed before");
+		expect(passwordSecretRowViolations(rowMutants[3].row).join(" ")).toContain("removed");
+
+		const claimMutants: Array<{ label: string; text: string }> = [
+			{ label: "all installations already satisfied", text: "All existing v2.2.1 installations already satisfied the dedicated secret requirement." },
+			{ label: "optional when password links are used", text: "PASSWORD_SESSION_SECRET is optional when password links are used." },
+			{ label: "introduced in 3.0.0", text: "PASSWORD_SESSION_SECRET was introduced in 3.0.0." },
+			{ label: "API_KEY remains fallback", text: "API_KEY remains password session fallback in 3.0.0." },
+		];
+		for (const mutant of claimMutants) {
+			expect(passwordSecretClaimViolations(mutant.text).length, mutant.label).toBeGreaterThan(0);
+		}
+
+		// The corrected history, stated plainly, passes.
+		expect(passwordSecretClaimViolations("PASSWORD_SESSION_SECRET existed before 3.0.0, but the API_KEY fallback was removed in 3.0.0.")).toEqual([]);
 	});
 });
 

@@ -1574,7 +1574,7 @@ async function exportConfiguration() {
   }
 }
 
-/* Configuration import (Unreleased / Phase 5, Gate 5.3).
+/* Configuration import (published in 3.0.0; origin Phase 5, Gate 5.3).
 
    The drawer walks the operator through one decision at a time: pick the file, review what
    the API answered, supply a new password for every protected link, then apply. Nothing is

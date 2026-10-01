@@ -35,5 +35,5 @@ Sessões são curtas e assinadas localmente. O rate limit é apenas em memória 
 
 ---
 
-Versão 2.2.1
+Versão 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

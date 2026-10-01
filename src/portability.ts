@@ -16,7 +16,7 @@
  */
 
 /**
- * BoltLink Portability Format v1 — export serializer (Unreleased / Phase 5, Gate 5.2).
+ * BoltLink Portability Format v1 — export serializer (published in 3.0.0; origin Phase 5, Gate 5.2).
  *
  * The artifact produced here is a **logical configuration** export, not a database
  * backup. A complete D1 backup remains the only mechanism that restores hashes,

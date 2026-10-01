@@ -11,14 +11,14 @@ BoltLink é um gerenciador de links orientado a edge:
 
 ## Fluxo público
 
-A rota raiz (`GET /`) fica fora do slug hot path: com `ROOT_REDIRECT_URL` válida (Unreleased / Fase 4), o Worker responde `302` + `Cache-Control: no-store` sem nenhuma leitura de D1, sem schema detection e sem métrica; sem a variável (ou com valor inválido/auto-referente) a landing estática é servida. Isso não afeta unknown slugs (`404`), `/admin`, `/api`, `/health`, `/privacidade` nem assets.
+A rota raiz (`GET /`) fica fora do slug hot path: com `ROOT_REDIRECT_URL` válida (release `3.0.0`; origem Fase 4), o Worker responde `302` + `Cache-Control: no-store` sem nenhuma leitura de D1, sem schema detection e sem métrica; sem a variável (ou com valor inválido/auto-referente) a landing estática é servida. Isso não afeta unknown slugs (`404`), `/admin`, `/api`, `/health`, `/privacidade` nem assets.
 
 1. A requisição chega em `/:slug`.
 2. O Worker rejeita slugs reservados ou fora do padrão antes de consultar D1.
 3. O Worker aplica um rate limit em memória para poupar D1 em rajadas públicas.
 4. O Worker garante uma vez por handle/isolate que o banco foi preparado (bootstrap + projeção de fence), sem PRAGMA por request no steady state e sem classificar capability no caminho público.
 5. O Worker faz **um único `SELECT`** da linha principal, com projeção `SELECT *` (schema-neutral): a query não nomeia coluna de feature, então é válida em qualquer nível de migration, e a presença da coluna na linha é a resposta de schema daquele request. Um handle aquecido antes de uma migration converge sozinho no request público seguinte — sem `PRAGMA`, sem cache negativo e sem depender de um request Admin/API cair no mesmo handle.
-6. O Worker valida lifecycle: desativado (`disabled_at`), futuro (`go_live_at`) e expirado (`expires_at`) antes de qualquer roteamento. Na Fase 4 (Unreleased), um link expirado é decidido direto no lifecycle: com destino válido em `expired_redirect_url` responde `302` + `no-store`; sem destino (ou com valor persistido inválido/auto-referente) responde `410` + `no-store`. Em ambos os casos não há gate de senha, classificação bot/humano, Smart/A-B nem escrita de métrica — a mesma resposta para todos os clientes.
+6. O Worker valida lifecycle: desativado (`disabled_at`), futuro (`go_live_at`) e expirado (`expires_at`) antes de qualquer roteamento. Na release `3.0.0` (origem Fase 4), um link expirado é decidido direto no lifecycle: com destino válido em `expired_redirect_url` responde `302` + `no-store`; sem destino (ou com valor persistido inválido/auto-referente) responde `410` + `no-store`. Em ambos os casos não há gate de senha, classificação bot/humano, Smart/A-B nem escrita de métrica — a mesma resposta para todos os clientes.
 7. O Worker resolve o gate de senha quando o link é protegido (sem sessão/senha válida não há roteamento, classificação nem métrica).
 8. O Worker classifica a requisição como clique humano contável ou bot/preview/prefetch (o filtro é apenas métrico).
 9. Com o destino ainda não construído, o Worker decide entre Smart Routing, Split Test A/B ou fallback (`target_url`):
@@ -38,9 +38,9 @@ Não existe mais persistência de evento por clique e nenhum dado de visitante (
 3. O painel consome `/api/links`, `/api/groups`, `/api/preview`, `/api/export`, `/api/import/*` e endpoints auxiliares (incluindo `GET/POST /api/links/:slug/qrcode`).
 4. O painel permite zerar `clicks_total` de um link ativo sem apagar o link.
 
-### QR Code no painel (Unreleased / Fase 5)
+### QR Code no painel (release 3.0.0)
 
-Escopo: o **diálogo com preview e downloads em PNG e SVG**. Os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada (`0001`).
+Escopo: o **diálogo com preview e downloads em PNG e SVG**, publicado desde a `3.0.0` (origem Fase 5). Os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada (`0001`).
 
 - O QR codifica apenas a short URL pública (`https://<origem>/<slug>`), nunca o destination, a Variant B, um alvo de Smart Routing ou qualquer segredo; quem escaneia entra no redirect normal, com senha, A/B, Smart Routing e lifecycle decididos pelo runtime.
 - A geração é cold path administrativo: o Worker renderiza o SVG sob demanda (`Cache-Control: no-store`) e o painel rasteriza o PNG em 512×512 no navegador. O download em SVG entrega byte a byte o corpo que o Worker devolveu; o PNG é o raster desse mesmo SVG. Nenhuma imagem é persistida — o QR é derivável da URL a qualquer momento — e a geração não conta clique nem grava no banco.
@@ -71,18 +71,18 @@ Escopo: o **diálogo com preview e downloads em PNG e SVG**. Os endpoints `GET/P
 - `ab_clicks_b`
 - `ab_started_at`
 - `smart_routing_rules` (JSON em linha; `NULL` = desativado, array ordenado = ativado)
-- `expired_redirect_url` (destino administrativo usado quando o link expira; `NULL` = sem destino. Introduzida pela migration `0006`, Unreleased / Fase 4)
+- `expired_redirect_url` (destino administrativo usado quando o link expira; `NULL` = sem destino. Introduzida pela migration `0006`, publicada desde a `3.0.0`; origem Fase 4)
 - `version`
 
 ### Tabela `link_groups`
 
 - `name`
-- `parent_id` (auto-referência da migration `0002`; `NULL` = grupo raiz. A hierarquia é validada em tempo de escrita — veja "Semântica da hierarquia de grupos (Unreleased / Fase 5)")
+- `parent_id` (auto-referência da migration `0002`; `NULL` = grupo raiz. A hierarquia é validada em tempo de escrita — veja "Semântica da hierarquia de grupos (release 3.0.0)")
 - `created_at`
 
-### Semântica do Split Test A/B (Phase 2 local)
+### Semântica do Split Test A/B (release 3.0.0)
 
-Escopo: **baseline local da Fase 2**. A tag publicada `v2.2.1` não tem Split Test A/B.
+Escopo: release `3.0.0` (migration `0004`, introduzida originalmente na Fase 2 e publicada desde a `3.0.0`). A tag anterior `v2.2.1` não tem Split Test A/B.
 
 - Control A é sempre `target_url`; Variant B é `ab_target_url`.
 - `ab_weight_b` é o percentual de tráfego humano para B, aceito apenas como inteiro entre 1 e 99.
@@ -105,9 +105,9 @@ Escopo: **baseline local da Fase 2**. A tag publicada `v2.2.1` não tem Split Te
 - `expiredRedirect` indica disponibilidade de schema (migration `0006` aplicada), não um feature flag de produto. A API continua aceitando o restante do CRUD normalmente em banco pré-`0006`; apenas `expiredRedirectUrl` é recusado com `400`.
 - A classificação de estado persistido (`smartRoutingStatus`) é adicional e só existe quando a coluna existe; ela não substitui a capability, que continua sendo a fonte de disponibilidade da feature.
 
-### Semântica do Smart Routing (Unreleased / Fase 3)
+### Semântica do Smart Routing (release 3.0.0)
 
-> Escopo: release publicada/baseline = **v2.2.1**. Smart Routing e a migration `0005` pertencem ao estado **Unreleased (Fase 3)** da branch de desenvolvimento.
+> Escopo: release `3.0.0` (migration `0005`, introduzida originalmente na Fase 3 e publicada desde a `3.0.0`). A tag anterior `v2.2.1` não contém o Smart Routing nem a migration `0005`.
 
 - `links.smart_routing_rules` guarda um JSON em linha com a lista ordenada de regras. `NULL` significa desativado; um array não vazio significa ativado. Não existe tabela secundária nem JOIN auxiliar, e o redirect usa um único `SELECT` da linha principal.
 - Cada regra tem `country` (ISO 3166-1 alpha-2 uppercase, opcional), `device` (`ios`, `android`, `desktop`, `other`, opcional) e `url` (http/https, até 2048 bytes canônicos). A regra precisa de pelo menos um matcher.
@@ -121,9 +121,9 @@ Escopo: **baseline local da Fase 2**. A tag publicada `v2.2.1` não tem Split Te
 - A métrica pública continua sendo somente `clicks_total` agregado, com o mesmo fence de `metric_epoch`. Não há contador por regra, país ou dispositivo.
 - Máximo de 20 regras, JSON serializado limitado a 8 KiB, sem duplicatas de matcher e sem regra totalmente coberta por uma anterior.
 
-### Semântica do destino de expiração (Unreleased / Fase 4)
+### Semântica do destino de expiração (release 3.0.0)
 
-> Escopo: working tree da Fase 4 (sobre o HEAD congelado da Fase 3 `548f179`). A tag publicada `v2.2.1` não contém esta feature nem a migration `0006`.
+> Escopo: release `3.0.0` (migration `0006`, introduzida originalmente na Fase 4 e publicada desde a `3.0.0`). A tag anterior `v2.2.1` não contém esta feature nem a migration `0006`.
 
 - `links.expired_redirect_url` guarda um destino administrativo opcional usado somente depois que `expires_at` passa. `NULL` preserva o comportamento anterior à `0006` (link expirado responde `410`).
 - O campo requer `expiresAt`: CREATE/PATCH que produzam uma linha com destino e sem expiração são recusados com `400` (invariante de estado final). Limpar `expiresAt` mantendo o destino é recusado; limpar os dois na mesma requisição é a limpeza atômica permitida.
@@ -135,18 +135,18 @@ Escopo: **baseline local da Fase 2**. A tag publicada `v2.2.1` não tem Split Te
 - A coluna é adicionada somente pela migration `0006_expired_redirect.sql` (additive, nullable, sem rewrite). Em banco pré-`0006` o CRUD continua normal, a API recusa `expiredRedirectUrl` com `400` e `GET /api/capabilities` reporta `expiredRedirect: false`.
 - `expired_redirect_url` é configuração administrativa, não dado de visitante. O destino de expiração não é regra de Smart Routing nem variante de A/B.
 
-### Rota raiz e `ROOT_REDIRECT_URL` (Unreleased / Fase 4)
+### Rota raiz e `ROOT_REDIRECT_URL` (release 3.0.0)
 
-> Escopo: working tree da Fase 4. A tag publicada `v2.2.1` não contém esta configuração.
+> Escopo: release `3.0.0` (origem Fase 4). A tag anterior `v2.2.1` não contém esta configuração.
 
 - `GET /` decide antes de qualquer outra etapa: zero chamadas de `prepare`, zero schema detection, zero capability probe, zero cookie e zero métrica.
 - Valor válido: `302` + `Cache-Control: no-store` (sempre temporário — é configuração mutável por ambiente; `301` reteria um destino que pode mudar).
 - Valor ausente, inválido (não http/https, relativo, `javascript:`, `data:` etc.) ou com self-loop direto para a própria raiz: a landing é servida (fail-safe silencioso; não há erro de startup nem log do valor rejeitado).
 - Não afeta unknown slugs (`404`), `/admin`, `/api`, `/health`, `/privacidade` nem assets. A validação reusa `normalizeTargetUrl`, sem exceção específica da raiz.
 
-### Semântica da hierarquia de grupos (Unreleased / Fase 5)
+### Semântica da hierarquia de grupos (release 3.0.0)
 
-> Escopo: working tree da Fase 5 (sobre o HEAD congelado da Fase 4 `cdb9f83`). A hierarquia **já existe** desde a migration `0002_advanced_features.sql`; a Fase 5 não adiciona migration, coluna, tabela auxiliar, closure table nem materialized path, e não muda nenhuma capability.
+> Escopo: release `3.0.0` (introduzida originalmente na Fase 5 e publicada desde a `3.0.0`). A hierarquia **já existe** desde a migration `0002_advanced_features.sql`; a release `3.0.0` não adiciona migration, coluna, tabela auxiliar, closure table nem materialized path, e não muda nenhuma capability.
 
 - `parent_id` é a única representação da árvore. `GET /api/groups` continua devolvendo linhas planas (`name`, `parent_id`, `created_at`); o Admin monta a árvore no cliente e o endpoint não virou uma resposta aninhada.
 - `parentId` é o campo de escrita. Em `POST /api/groups`, ausente ou `null` significa raiz e um inteiro positivo significa filho do grupo informado. Em `PATCH /api/groups/:id`, ausente preserva o pai, `null` move para a raiz e um inteiro positivo move sob o grupo informado. `parentGroupId` não existe na API pública.
@@ -155,15 +155,15 @@ Escopo: **baseline local da Fase 2**. A tag publicada `v2.2.1` não tem Split Te
 - `MAX_GROUP_DEPTH = 16`, com raiz em profundidade 1. `POST` sob profundidade 16 responde `409` e não grava linha parcial. Um `MOVE` mede a subárvore inteira (grupo + descendentes), não apenas o nó movido.
 - Árvore legada já acima de 16 continua legível e reparável: uma operação que reduz a profundidade máxima é aceita, e uma que mantém ou aumenta a violação responde `409`.
 - Toda mudança de pai é **um único `UPDATE` condicionado** com CTEs recursivas: ciclo, profundidade e a precondição do pai observado são decididos na mesma instrução que escreve. Não existe `SELECT` de verificação seguido de `UPDATE` desprotegido, logo não há janela entre checar e gravar. As CTEs usam `UNION` e um limite de recursão, então um ciclo pré-existente termina em vez de girar.
-- A precondição de concorrência é `expectedParentId`, obrigatória sempre que `parentId` é enviado. `null` significa que o cliente observou o grupo na raiz. Se o pai mudou desde a leitura, a resposta é `409` e nenhum move concorrente é sobrescrito. `PATCH` sem `parentId` (renomear) continua *last-write-wins*: a Fase 5 não adiciona coluna `version` a grupos.
+- A precondição de concorrência é `expectedParentId`, obrigatória sempre que `parentId` é enviado. `null` significa que o cliente observou o grupo na raiz. Se o pai mudou desde a leitura, a resposta é `409` e nenhum move concorrente é sobrescrito. `PATCH` sem `parentId` (renomear) continua *last-write-wins*: a release `3.0.0` não adiciona coluna `version` a grupos.
 - `DELETE /api/groups/:id` é **um `DELETE` condicional atômico**: só remove grupo com zero subgrupos e zero links, incluindo links desabilitados. Grupo inexistente responde `404`; com subgrupos ou com links responde `409`. Não há cascade, não há reparent automático e a FK `ON DELETE SET NULL` da `0002` é preservada — a API impede que ela seja alcançada em deletes normais.
 - A exclusão automática de grupos foi **removida**. Mover ou excluir o último link de um grupo deixa o grupo no banco; remover um grupo é sempre uma decisão explícita do operador. O helper `cleanupEmptyGroup` não existe mais no runtime.
 - Grafo corrompido por edição SQL externa (ciclo, ou `parent_id` apontando para grupo ausente) falha fechado: `GET /api/groups` responde `409` e o Admin mostra o erro sem montar árvore parcial e sem reparo automático. `POST`/`PATCH` que precisam interpretar a árvore também respondem `409`.
 - O redirect público não muda. `PUBLIC_REDIRECT_SQL` permanece `SELECT * FROM links WHERE slug = ? AND disabled_at IS NULL`: sem `JOIN`, sem `SELECT` em `link_groups`, sem CTE e sem `PRAGMA` extra. Um link com `group_id` não carrega o grupo no hot path.
 
-### Portabilidade: BoltLink Portability JSON v1 (Unreleased / Fase 5)
+### Portabilidade: BoltLink Portability JSON v1 (release 3.0.0)
 
-> Escopo: working tree da Fase 5. A tag publicada `v2.2.1` não possui `GET /api/export` nem as rotas de importação. A porta­bilidade é **configuração**, nunca backup: o documento descreve intenção administrativa e não substitui backup do D1.
+> Escopo: release `3.0.0` (introduzida originalmente na Fase 5 e publicada desde a `3.0.0`). A tag anterior `v2.2.1` não possui `GET /api/export` nem as rotas de importação. A porta­bilidade é **configuração**, nunca backup: o documento descreve intenção administrativa e não substitui backup do D1.
 
 O módulo `src/portability.ts` é dono do formato e o handler Hono permanece fino. As regras de produto que já existem no runtime (sintaxe e slugs reservados, política de destino) entram por injeção, para que o export não mantenha uma segunda cópia divergente das regras de escrita.
 
@@ -202,7 +202,7 @@ O limite de bytes é aplicado sobre o documento serializado e medido em UTF-8, n
 
 **Somente leitura do request inteiro.** `GET /api/export` não escreve no D1 e não executa DDL — e isso vale para o **request completo**, não apenas para o handler. A rota usa a readiness de schema somente leitura (validação por `sqlite_master`/`PRAGMA` e sondagem de capabilities), então nem o middleware cria objetos: a projeção `boltlink_metric_fence` que a readiness de bootstrap instala nas demais rotas `/api` **não** é criada ao pedir o export, inclusive no primeiro request em handle frio. Autenticação (`requireAdmin`/Access/chave de API), rate limit e o `503` de banco não preparado continuam idênticos.
 
-### Importação portátil: `POST /api/import/preview` e `POST /api/import/apply` (Unreleased / Fase 5)
+### Importação portátil: `POST /api/import/preview` e `POST /api/import/apply` (release 3.0.0)
 
 O módulo `src/portability-import.ts` é dono da validação e do plano; os handlers permanecem finos. A autoridade do formato é o documento que `GET /api/export` gera — não existe um segundo schema, e as regras de negócio continuam vindo do runtime por injeção (`src/index.ts`), para que o import não mantenha cópias divergentes de slug, URL, tags, lifecycle ou peso default de A/B.
 
@@ -228,29 +228,33 @@ O módulo `src/portability-import.ts` é dono da validação e do plano; os hand
 
 **Hot path intocado.** Nada do import entra no caminho público: `GET /:slug`, o fluxo de senha, `PUBLIC_REDIRECT_SQL`, `recordClick`, bot detection, A/B, Smart Routing, lifecycle e o redirect da raiz continuam iguais. As rotas são administrativas, compartilham o boundary de `/api` e o mesmo rate limit, e respondem com `Cache-Control: no-store`.
 
-### Migrações e runtime (release publicada v2.2.1)
+### Migrações e runtime (release 3.0.0)
 
 - Migrations são a única autoridade para criar ou evoluir tabelas e colunas.
 - O runtime **não** executa `schema.sql`, **não** cria colunas, **não** aplica migrations implicitamente e **não** reconstrói tabelas. Ele valida que o banco foi preparado; sem a tabela `links` ou sem colunas obrigatórias, responde `503` com erro operacional controlado e sem vazar SQL.
 - Colunas legadas extras (`last_clicked_at`, `notes`, `stats`) são ignoradas e permanecem até que uma migration explícita as remova. Nenhum rebuild destrutivo roda durante requests.
 - `schema.sql` é apenas o snapshot baseline da migration `0000_initial_schema.sql` para ferramentas manuais; não é executado pelo runtime e não deve receber colunas de features.
-- Instalação limpa da release publicada (`v2.2.1`): criar o D1, aplicar `migrations/0000` até `0003`, publicar o Worker. Upgrade da release publicada: aplicar as migrations pendentes até a `0003`, depois publicar e validar. Mesmo sem restart, um isolate antigo detecta uma migration aplicada no request seguinte.
+- Instalação limpa da release atual (`3.0.0`): criar o D1, aplicar as migrations `0000` até `0006` (localmente com `npm run dev-prepare`), publicar o Worker. Upgrade da release anterior `v2.2.1`: aplicar as pendentes `0004` a `0006`, depois publicar e validar. Mesmo sem restart, um isolate antigo detecta uma migration aplicada no request seguinte.
 
-#### Split Test A/B e migration 0004 (Phase 2 local)
+#### Procedimento histórico: instalação da release anterior (v2.2.1)
 
-Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não contém esta migration.
+Instalação limpa e upgrade daquela tag aplicam `migrations/0000` até `0003` e param aí: a `0003_lgpd_minimization.sql` é a última migration da linha `v2.2.1`, e os recursos posteriores não existem naquele checkout.
+
+#### Split Test A/B e migration 0004 (origem Fase 2)
+
+Escopo: a `0004` introduz o Split Test A/B (desenvolvida originalmente na Fase 2) e faz parte da release `3.0.0`. A tag anterior `v2.2.1` não contém esta migration.
 
 - Enquanto a `0004` não estiver aplicada, links normais continuam com redirect, lifecycle, senha e contagem; qualquer tentativa de configurar A/B pela API retorna `400` com mensagem explícita pedindo a migration.
 - Capability negativa de A/B não é cacheada permanentemente: um isolate iniciado antes da `0004` revalida o schema em requests subsequentes e passa a usar fencing assim que a migration aparece. O caminho público não depende dessa revalidação para descobrir a migration, porque a linha é lida com projeção schema-neutral.
-- Instalação limpa e upgrade desta base aplicam `0000` até `0004`.
+- Instalação limpa e upgrade da release `3.0.0` aplicam `0000` até `0006`, incluindo a `0004`.
 
-#### Instalação limpa e upgrade (Unreleased / Fase 3)
+#### Instalação limpa e upgrade com a 0005 (origem Fase 3)
 
-Na branch de desenvolvimento, a instalação limpa e o upgrade aplicam também a `0005_smart_routing.sql`. Um checkout da tag `v2.2.1` não contém essa migration.
+Na release `3.0.0`, a instalação limpa e o upgrade aplicam também a `0005_smart_routing.sql` (desenvolvida originalmente na Fase 3). Um checkout da tag `v2.2.1` não contém essa migration.
 
-#### Instalação limpa e upgrade (Unreleased / Fase 4)
+#### Instalação limpa e upgrade com a 0006 (origem Fase 4)
 
-Na working tree da Fase 4, a instalação limpa e o upgrade aplicam também a `0006_expired_redirect.sql`. Banco em `0005` com código da Fase 4 continua operando normalmente (o destino de expiração fica bloqueado até a migration); banco em `0006` com código da Fase 3 é um rollback benigno — a coluna extra é ignorada. Não há downtime obrigatório: a mudança é additive e nullable.
+Na release `3.0.0`, a instalação limpa e o upgrade aplicam também a `0006_expired_redirect.sql` (desenvolvida originalmente na Fase 4). Banco em `0005` com código da release atual continua operando normalmente (o destino de expiração fica bloqueado até a migration); banco em `0006` com código anterior é um rollback benigno — a coluna extra é ignorada. Não há downtime obrigatório: a mudança é additive e nullable.
 
 ## Decisões preservadas
 
@@ -281,5 +285,5 @@ Na working tree da Fase 4, a instalação limpa e o upgrade aplicam também a `0
 
 ---
 
-Versão 2.2.1
+Versão 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

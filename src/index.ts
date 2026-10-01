@@ -234,7 +234,7 @@ const EXPIRED_REDIRECT_MIGRATION_HINT = "Expired redirect requires migration 000
  */
 const EXPIRED_REDIRECT_REQUIRES_EXPIRATION = "expiredRedirectUrl requires expiresAt";
 /**
- * Administrative invariants of the group hierarchy (Unreleased / Phase 5). The
+ * Administrative invariants of the group hierarchy (published in 3.0.0; origin Phase 5). The
  * tree columns come from `0002`; everything below is write-time policy, so Gate
  * 5.1 adds no migration and no capability flag.
  */
@@ -1181,7 +1181,7 @@ app.delete("/api/groups/:id", async (c) => {
 });
 
 /**
- * Portability export (Unreleased / Phase 5, Gate 5.2).
+ * Portability export (published in 3.0.0; origin Phase 5, Gate 5.2).
  *
  * Administrative, on demand and read-only: it is protected by the same boundary as
  * every other `/api` route (`requireAdmin` plus Cloudflare Access, with the API key
@@ -1269,7 +1269,7 @@ app.get("/api/export", async (c) => {
 });
 
 /**
- * Portability import (Unreleased / Phase 5, Gate 5.3).
+ * Portability import (published in 3.0.0; origin Phase 5, Gate 5.3).
  *
  * The counterpart of the export, on the same administrative boundary: `requireAdmin`
  * plus Cloudflare Access, with the API key as the existing alternative, and the shared

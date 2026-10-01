@@ -28,13 +28,13 @@ Smart Routing é **stateless**: nenhum cookie de roteamento, visitor ID ou finge
 
 Smart Routing e Split Test A/B são **mutuamente exclusivos**, e links com Smart Routing ativo usam sempre redirect temporário `302` com `Cache-Control: no-store`. O recurso não transforma o produto em plataforma de analytics: não há country analytics, device analytics, conversão, UTM injection ou sticky routing.
 
-## Destino de expiração (Unreleased / Fase 4)
+## Destino de expiração (release 3.0.0; origem Fase 4)
 
 Um link com expiração pode escolher o que acontece depois que expira: responder `410` (padrão) ou redirecionar para uma URL escolhida pelo operador. A decisão é do lifecycle, não do roteamento: link expirado não pede senha, não sorteia A/B, não avalia Smart Routing e não conta clique. O destino precisa ser uma URL http/https e só faz sentido junto com uma expiração — limpar a expiração remove o destino junto.
 
 No painel, a seção "Após expirar" apresenta as duas opções em linguagem de operador (`Resposta padrão (410)` / `Redirecionar para URL`), sem nomes técnicos de coluna.
 
-## Redirect da raiz (Unreleased / Fase 4)
+## Redirect da raiz (release 3.0.0; origem Fase 4)
 
 A raiz do domínio (`GET /`) pode apontar para uma URL fixa configurada pela variável `ROOT_REDIRECT_URL`. É configuração de operação, não feature de link: não consulta banco, não gera métrica e não muda o comportamento de slugs desconhecidos (que continuam `404`). Sem a variável — ou com valor inválido — a landing normal é servida.
 

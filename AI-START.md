@@ -1,6 +1,6 @@
 # AI-START
 
-Este arquivo é a entrada única para qualquer IA operar o BoltLink (versão **3.0.0**; a release anterior publicada é `v2.2.1`) com segurança.
+Este arquivo é a entrada única para qualquer IA operar o BoltLink (versão **3.0.0**, release publicada atual — tag `v3.0.0`, commit `60c8575`; a release anterior imediata é `v2.2.1`, que também é o baseline histórico do upgrade das features) com segurança.
 
 O objetivo dele é permitir que a IA:
 
@@ -22,21 +22,22 @@ Leia nesta ordem antes de agir:
 5. `docs/admin-auth.md`
 6. `docs/privacy.md`
 
-## Cinco bases de código (não confundir)
+## Bases de código (não confundir)
 
-Existem cinco estados distintos. A tag publicada **não** é igual ao baseline local:
+A release atual é a **`3.0.0`**, publicada como tag `v3.0.0` sobre `60c8575`. Ela contém as migrations `0004` a `0006` e todos os recursos das Fases 2–5. As Fases 2–5 são **origem histórica** do que ela publica, não estados ativos de desenvolvimento:
 
 | Base | Como identificar | Migrations | Recursos extras |
 | --- | --- | --- | --- |
-| **Publicada** (`v2.2.1`) | tag real: `git rev-parse v2.2.1` → `8b3895e` | `0000` a `0003` | — |
-| **Fase 2 local** | baseline local `23353a1`, **não publicado** | `0000` a `0004` | Split Test A/B |
-| **Fase 3 congelada** | HEAD `548f179`, **Unreleased** | `0000` a `0005` | Split Test A/B + Smart Routing |
-| **Fase 4 congelada** | HEAD `cdb9f83`, **Unreleased** | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
-| **Fase 5 working tree** | working tree atual sobre `cdb9f83`, **Unreleased** | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
+| **Release atual publicada** (`3.0.0`) | tag `v3.0.0` (`git rev-parse v3.0.0` → `60c8575`), HEAD de `main` | `0000` a `0006` | todos abaixo: Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
+| **Release anterior** (`v2.2.1`) | tag real: `git rev-parse v2.2.1` → `8b3895e` | `0000` a `0003` | — |
+| Fase 2 (checkpoint histórico) | baseline local `23353a1` | `0000` a `0004` | Split Test A/B |
+| Fase 3 (checkpoint congelado) | HEAD `548f179` | `0000` a `0005` | Fase 2 + Smart Routing |
+| Fase 4 (checkpoint congelado) | HEAD `cdb9f83` | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
+| Fase 5 (checkpoint pre-freeze) | `3670a44` sobre `cdb9f83` | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code — evoluiu para a release `3.0.0` |
 
-Não chame o baseline local da Fase 2 de "v2.2.1 publicada": a tag publicada não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a integridade de hierarquia de grupos nem a exportação portátil da Fase 5 (a tag tem a tabela `link_groups` desde a `0002`, mas sem validação de ciclo, profundidade, delete ou concorrência, e não existe `GET /api/export`).
+Não chame a `v2.2.1` de release atual: ela é a **release anterior imediata** e o **baseline histórico do upgrade** (conceitos distintos que hoje coincidem). A `v2.2.1` não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a integridade de hierarquia de grupos nem a exportação portátil da Fase 5 (a tag tem a tabela `link_groups` desde a `0002`, mas sem validação de ciclo, profundidade, delete ou concorrência, e não existe `GET /api/export`).
 
-Publicada (v2.2.1):
+Release atual publicada (`3.0.0`, commit `60c8575`):
 
 - redirect público por slug
 - painel administrativo estático
@@ -44,41 +45,26 @@ Publicada (v2.2.1):
 - Cloudflare Access para `/admin`, `/admin.html`, `/api` e `/api/*`
 - contagem apenas agregada em `links.clicks_total`
 - política pública em `/privacidade`
+- Split Test A/B por link (Control A = `target_url`, Variant B = `ab_target_url`), stateless e com contadores agregados — origem Fase 2, migration `0004_ab_testing.sql`
+- Smart Routing por país/dispositivo com primeira regra compatível vencendo e fallback no destino principal — origem Fase 3, migration `0005_smart_routing.sql`
+- destino opcional para links expirados (`expiredRedirectUrl` / `links.expired_redirect_url`): link expirado com destino válido responde `302` + `no-store`, sem destino responde `410` + `no-store`, sem gate de senha, sem roteamento e sem contagem — origem Fase 4, migration `0006_expired_redirect.sql`
+- redirect opcional da raiz via variável de ambiente `ROOT_REDIRECT_URL` (`GET /` → `302` + `no-store` sem consultar D1) — origem Fase 4
+- hierarquia de grupos em `link_groups.parent_id`, sem migration nova (a coluna existe desde a `0002`) — origem Fase 5
+- `parentId` é o nome na escrita; `GET /api/groups` continua plano com `parent_id` e o Admin monta a árvore no cliente — origem Fase 5
+- ciclo, profundidade, delete e concorrência decididos em um único statement condicional, nunca com `SELECT` seguido de `UPDATE`/`INSERT` — origem Fase 5
+- exportação administrativa da configuração lógica (`GET /api/export`) no formato `boltlink-portability` v1, somente leitura no request inteiro: sem `password_hash`, sem métricas, sem IDs internos (grupos usam `ref` local e links usam `groupRef`), sem DDL no primeiro request em handle frio (não cria `boltlink_metric_fence`, ao contrário das demais rotas `/api`); não é backup do D1 — origem Fase 5
+- importação administrativa da mesma configuração (`POST /api/import/preview` e `POST /api/import/apply`), sem migration nova: o preview é somente leitura e o apply grava o documento em um único `batch` (tudo ou nada), exige nova senha para cada link protegido, bloqueia com `409` colisão de slug, feature que o banco não suporta e árvore acima de 16 níveis, e não restaura métricas — origem Fase 5
+- QR Code com diálogo de preview e download PNG/SVG no painel: o QR codifica apenas a short URL pública (nunca o destination nem segredos), a geração é cold path administrativo que não conta clique nem persiste imagem, e `has_qrcode` continua sendo memória operacional escrita só quando o operador baixa o QR em PNG ou SVG — preview e copiar link não escrevem nada (origem Fase 5; os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada `0001`)
 
-Phase 2 local (`23353a1`, não publicado):
+### Status de desenvolvimento (Fases 2–5 congeladas; Phase 6 completa; Phase 7 em andamento)
 
-- Split Test A/B por link (Control A = `target_url`, Variant B = `ab_target_url`), stateless e com contadores agregados
-- migration `0004_ab_testing.sql` como fonte autoritativa das colunas A/B
-
-Unreleased / Fase 3 (somente nesta branch de desenvolvimento):
-
-- Smart Routing por país/dispositivo com primeira regra compatível vencendo e fallback no destino principal
-- migration `0005_smart_routing.sql`
-
-Unreleased / Fase 4 (HEAD congelado `cdb9f83`):
-
-- destino opcional para links expirados (`expiredRedirectUrl` / `links.expired_redirect_url`): link expirado com destino válido responde `302` + `no-store`, sem destino responde `410` + `no-store`, sem gate de senha, sem roteamento e sem contagem
-- redirect opcional da raiz via variável de ambiente `ROOT_REDIRECT_URL` (`GET /` → `302` + `no-store` sem consultar D1)
-- migration `0006_expired_redirect.sql`
-
-Unreleased / Fase 5 (working tree atual sobre o HEAD congelado da Fase 4 `cdb9f83`):
-
-- hierarquia de grupos em `link_groups.parent_id`, sem migration nova (a coluna existe desde a `0002`)
-- `parentId` é o nome na escrita; `GET /api/groups` continua plano com `parent_id` e o Admin monta a árvore no cliente
-- ciclo, profundidade, delete e concorrência decididos em um único statement condicional, nunca com `SELECT` seguido de `UPDATE`/`INSERT`
-- exportação administrativa da configuração lógica (`GET /api/export`) no formato `boltlink-portability` v1, somente leitura no request inteiro: sem `password_hash`, sem métricas, sem IDs internos (grupos usam `ref` local e links usam `groupRef`), sem DDL no primeiro request em handle frio (não cria `boltlink_metric_fence`, ao contrário das demais rotas `/api`); não é backup do D1
-- importação administrativa da mesma configuração (`POST /api/import/preview` e `POST /api/import/apply`), sem migration nova: o preview é somente leitura e o apply grava o documento em um único `batch` (tudo ou nada), exige nova senha para cada link protegido, bloqueia com `409` colisão de slug, feature que o banco não suporta e árvore acima de 16 níveis, e não restaura métricas
-- QR Code com diálogo de preview e download PNG/SVG no painel: o QR codifica apenas a short URL pública (nunca o destination nem segredos), a geração é cold path administrativo que não conta clique nem persiste imagem, e `has_qrcode` continua sendo memória operacional escrita só quando o operador baixa o QR em PNG ou SVG — preview e copiar link não escrevem nada (Unreleased / Fase 5; os endpoints e a coluna existem desde a base publicada)
-
-### Status de desenvolvimento (Fase 5 congelada; Phase 6 em andamento)
-
-- Baseline pre-freeze: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. A versão desta release é **`3.0.0`** (o `package.json` está em `3.0.0`).
+- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Essa linha evoluiu para a release `3.0.0` (o `package.json` está em `3.0.0`).
 - Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
-- Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fecha o finding BL-54-04 e reconcilia a documentação, sem feature nova, sem migration, sem bump de versão, sem tag e sem deploy.
-- Com o freeze do Gate 5.5, a Fase 5 está **FEATURE FROZEN**: nenhuma feature adicional deve ser iniciada, e a Phase 6 não pode ser iniciada dentro de um gate da Fase 5.
-- **Phase 6 — Release Readiness (em andamento)**: Gate 6.1 (auditoria global final) concluído com P0 = 0, P1 = 0 e P2 = 0; Gate 6.2 (correção dos blockers) concluído, fechando BL-61-01 e BL-61-02; Gate 6.3 (version finalization) **FINALIZED LOCALLY**, com a versão `3.0.0` finalizada (e os P3 BL-61-03, BL-61-04 e o wording "nullable" de `docs/upgrading.md` fechados); Gate 6.4 (local release commit) **FINALIZED LOCALLY** — commit local de preparação da release `6847e47` (`release: prepare 3.0.0`), sobre o pre-release baseline `04a6873`; Gate 6.5A (publication preflight): **RECLASSIFIED** — BL-65A-01 é **NOT APPLICABLE** (o finding assumia uma instalação canônica Cloudflare/D1 vinculada ao repositório-base, e ela não existe), e BL-65A-02 (wording de release não publicada no commit de preparação) foi fechado no Gate 6.5B; Gate 6.5B (final publication metadata) **FINALIZED LOCALLY** — a metadata de publicação final está neste commit, que é o alvo da tag `v3.0.0`. Estado: **NOT TAGGED / NOT PUSHED**. Next: GitHub publication (tag `v3.0.0`, push de `main` e da tag, GitHub Release).
+- Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fechou o finding BL-54-04 e reconciliou a documentação, sem feature nova, sem migration, sem bump de versão, sem tag e sem deploy.
+- **Phase 6 — Release Readiness: COMPLETE**, terminando em **Gate 6.6 (publicação): PASSED** — tag `v3.0.0` criada sobre `60c8575`, push de `main` e da tag e GitHub Release concluídos. A `v3.0.0` **já possui tag e GitHub Release**; Cloudflare/D1 continuam per-installation.
+- **Phase 7 — Current-State Reconciliation (em andamento)**: Gate 7.2 corrige o finding **BL-66-01** (P2, release-state documentation drift): reconciliação documental somente (sem bump, sem migration, sem mudança funcional, sem nova tag).
 - **Modelo de distribuição da release do repositório**: source commit + tag `v3.0.0` + push + GitHub Release. Não existe Worker, D1, hostname, Cloudflare Account, deploy ou migration remota oficiais: cada instalação é self-hosted e executa o próprio backup, as próprias migrations e o próprio deploy. Cloudflare login **não** é requisito para publicar o repositório.
-- Ao retomar o trabalho, o estado é: **Phase 5 FEATURE FROZEN**, Phase 6 com a **metadata de publicação finalizada** aguardando a publicação no GitHub (tag `v3.0.0` + push + GitHub Release), **versão `3.0.0`**. Não invente SHA futuro; e publicar a tag não significa que instalações foram atualizadas — deploy e migrations são por instalação.
+- Ao retomar o trabalho, o estado é: **release `3.0.0` publicada** (tag `v3.0.0` sobre `60c8575`), Phase 6 completa, Phase 7 em andamento no Gate 7.2 (patch de documentação BL-66-01). Publicar a tag não significa que instalações foram atualizadas — deploy e migrations são por instalação.
 - A dívida técnica `TS7016` do módulo `qrcode` foi **aceita para a 3.0.0** como **não bloqueante**.
 
 O produto não mantém:
@@ -116,7 +102,7 @@ O produto não mantém:
 - configuração Smart Routing persistida e ilegível é corrupção **preservada**, não "desativada": a API informa `smartRoutingStatus: "invalid"` (sem expor o valor cru), edições não relacionadas não podem apagá-la e só uma ação explícita de limpeza grava `NULL`
 - o lifecycle vence senha, A/B e Smart Routing: link expirado com destino válido responde `302` + `no-store`, sem destino responde `410` + `no-store`, e requests expirados não contam clique nem gravam no banco (Fase 4)
 - `ROOT_REDIRECT_URL` é opcional e não secreta: válida faz `GET /` responder `302` + `no-store` sem tocar D1; ausente/inválida serve a landing; unknown slugs continuam `404` (Fase 4)
-- para desenvolvimento local do Worker **nas bases locais (Fase 2, Fase 3 e Fase 4)**, rode `npm run dev-prepare` (migrations no D1 do Wrangler) antes de `npm run dev`; no checkout da tag `v2.2.1` esse script não existe, use `npm run wrangler -- d1 migrations apply ... --local`
+- para desenvolvimento local do Worker na release atual (`3.0.0`), rode `npm run dev-prepare` (aplica as migrations `0000`–`0006` no D1 do Wrangler) antes de `npm run dev`; no checkout histórico da tag `v2.2.1` esse script não existe, use `npm run wrangler -- d1 migrations apply ... --local`
 
 ## Como interpretar pedidos
 
@@ -177,7 +163,7 @@ Fluxo para `Iniciar o Projeto`:
 4. rodar `npm install`
 5. rodar `npm run setup`
 6. se o usuário quiser banco explícito, criar D1 com `npm run wrangler -- d1 create ... --update-config`
-7. aplicar migrations locais (nas bases locais da Fase 2/Fase 3/Fase 4: `npm run dev-prepare`; no checkout da tag `v2.2.1`: `npm run wrangler -- d1 migrations apply ... --local`)
+7. aplicar migrations locais (na release atual `3.0.0`: `npm run dev-prepare`; no checkout histórico da tag `v2.2.1`: `npm run wrangler -- d1 migrations apply ... --local`)
 8. se o destino for remoto, aplicar as migrations no D1 (`--remote -c wrangler.local.jsonc`) antes de publicar/validar; no Deploy Button, o provisionamento inicial **não** substitui esse passo
 9. rodar `npm test`
 10. parar antes da criação final do Access
@@ -185,10 +171,10 @@ Fluxo para `Iniciar o Projeto`:
 Se o pedido for iniciar o projeto apenas localmente para testes manuais, a IA deve preparar o D1 local do Worker **antes** de `npm run dev`:
 
 ```bash
-npm run dev-prepare   # existe apenas nas bases locais (Fase 2, Fase 3 e Fase 4)
+npm run dev-prepare   # release atual 3.0.0: aplica 0000–0006 no D1 local do Worker
 ```
 
-`npm run dev-prepare` aplica as migrations no D1 local usado pelo `wrangler dev` (`.wrangler/state/v3/d1`). Sem isso o Worker responde `503 Database schema is not initialized`. No checkout da tag `v2.2.1` esse script não existe; use `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
+`npm run dev-prepare` aplica as migrations no D1 local usado pelo `wrangler dev` (`.wrangler/state/v3/d1`). Sem isso o Worker responde `503 Database schema is not initialized`. No checkout histórico da tag `v2.2.1` esse script não existe; use `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
 
 Opcionalmente, para navegação/experimentação com um SQLite auxiliar:
 
@@ -216,7 +202,7 @@ Quando o pedido for `Atualizar o Projeto`, a IA deve:
 5. se estiver seguro, rodar `git pull --ff-only`
 6. rodar `npm install`
 7. rodar `npm run wrangler:init`
-8. aplicar migrations locais (`npm run dev-prepare` nas bases locais; `npm run wrangler -- d1 migrations apply ... --local` no checkout da tag `v2.2.1`)
+8. aplicar migrations locais (`npm run dev-prepare` na release atual; `npm run wrangler -- d1 migrations apply ... --local` no checkout histórico da tag `v2.2.1`)
 9. se o deploy remoto for operado por CLI: aplicar as migrations remotas (`--remote -c wrangler.local.jsonc`) e só então publicar com `npm run deploy`
 10. se o deploy for GitHub auto-deploy ou Deploy Button: após o provisionamento/deploy inicial, aplicar as migrations remotas antes de validar; deploy sozinho não deixa a instalação operacional (`503 Database schema is not initialized`)
 11. rodar `npm test`
@@ -330,17 +316,17 @@ npm install
 npm run setup
 ```
 
-Setup local com banco SQLite de apoio (bases locais da Fase 2, Fase 3 e Fase 4):
+Setup local com banco SQLite de apoio (release atual `3.0.0`):
 
 ```bash
 npm install
 npm run setup
-npm run dev-prepare   # migrations no D1 local usado pelo Worker (não existe na tag v2.2.1)
+npm run dev-prepare   # migrations 0000–0006 no D1 local usado pelo Worker (não existe na tag v2.2.1)
 npm run dev-init      # opcional: SQLite auxiliar em .dev-env/
 npm run dev
 ```
 
-No checkout da tag `v2.2.1`, substitua `dev-prepare` por `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
+No checkout histórico da tag `v2.2.1`, substitua `dev-prepare` por `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
 
 Criar D1 com update do config local:
 

@@ -1,4 +1,4 @@
-# Click Policy (v2.2.1)
+# Click Policy (3.0.0)
 
 ## O que conta
 
@@ -16,9 +16,9 @@ Regras principais:
 
 O filtro decide somente a métrica. Bots, previews sociais, crawlers de busca, prefetches e automação reconhecida continuam recebendo o redirect quando o link está ativo; eles apenas não incrementam `clicks_total`.
 
-## Split Test A/B (Phase 2 local)
+## Split Test A/B (release 3.0.0, migration 0004)
 
-> Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não tem Split Test A/B.
+> Escopo: release `3.0.0` (migration `0004`, introduzida originalmente na Fase 2 e publicada desde a `3.0.0`). A tag anterior `v2.2.1` não tem Split Test A/B.
 
 Quando o link tem Split Test A/B ativo:
 
@@ -30,9 +30,9 @@ Quando o link tem Split Test A/B ativo:
 - bots, crawlers, previews sociais, prefetch e prerender ficam sempre no Control A e não incrementam `clicks_total` nem contadores de variante
 - o filtro continua sendo exclusivamente métrico: nenhum bot é bloqueado por ser bot
 
-## Smart Routing (Unreleased / Fase 3)
+## Smart Routing (release 3.0.0, migration 0005)
 
-> Escopo: release publicada/baseline = **v2.2.1**. A seção abaixo descreve o estado Unreleased da branch de desenvolvimento.
+> Escopo: release `3.0.0` (migration `0005`, introduzida originalmente na Fase 3 e publicada desde a `3.0.0`). A tag anterior `v2.2.1` não processa Smart Routing.
 
 Quando o link tem Smart Routing configurado (`smart_routing_rules` não nulo):
 
@@ -45,9 +45,9 @@ Quando o link tem Smart Routing configurado (`smart_routing_rules` não nulo):
 - o filtro continua sendo exclusivamente métrico: nenhum bot é bloqueado por ser bot
 - privacidade: nenhum país, dispositivo derivado ou regra selecionada é persistido; não existe cookie de roteamento, visitor ID ou fingerprint, e país/`User-Agent`/dispositivo são usados apenas em memória para escolher o destino
 
-## Destino de expiração e redirect da raiz (Unreleased / Fase 4)
+## Destino de expiração e redirect da raiz (release 3.0.0)
 
-> Escopo: release publicada/baseline = **v2.2.1**. A seção abaixo descreve o estado Unreleased da working tree da Fase 4.
+> Escopo: release `3.0.0` (migration `0006` e `ROOT_REDIRECT_URL`, introduzidos originalmente na Fase 4 e publicados desde a `3.0.0`). A tag anterior `v2.2.1` não contém estes recursos.
 
 - request de link expirado **não conta clique**, com ou sem destino configurado: o lifecycle é decidido antes da classificação bot/humano, então a resposta é `302` (destino válido) ou `410` (sem destino) para todos os clientes, sem exceção para humanos
 - o redirect da raiz (`ROOT_REDIRECT_URL`) não conta clique e não consulta D1
@@ -64,9 +64,9 @@ Essa ação:
 - não altera slug, destino, tags, grupo, senha, agenda ou expiração
 - não apaga eventos individuais, porque eventos individuais não existem mais no modelo atual da linha `2.0.x`
 
-### Split Test A/B no reset (Phase 2 local)
+### Split Test A/B no reset (release 3.0.0)
 
-> Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não tem Split Test A/B.
+> Escopo: release `3.0.0` (migration `0004`, origem Fase 2). A tag anterior `v2.2.1` não tem Split Test A/B.
 
 - em link com Split Test A/B, a ação também define `ab_clicks_a = 0` e `ab_clicks_b = 0`, avança geração/epóque e renova `ab_started_at`
 
@@ -86,13 +86,13 @@ Essa ação:
 - nenhum IP é persistido
 - a contagem é apenas agregada no registro do link
 
-### Split Test A/B e privacidade (Phase 2 local)
+### Split Test A/B e privacidade (release 3.0.0)
 
-> Escopo: **baseline local da Fase 2** (`0004`). A tag publicada `v2.2.1` não tem Split Test A/B.
+> Escopo: release `3.0.0` (migration `0004`, origem Fase 2). A tag anterior `v2.2.1` não tem Split Test A/B.
 
 - a escolha da variante é stateless: não existe cookie de experimento, visitor ID, fingerprint ou registro de qual visitante recebeu A ou B
 
 ---
 
-Versão 2.2.1
+Versão 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

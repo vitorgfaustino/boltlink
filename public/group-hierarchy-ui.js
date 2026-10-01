@@ -3,7 +3,7 @@
  * AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
  *
  * Shared group-hierarchy presentation helpers for the admin UI
- * (Unreleased / Phase 5, Gate 5.1).
+ * (published in 3.0.0; origin Phase 5, Gate 5.1).
  *
  * This module is intentionally framework-free and DOM-free so the same tree rules
  * used by the panel can be unit tested without a browser. It never builds HTML;
