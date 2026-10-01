@@ -319,7 +319,7 @@ describe("Phase 5: admin wiring", () => {
 		expect(panel).toMatch(/Grupo pai \(opcional\)/);
 		expect(panel).toMatch(/id="group-create-button"[^>]*>/);
 		// The filter stays a direct association, with no implicit descendants.
-		expect(html).toMatch(/associação direta ao grupo escolhido, sem incluir subgrupos/);
+		expect(html).toMatch(/vinculados diretamente ao grupo escolhido[\s\S]*Não inclui links dos subgrupos/);
 	});
 
 	it("keeps the tree controls as real buttons and a reachable list", () => {
@@ -681,7 +681,7 @@ describe("Phase 5: groups drawer copy and status", () => {
 		const html = readPublic("admin.html");
 		const drawer = html.slice(html.indexOf("<aside"), html.indexOf('<div class="group-toolbar">'));
 
-		expect(drawer).toContain("Organize seus links em grupos e subgrupos.");
+		expect(drawer).toMatch(/Organize seus links em grupos e subgrupos/);
 		// Implementation vocabulary stays in the documentation, not in the interface.
 		for (const technical of ["API", "ciclos", "concorrência", "valida", "16 níveis", "profundidade"]) {
 			expect(drawer).not.toContain(technical);

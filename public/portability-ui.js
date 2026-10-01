@@ -85,7 +85,7 @@
       return "Muitas exportações em sequência. Aguarde alguns segundos e tente novamente.";
     }
     if (status === 503) {
-      return "O banco ainda não foi preparado com as migrations. Execute as migrations e tente novamente.";
+      return "O banco ainda não foi preparado. Aplique as migrações desta versão e tente novamente.";
     }
     if (status === 404) {
       return "A rota de exportação não está disponível nesta instalação.";
@@ -102,10 +102,10 @@
     }
 
     if (status === 409) {
-      return "A exportação foi recusada porque o estado persistido não é válido para o BoltLink atual. Corrija ou remova o registro inválido e tente novamente. Nada foi alterado no banco.";
+      return "A exportação foi recusada porque há uma configuração salva que esta versão do BoltLink não aceita. Corrija ou remova o registro inválido e tente novamente. Nada foi alterado no banco.";
     }
 
-    return message || "Não foi possível exportar os dados.";
+    return message || "Não foi possível exportar a configuração. Tente novamente.";
   }
 
   var api = {

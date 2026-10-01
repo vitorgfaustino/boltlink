@@ -294,7 +294,7 @@ describe("Phase 5, Gate 5.4: QR download and flag semantics", () => {
 		expect(download).toContain("qrDownloadArtifact(format, slug)");
 		expect(download).toContain("const formatLabel = format.toUpperCase();");
 		expect(download).toContain('`QR Code ${formatLabel} baixado: ${buildShortLink(slug)}`');
-		expect(download).toContain('`QR Code ${formatLabel} baixado, mas não foi possível confirmar o estado "QR Ativo" de ${buildShortLink(slug)}.`');
+		expect(download).toMatch(/baixado, mas não foi possível confirmar o estado "QR Code baixado"/);
 	});
 
 	it("enables both downloads only after the generation is complete", () => {
@@ -944,7 +944,7 @@ describe("Phase 5, Gate 5.4: QR download never writes into another dialog", () =
 		expect(surface.slug).toBe("/b");
 		expect(surface.url).toBe("http://localhost/b");
 		expect(surface.imageSrc).toBe(bSurface.imageSrc);
-		expect(surface.imageAlt).toBe("QR Code do short link http://localhost/b");
+		expect(surface.imageAlt).toBe("QR Code do link curto http://localhost/b");
 		expect(surface.pngDisabled).toBe(false);
 		expect(surface.svgDisabled).toBe(false);
 		expect(surface.status).toBe("");

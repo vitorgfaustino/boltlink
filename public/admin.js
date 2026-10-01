@@ -301,14 +301,80 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(payload?.error || "Falha inesperada");
+    throw new Error(payload?.error || "Não foi possível concluir a operação. Tente novamente.");
   }
 
   return payload;
 }
 
+function adminErrorCopy(message) {
+  const text = String(message || "");
+  const messages = {
+    "Internal server error": "Não foi possível concluir a operação no servidor. Tente novamente.",
+    "Not found": "O recurso não foi encontrado nesta instalação. Recarregue o painel.",
+    "Authentication required": "Sua sessão não foi reconhecida. Recarregue o painel e entre novamente.",
+    "Unauthorized": "Sua sessão não foi reconhecida. Recarregue o painel e entre novamente.",
+    "Rate limit exceeded": "Muitas operações em sequência. Aguarde e tente novamente.",
+    "Too many requests": "Muitas operações em sequência. Aguarde e tente novamente.",
+    "Database schema is not initialized": "O banco ainda não foi preparado. Aplique as migrações desta versão e tente novamente.",
+    "Invalid JSON body": "Os dados enviados não puderam ser lidos. Recarregue o painel e tente novamente.",
+    "Invalid target URL": "URL de destino inválida. Informe uma URL HTTP ou HTTPS válida.",
+    "Invalid redirect type. Use '301' or '302'": "Tipo de redirecionamento inválido. Selecione 301 ou 302.",
+    "Invalid tags. Provide an array of strings": "As tags não estão no formato esperado. Separe os valores por vírgulas.",
+    "expiresAt cannot be earlier than goLiveAt": "A expiração não pode ocorrer antes da ativação. Confira as datas.",
+    "Invalid groupId": "Grupo inválido. Selecione um grupo da lista.",
+    "Invalid group id": "Grupo inválido. Recarregue a lista de grupos.",
+    "Group not found": "Grupo não encontrado. Recarregue a lista de grupos.",
+    "Parent group not found": "O grupo pai não existe mais. Recarregue a lista de grupos.",
+    "Invalid parentId": "Grupo pai inválido. Selecione um grupo da lista.",
+    "Invalid expectedParentId": "O grupo pai informado não é válido. Recarregue a lista de grupos.",
+    "expectedParentId is required when parentId changes": "Não foi possível confirmar o grupo pai atual. Recarregue a lista e tente mover o grupo novamente.",
+    "Group name is required": "Informe o nome do grupo.",
+    "Group name cannot be empty": "O nome do grupo não pode ficar vazio.",
+    "Group could not be removed": "Não foi possível excluir o grupo. Recarregue a lista e tente novamente.",
+    "Invalid password. Provide a non-empty string or null": "Senha inválida. Informe uma senha ou deixe o campo vazio.",
+    "PASSWORD_SESSION_SECRET is required to create password-protected links": "A proteção por senha está indisponível. Configure PASSWORD_SESSION_SECRET nesta instalação.",
+    "PASSWORD_SESSION_SECRET is required to add password protection": "A proteção por senha está indisponível. Configure PASSWORD_SESSION_SECRET nesta instalação.",
+    "A/B testing requires migration 0004_ab_testing.sql to be applied": "O Teste A/B não está disponível nesta instalação. Aplique a migração 0004_ab_testing.sql para ativá-lo.",
+    "Smart Routing requires migration 0005_smart_routing.sql to be applied": "O Smart Routing não está disponível nesta instalação. Aplique a migração 0005_smart_routing.sql para ativá-lo.",
+    "Expired redirect requires migration 0006_expired_redirect.sql to be applied": "O destino após expiração não está disponível nesta instalação. Aplique a migração 0006_expired_redirect.sql para ativá-lo.",
+    "A/B testing requires a temporary redirect (302)": "O Teste A/B usa redirecionamento temporário. Selecione 302.",
+    "Smart Routing requires a temporary redirect (302)": "O Smart Routing usa redirecionamento temporário. Selecione 302.",
+    "A/B testing and Smart Routing are mutually exclusive": "Teste A/B e Smart Routing não podem ficar ativos juntos. Escolha apenas um.",
+    "Invalid abEnabled. Use true or false": "Não foi possível ler a opção do Teste A/B. Recarregue o painel.",
+    "Invalid abTargetUrl": "URL da variante B inválida. Informe uma URL HTTP ou HTTPS válida.",
+    "abTargetUrl is required when A/B testing is enabled": "Informe a URL da variante B para ativar o Teste A/B.",
+    "Invalid abWeightB. Use an integer between 1 and 99": "Distribuição do tráfego inválida. Escolha um percentual para a variante B entre 1 e 99.",
+    "Invalid expiredRedirectUrl": "Destino após expiração inválido. Informe uma URL HTTP ou HTTPS válida.",
+    "expiredRedirectUrl requires expiresAt": "Preencha a data de expiração para definir um destino após expirar.",
+    "Slug already exists": "Este slug já está em uso ou reservado. Escolha outro.",
+    "Slug is reserved": "Este slug é reservado. Escolha outro.",
+    "Slug must be 3-64 chars using only letters, numbers, underscore, or hyphen": "Use de 3 a 64 caracteres no slug: letras, números, sublinhados ou hífens.",
+    "Slug is immutable after creation": "O slug não pode ser alterado após a criação. Edite os demais campos.",
+    "Missing slug": "Informe o slug do link.",
+    "Link not found": "Link não encontrado. Recarregue a lista de links.",
+    "Reserved slug cannot be deleted": "Este slug é reservado e não pode ser excluído.",
+    "Reserved slug cannot reset clicks": "Não é possível zerar os cliques de um slug reservado.",
+    "Reserved slug cannot be updated": "Este slug é reservado e não pode ser editado.",
+    "Reserved slug cannot be marked with a QR code": "Não é possível registrar um QR Code para um slug reservado.",
+    "Reserved slug cannot generate a QR code": "Não é possível gerar um QR Code para um slug reservado.",
+    "QR code generation failed": "Não foi possível gerar o QR Code. Tente novamente.",
+    "Source link has incompatible routing configuration": "O link tem Teste A/B e Smart Routing incompatíveis. Corrija a configuração antes de duplicá-lo.",
+    "No updatable fields provided": "Nenhuma alteração foi enviada. Edite um campo antes de salvar.",
+    "Link was modified concurrently. Reload it and try again": "O link foi alterado em outra sessão. Recarregue-o e tente novamente.",
+  };
+  if (Object.prototype.hasOwnProperty.call(messages, text)) {
+    return messages[text];
+  }
+  if (text.startsWith("Invalid date format.")) {
+    return "Data ou hora inválida. Confira os campos de ativação e expiração e o fuso indicado no painel.";
+  }
+  return text.replace(/^(?:Failed to fetch|NetworkError when attempting to fetch resource\.?|Load failed)/,
+    "Não foi possível conectar ao servidor. Verifique a conexão e tente novamente.");
+}
+
 function setStatus(element, message, type = "") {
-  element.textContent = message || "";
+  element.textContent = type === "error" ? adminErrorCopy(message) : (message || "");
   element.className = type ? `status ${type}` : "status";
 }
 
@@ -476,7 +542,7 @@ function buildUtmUrl(baseUrl) {
 
 function refreshUtmPreview() {
   const url = buildUtmUrl(targetUrlInput.value.trim());
-  utmPreview.textContent = url ? `Preview UTM: ${url}` : "Preview UTM: -";
+  utmPreview.textContent = url ? `Prévia da URL com UTMs: ${url}` : "Prévia da URL com UTMs: —";
 }
 
 function refreshDomainWarning() {
@@ -515,10 +581,10 @@ function renderLinkPreview(preview) {
     }
   }
   const imageMarkup = isImageAllowed
-    ? `<img src="${escapeHtml(previewImageUrl)}" alt="Preview" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:10px;" />`
+    ? `<img src="${escapeHtml(previewImageUrl)}" alt="Prévia da página de destino" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:10px;" />`
     : "";
   const imageHint = previewImageUrl && !isImageAllowed
-    ? '<p style="margin:0 0 8px;font-size:.78rem;color:var(--muted);">Imagem de preview indisponível neste ambiente por política de segurança (CSP).</p>'
+    ? '<p style="margin:0 0 8px;font-size:.78rem;color:var(--muted);">A política de segurança desta instalação impede a exibição da imagem da prévia (CSP).</p>'
     : "";
 
   linkPreview.style.display = "block";
@@ -577,7 +643,7 @@ async function groupRequest(path, options = {}) {
     }
 
     if (!response.ok) {
-      return { ok: false, status: response.status, error: payload?.error || "Falha inesperada" };
+      return { ok: false, status: response.status, error: payload?.error || "Não foi possível concluir a operação. Tente novamente." };
     }
 
     return { ok: true, status: response.status, payload };
@@ -1045,7 +1111,7 @@ function refreshGroupSelects() {
 
 async function loadGroups() {
   if (!groupHierarchyUi) {
-    renderGroupTreeFailure("Módulo de hierarquia de grupos indisponível nesta página.");
+    renderGroupTreeFailure("Não foi possível carregar o painel de grupos. Recarregue a página.");
     return;
   }
 
@@ -1179,7 +1245,7 @@ function rasterizeQrSvg(svgText) {
         canvas.height = QR_PNG_SIZE;
         const context = canvas.getContext("2d");
         if (!context) {
-          throw new Error("Canvas 2D unavailable");
+          throw new Error("Não foi possível preparar a imagem do QR Code neste navegador.");
         }
         // The SVG already carries a white quiet zone; filling first keeps the PNG
         // scannable even if that background ever changes upstream.
@@ -1191,7 +1257,7 @@ function rasterizeQrSvg(svgText) {
           if (blob) {
             resolve({ blob, previewSrc });
           } else {
-            reject(new Error("PNG encoding failed"));
+            reject(new Error("Não foi possível gerar o arquivo PNG do QR Code."));
           }
         }, "image/png");
       } catch (error) {
@@ -1199,7 +1265,7 @@ function rasterizeQrSvg(svgText) {
       }
     };
     image.onerror = () => {
-      reject(new Error("QR image failed to load"));
+      reject(new Error("Não foi possível carregar a imagem do QR Code."));
     };
     image.src = svgDataUrl;
   });
@@ -1349,7 +1415,7 @@ async function openQrDialog(link) {
     state.qrSvgText = svgText;
     state.qrObjectUrl = URL.createObjectURL(png.blob);
     state.qrPreviewSrc = png.previewSrc;
-    qrImage.alt = `QR Code do short link ${buildShortLink(slug)}`;
+    qrImage.alt = `QR Code do link curto ${buildShortLink(slug)}`;
     qrImage.src = state.qrPreviewSrc;
     setQrDownloadsDisabled(false);
     setStatus(qrStatus, "");
@@ -1493,7 +1559,7 @@ async function downloadQrCode(format) {
     // announce a flag the API did not confirm.
     setStatus(
       qrStatus,
-      `QR Code ${formatLabel} baixado, mas não foi possível confirmar o estado "QR Ativo" de ${buildShortLink(slug)}.`,
+      `QR Code ${formatLabel} baixado, mas não foi possível confirmar o estado "QR Code baixado" de ${buildShortLink(slug)}.`,
       "error",
     );
   } finally {
@@ -1568,7 +1634,7 @@ async function exportConfiguration() {
 
     setStatus(exportStatus, `Exportação concluída: ${filename}`, "success");
   } catch (error) {
-    setStatus(exportStatus, error?.message || "Não foi possível exportar os dados.", "error");
+    setStatus(exportStatus, error?.message || "Não foi possível exportar a configuração. Tente novamente.", "error");
   } finally {
     setBusy(exportButton, false);
   }
@@ -2290,7 +2356,7 @@ function refreshSmartFallback() {
     return;
   }
   const value = targetUrlInput.value.trim();
-  smartRoutingFallback.textContent = value ? `Fallback: ${value}` : "Fallback: destino principal do link";
+  smartRoutingFallback.textContent = value ? `Se nenhuma regra corresponder: ${value}` : "Se nenhuma regra corresponder: destino principal do link";
 }
 
 function createSmartSelect(labelText, className, options, selectedValue) {
@@ -2619,7 +2685,7 @@ function beginEdit(link) {
   setSmartRoutingInvalidState(state.smartRouting ? link : null);
   setSmartRoutingConflict(
     state.smartRouting && link.ab_enabled === 1 && (loadedSmartRules.length > 0 || state.smartRoutingCorrupt)
-      ? "Estado persistido ambíguo: Split Test A/B e Smart Routing estão configurados. O redirect público usa o destino principal."
+      ? "Este link tem Teste A/B e Smart Routing configurados ao mesmo tempo. O redirecionamento usa o destino principal; escolha apenas um dos recursos para corrigir."
       : "",
   );
   setSmartRoutingError("");
@@ -2631,7 +2697,7 @@ function beginEdit(link) {
   submitButton.innerHTML = buttonMarkup("update", "Atualizar");
   cancelButton.innerHTML = buttonMarkup("cancel", "Cancelar");
   cancelButton.hidden = false;
-  setStatus(formStatus, "Slug travado após criação; altere apenas o destino.");
+  setStatus(formStatus, "O slug não pode ser alterado após a criação. Você pode editar os demais campos do link.");
   targetUrlInput.focus();
   refreshUtmPreview();
   refreshDomainWarning();
@@ -2652,7 +2718,7 @@ function renderAbMetrics(link) {
   }
 
   const metrics = [
-    `<span class="metric">Split A/B <strong>${display.title}</strong></span>`,
+    `<span class="metric">Teste A/B <strong>${display.title}</strong></span>`,
   ];
 
   if (display.showHistoricalLabel) {
@@ -2664,7 +2730,7 @@ function renderAbMetrics(link) {
   metrics.push(`<span class="metric">Distribuição observada <strong>${display.observed}</strong></span>`);
 
   if (display.allocation) {
-    metrics.push(`<span class="metric">Alocação <strong>${display.allocation}</strong></span>`);
+    metrics.push(`<span class="metric">Distribuição do tráfego <strong>${display.allocation}</strong></span>`);
   }
 
   if (display.nextTest) {
@@ -2681,7 +2747,7 @@ function renderSmartBadge(link) {
   }
   if (badge.corrupt) {
     return badge.conflict
-      ? '<span class="metric">Smart Routing <strong>configuração inválida preservada</strong> · Split Test A/B ativo</span>'
+      ? '<span class="metric">Smart Routing <strong>configuração inválida preservada</strong> · Teste A/B ativo</span>'
       : '<span class="metric">Smart Routing <strong>configuração inválida preservada</strong></span>';
   }
   if (badge.conflict) {
@@ -2754,7 +2820,7 @@ function renderLinks() {
             <div class="slug-info">
               <p class="slug">/${safeSlug}</p>
               <div class="slug-url">${safeTargetUrl}</div>
-              ${link.ab_enabled === 1 && link.ab_target_url ? `<div class="slug-url">Variant B: ${escapeHtml(link.ab_target_url)}</div>` : ""}
+              ${link.ab_enabled === 1 && link.ab_target_url ? `<div class="slug-url">Variante B: ${escapeHtml(link.ab_target_url)}</div>` : ""}
               ${link.group_name ? `<span class="group-badge">Grupo: ${escapeHtml(link.group_name)}</span>` : ""}
             </div>
             <div class="card-actions">
@@ -2764,11 +2830,11 @@ function renderLinks() {
           <div class="metrics">
             <span class="metric">Cliques <strong>${link.clicks_total}</strong></span>
             <span class="metric">Criado: <strong>${formatDate(link.created_at)}</strong></span>
-            <span class="metric">Redirect <strong>${link.redirect_type || "302"}</strong></span>
+            <span class="metric">Redirecionamento <strong>${link.redirect_type || "302"}</strong></span>
             ${link.expires_at ? `<span class="metric">Expira <strong>${formatDate(link.expires_at)}</strong></span>` : ""}
             ${link.go_live_at ? `<span class="metric">Ativa <strong>${formatDate(link.go_live_at)}</strong></span>` : ""}
-            ${link.has_qrcode ? '<span class="metric">QR <strong>Ativo</strong></span>' : ""}
-            ${link.has_password ? '<span class="metric">Senha <strong>Protegido</strong></span>' : ""}
+            ${link.has_qrcode ? '<span class="metric">QR Code <strong>Baixado</strong></span>' : ""}
+            ${link.has_password ? '<span class="metric">Senha <strong>Definida</strong></span>' : ""}
             ${renderAbMetrics(link)}
             ${renderSmartBadge(link)}
             ${parsedTags.length ? `<span class="metric">Tags <strong>${escapeHtml(parsedTags.join(", "))}</strong></span>` : ""}
@@ -3025,7 +3091,7 @@ function scheduleDelete(link) {
   }
   
   renderLinks();
-  setStatus(listStatus, `/${link.slug} será removido em 5 segundos. Use Desfazer para cancelar.`);
+  setStatus(listStatus, `/${link.slug} será excluído em 5 segundos. O slug não poderá ser reutilizado. Use Desfazer para cancelar.`);
 }
 
 function undoDelete(slug) {
@@ -3065,7 +3131,7 @@ async function commitDelete(slug) {
       resetForm();
     }
     await loadLinks(searchTermInput.value, searchGroupIdInput.value);
-    setStatus(listStatus, `/${slug} removido.`, "success");
+    setStatus(listStatus, `/${slug} excluído. O slug não pode ser reutilizado.`, "success");
   } catch (error) {
     setStatus(listStatus, error.message, "error");
     await loadLinks(searchTermInput.value, searchGroupIdInput.value);
@@ -3156,12 +3222,12 @@ linkForm.addEventListener("submit", async (event) => {
         return;
       }
 
-      setStatus(formStatus, feedback.formStatus || "Falha inesperada", "error");
+      setStatus(formStatus, feedback.formStatus || "Não foi possível concluir a operação. Tente novamente.", "error");
       return;
     }
 
     const successMessage = state.editingSlug
-      ? `Destino de /${state.editingSlug} atualizado.`
+      ? `Link /${state.editingSlug} atualizado.`
       : `Link /${result.payload.link.slug} criado com sucesso.`;
 
     resetForm();

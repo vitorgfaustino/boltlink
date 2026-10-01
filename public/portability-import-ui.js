@@ -26,7 +26,7 @@
   var FORMAT = "boltlink-portability";
   var SCHEMA_VERSION = 1;
 
-  var METRICS_WARNING = "Métricas não fazem parte desta exportação e começarão novamente.";
+  var METRICS_WARNING = "As métricas não são importadas. Os links criados começam com zero cliques.";
 
   /** Response states the panel has to tell apart. */
   var STATE_VALID = "valid";
@@ -434,13 +434,13 @@
     var source = summary && typeof summary === "object" ? summary : {};
     var groups = typeof source.groups === "number" ? source.groups : 0;
     var links = typeof source.links === "number" ? source.links : 0;
-    return "Serão criados " + groups + " grupo(s) e " + links + " link(s).";
+    return "Serão criados " + groups + (groups === 1 ? " grupo e " : " grupos e ") + links + (links === 1 ? " link." : " links.");
   }
 
   function successText(result) {
     var groups = result && typeof result.groupsCreated === "number" ? result.groupsCreated : 0;
     var links = result && typeof result.linksCreated === "number" ? result.linksCreated : 0;
-    return "Configuração importada com sucesso: " + groups + " grupo(s) e " + links + " link(s).";
+    return "Configuração importada com sucesso: " + groups + (groups === 1 ? " grupo e " : " grupos e ") + links + (links === 1 ? " link." : " links.");
   }
 
   /** Warnings travel as codes and are rendered from here, so no API text reaches the panel. */
@@ -473,20 +473,20 @@
     TOO_MANY_LINKS: "A exportação tem mais de " + MAX_LINKS + " links, o limite do formato.",
     TOO_LARGE: "O documento ultrapassa o limite de " + formatBytes(MAX_BYTES) + " do formato.",
     INVALID_GROUP_ENTRY: "Um grupo não tem os campos esperados.",
-    INVALID_GROUP_NAME: "Um nome de grupo não é válido nesta instalação.",
+    INVALID_GROUP_NAME: "Um nome de grupo não é válido. Use de 1 a 120 caracteres, sem espaços nas pontas.",
     INVALID_GROUP_REF: "Uma referência de grupo não é válida.",
     DUPLICATE_GROUP_REF: "A mesma referência de grupo aparece mais de uma vez.",
     DANGLING_PARENT_REF: "Um grupo aponta para um grupo pai que não existe no arquivo.",
-    GROUP_CYCLE: "A hierarquia de grupos do arquivo forma um ciclo.",
+    GROUP_CYCLE: "A hierarquia do arquivo tem um ciclo: um grupo aparece entre seus próprios subgrupos. Corrija os grupos na origem e exporte novamente.",
     INVALID_LINK_ENTRY: "Um link não tem os campos esperados.",
     DUPLICATE_LINK_SLUG: "O mesmo slug aparece mais de uma vez no arquivo.",
-    INVALID_SLUG: "Um slug não é válido nesta instalação.",
-    INVALID_TARGET_URL: "Uma URL de destino não é válida.",
+    INVALID_SLUG: "Um slug não é válido. Use de 3 a 64 letras, números, hífens ou sublinhados, sem nomes reservados.",
+    INVALID_TARGET_URL: "Uma URL de destino não é válida. Informe uma URL HTTP ou HTTPS válida.",
     INVALID_REDIRECT_TYPE: "Um tipo de redirecionamento não é válido.",
     INVALID_TAGS: "As tags de um link não estão no formato esperado.",
     DANGLING_GROUP_REF: "Um link aponta para um grupo que não existe no arquivo.",
     INVALID_LIFECYCLE: "Uma data de agendamento ou expiração não é válida.",
-    INVALID_EXPIRED_REDIRECT: "Um destino de expiração não é válido para o link.",
+    INVALID_EXPIRED_REDIRECT: "Um destino após expiração não é válido. Informe uma URL HTTP ou HTTPS válida e uma data de expiração.",
     INVALID_AB_CONFIG: "Uma configuração de Teste A/B não é válida.",
     INVALID_SMART_ROUTING: "Uma configuração de Smart Routing não é válida.",
     CONFLICTING_ROUTING_CONFIG: "Um link tem Teste A/B e Smart Routing ativos ao mesmo tempo.",
@@ -504,11 +504,11 @@
   /** The document is valid but this destination cannot take it as it is. */
   var BLOCKER_MESSAGES = {
     SLUG_COLLISION: "Não é possível importar porque alguns slugs já existem nesta instalação.",
-    GROUP_DEPTH_EXCEEDED: "Esta exportação tem uma árvore de grupos mais profunda do que o limite atual do BoltLink (16 níveis). Ela pode ter vindo de uma instalação mais antiga; nada foi importado.",
-    TARGET_CAPABILITY_MISSING: "Esta instalação ainda não tem as migrations necessárias para as funcionalidades usadas nesta exportação. Atualize as migrations e tente novamente.",
+    GROUP_DEPTH_EXCEEDED: "A hierarquia do arquivo ultrapassa o limite de 16 níveis. Ela pode ter vindo de uma instalação antiga; reduza os níveis na origem e exporte novamente. Nada foi importado.",
+    TARGET_CAPABILITY_MISSING: "Esta instalação não tem as migrações necessárias para os recursos usados no arquivo. Aplique as migrações e tente novamente.",
     DESTINATION_HIERARCHY_CORRUPT: "A hierarquia de grupos desta instalação está corrompida. O BoltLink não importa sobre uma árvore que não consegue ler.",
     TARGET_GROUP_REFERENCE_CORRUPT: "Esta instalação tem links apontando para grupos que não existem mais. O BoltLink não importa sobre uma árvore que não consegue resolver; corrija os links órfãos e tente novamente.",
-    PASSWORD_SESSION_SECRET_MISSING: "Esta instalação não tem PASSWORD_SESSION_SECRET configurado, então não é possível recriar links protegidos.",
+    PASSWORD_SESSION_SECRET_MISSING: "Esta instalação não tem PASSWORD_SESSION_SECRET configurado, então não é possível recriar links protegidos. Configure esse segredo antes de importar.",
   };
 
   function blockerMessages(payload) {
@@ -539,7 +539,7 @@
       return "Muitas operações em sequência. Aguarde alguns segundos e tente novamente.";
     }
     if (status === 503) {
-      return "O banco ainda não foi preparado com as migrations. Execute as migrations e tente novamente.";
+      return "O banco ainda não foi preparado. Aplique as migrações desta versão e tente novamente.";
     }
     if (status === 404) {
       return "A rota de importação não está disponível nesta instalação.";

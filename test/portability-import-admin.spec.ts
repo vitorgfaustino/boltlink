@@ -223,9 +223,9 @@ describe("Phase 5, Gate 5.3: import helpers are pure and bounded", () => {
 		expect(api.summaryLines({ groups: "<script>" }).map((line) => line.value)).toContain("0");
 		expect(api.summaryLines(undefined).length).toBe(6);
 
-		expect(api.planText({ groups: 7, links: 42 })).toBe("Serão criados 7 grupo(s) e 42 link(s).");
+		expect(api.planText({ groups: 7, links: 42 })).toBe("Serão criados 7 grupos e 42 links.");
 		// The success copy is the sentence the gate asks for, followed by what was created.
-		expect(api.successText({ groupsCreated: 7, linksCreated: 42 })).toBe("Configuração importada com sucesso: 7 grupo(s) e 42 link(s).");
+		expect(api.successText({ groupsCreated: 7, linksCreated: 42 })).toBe("Configuração importada com sucesso: 7 grupos e 42 links.");
 		expect(api.successText(undefined)).toContain("Configuração importada com sucesso");
 	});
 
@@ -233,7 +233,7 @@ describe("Phase 5, Gate 5.3: import helpers are pure and bounded", () => {
 		const api = loadImportApi();
 
 		expect(api.warningMessages({ warnings: ["METRICS_NOT_EXPORTED"] })).toEqual([
-			"Métricas não fazem parte desta exportação e começarão novamente.",
+			"As métricas não são importadas. Os links criados começam com zero cliques.",
 		]);
 		expect(api.warningMessages({ warnings: ["DESCONHECIDO"] })).toEqual([]);
 		expect(api.warningMessages({})).toEqual([]);
@@ -304,9 +304,9 @@ describe("Phase 5, Gate 5.3: import copy and error mapping", () => {
 		// The collision message is the exact sentence the gate asks for.
 		expect(messages[0]).toBe("Não é possível importar porque alguns slugs já existem nesta instalação.");
 		// The legacy-depth limit is explained as a portability limit, not as a corrupt file.
-		expect(messages[1]).toMatch(/mais profunda/);
+		expect(messages[1]).toMatch(/16 níveis/);
 		expect(messages[1]).toMatch(/nada foi importado/i);
-		expect(messages[2]).toMatch(/migrations/);
+		expect(messages[2]).toMatch(/migrações/);
 		// A destination holding a link whose group is gone is explained as something to fix
 		// in the installation, never as a broken file.
 		expect(messages[4]).toMatch(/não existem mais/);
@@ -324,7 +324,7 @@ describe("Phase 5, Gate 5.3: import copy and error mapping", () => {
 		expect(api.previewErrorMessage(401)).toMatch(/Sessão administrativa/);
 		expect(api.previewErrorMessage(403)).toMatch(/Sessão administrativa/);
 		expect(api.previewErrorMessage(429)).toMatch(/Muitas operações/);
-		expect(api.previewErrorMessage(503)).toMatch(/migrations/);
+		expect(api.previewErrorMessage(503)).toMatch(/migrações/);
 		expect(api.previewErrorMessage(404)).toMatch(/não está disponível/);
 		expect(api.previewErrorMessage(413, "TOO_LARGE")).toMatch(/256 KiB/);
 		expect(api.previewErrorMessage(400, "UNSUPPORTED_FORMAT")).toMatch(/não é uma exportação/);
@@ -332,7 +332,7 @@ describe("Phase 5, Gate 5.3: import copy and error mapping", () => {
 
 		expect(api.applyErrorMessage(409, "SLUG_COLLISION")).toMatch(/já existem/);
 		expect(api.applyErrorMessage(500)).toMatch(/Nenhuma alteração foi aplicada/);
-		expect(api.applyErrorMessage(503)).toMatch(/migrations/);
+		expect(api.applyErrorMessage(503)).toMatch(/migrações/);
 	});
 
 	it("mentions neither Backup nor Restaurar for this phase", () => {

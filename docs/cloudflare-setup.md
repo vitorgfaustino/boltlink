@@ -19,7 +19,7 @@ Este guia cobre as três formas de operar o BoltLink na release atual **`3.0.0`*
 
 | Base | Migrations | Recursos extras |
 | --- | --- | --- |
-| **Release atual publicada** (`3.0.0`, tag `v3.0.0`, commit `60c8575`) | `0000` a `0006` | Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + portabilidade de configuração (exportação e importação) + QR Code com preview e download PNG/SVG no painel |
+| **Release atual publicada** (`3.0.0`, tag `v3.0.0`) | `0000` a `0006` | Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + portabilidade de configuração (exportação e importação) + QR Code com preview e download PNG/SVG no painel |
 | Release anterior (tag `v2.2.1`, `8b3895e`) | `0000` a `0003` | — |
 | Fase 2 (checkpoint histórico, `23353a1`) | `0000` a `0004` | Split Test A/B |
 | Fase 3 (checkpoint congelado, `548f179`) | `0000` a `0005` | Fase 2 + Smart Routing |

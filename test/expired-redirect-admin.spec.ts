@@ -452,7 +452,7 @@ describe("Phase 4: expired destination admin wiring (Gate 4.3)", () => {
 
 		expect(section).toContain("<fieldset");
 		expect(section).toMatch(/<legend>[^<]*Após expirar/);
-		expect(section).toMatch(/Após expirar[\s\S]*Resposta padrão \(410\)/);
+		expect(section).toMatch(/Após expirar[\s\S]*Parar de redirecionar \(HTTP 410\)/);
 		expect(section).toMatch(/Redirecionar para URL/);
 		expect(section).toMatch(/Destino após expiração/);
 		// The browser hint is not the gate, but the field is a real URL input.

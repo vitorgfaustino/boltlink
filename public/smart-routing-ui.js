@@ -32,7 +32,7 @@
     { value: "", label: "Qualquer dispositivo" },
     { value: "ios", label: "iOS" },
     { value: "android", label: "Android" },
-    { value: "desktop", label: "Desktop" },
+    { value: "desktop", label: "Computador" },
     { value: "other", label: "Outro" },
   ];
 
@@ -40,10 +40,10 @@
     EMPTY_RULES: "Adicione pelo menos uma regra antes de salvar.",
     TOO_MANY_RULES: "O limite é de 20 regras por link.",
     UNKNOWN_KEY: "A regra contém um campo não suportado.",
-    MISSING_MATCHER: "Cada regra precisa de país ou dispositivo. Use o destino principal como fallback.",
+    MISSING_MATCHER: "Cada regra precisa de país ou dispositivo. Se nenhuma regra corresponder, o link usa o destino principal.",
     INVALID_COUNTRY: "País inválido. Selecione um país da lista.",
     INVALID_DEVICE: "Dispositivo inválido. Selecione uma opção da lista.",
-    INVALID_URL: "Informe um destino http ou https válido.",
+    INVALID_URL: "Informe uma URL de destino HTTP ou HTTPS válida.",
     URL_TOO_LONG: "O destino da regra excede o tamanho máximo permitido.",
     DUPLICATE_MATCHER: "Já existe uma regra com o mesmo país e dispositivo.",
     SHADOWED_RULE: "Uma regra anterior já cobre completamente esta regra.",
@@ -69,12 +69,24 @@
   }
 
   function countryOptions(locale) {
-    var options = [{ value: "", label: "Qualquer país" }];
+    var options = [];
     for (var index = 0; index < ISO_COUNTRIES.length; index += 1) {
       var code = ISO_COUNTRIES[index];
       options.push({ value: code, label: countryLabel(code, locale) });
     }
-    return options;
+    var collator = null;
+    if (typeof Intl !== "undefined" && Intl && typeof Intl.Collator === "function") {
+      try {
+        collator = new Intl.Collator(locale || "pt-BR", { usage: "sort", sensitivity: "base" });
+      } catch (error) {
+        collator = new Intl.Collator("pt-BR", { usage: "sort", sensitivity: "base" });
+      }
+    }
+    options.sort(function (a, b) {
+      var byLabel = collator ? collator.compare(a.label, b.label) : (a.label < b.label ? -1 : a.label > b.label ? 1 : 0);
+      return byLabel || (a.value < b.value ? -1 : a.value > b.value ? 1 : 0);
+    });
+    return [{ value: "", label: "Qualquer país" }].concat(options);
   }
 
   function deviceOptions() {
@@ -195,7 +207,7 @@
   }
 
   var INVALID_STATE_NOTICE =
-    "Configuração Smart Routing inválida ou corrompida: o valor persistido foi preservado e o redirect público continua usando o destino principal. Salve regras válidas para reparar, ou use Limpar configuração inválida para descartá-la. Nenhum outro salvamento altera esse valor.";
+    'A configuração do Smart Routing está inválida e foi preservada. O link usa o destino principal. Salve regras válidas para corrigir ou use "Limpar configuração inválida" para descartá-la. Editar os demais campos não altera essa configuração.';
 
   /**
    * Fixed copy for the preserved-corrupt notice. It interpolates no persisted
@@ -218,10 +230,10 @@
     if (abEnabled && smartEnabled) {
       if (changed === "smart") {
         abEnabled = false;
-        notice = "Split Test A/B foi desativado para evitar conflito com Smart Routing.";
+        notice = "Teste A/B foi desativado para evitar conflito com Smart Routing.";
       } else {
         smartEnabled = false;
-        notice = "Smart Routing foi desativado para evitar conflito com o Split Test A/B.";
+        notice = "Smart Routing foi desativado para evitar conflito com o Teste A/B.";
       }
     }
 
@@ -442,7 +454,7 @@
     }
 
     if (result.code === "MODE_CONFLICT") {
-      outcome.smartError = "Split Test A/B e Smart Routing não podem ficar ativos juntos.";
+      outcome.smartError = "Teste A/B e Smart Routing não podem ficar ativos juntos.";
       return outcome;
     }
 
@@ -457,7 +469,7 @@
       return outcome;
     }
 
-    outcome.formStatus = result.error || "Falha inesperada";
+    outcome.formStatus = result.error || "Não foi possível salvar o link. Tente novamente.";
     return outcome;
   }
 
@@ -491,7 +503,7 @@
         ok: false,
         code: "HTTP_ERROR",
         status: response.status,
-        error: responsePayload && responsePayload.error ? responsePayload.error : "Falha inesperada",
+        error: responsePayload && responsePayload.error ? responsePayload.error : "Não foi possível salvar o link. Tente novamente.",
         requestCount: 1,
       };
     }

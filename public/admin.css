@@ -648,6 +648,15 @@ button {
   cursor: pointer;
 }
 
+/* The author display rules (buttons are inline-flex, panels are grid/flex) would
+   win over the UA stylesheet, so `hidden` alone would keep the control in the layout.
+   Global and `!important`, this restores the attribute contract everywhere in the
+   Admin: no layout box, no tab stop, no accessibility exposure. The scoped
+   `.import-drawer`/`.group-drawer`/`.qr-dialog` rules below stay as defense in depth. */
+[hidden] {
+  display: none !important;
+}
+
 button:hover:not(:disabled) {
   transform: translateY(-1px);
 }

@@ -112,7 +112,7 @@ describe("Phase 5, Gate 5.2: export error mapping", () => {
 		expect(api.exportErrorMessage(401, "Authentication required")).toMatch(/Sessão administrativa/);
 		expect(api.exportErrorMessage(403, "")).toMatch(/Sessão administrativa/);
 		expect(api.exportErrorMessage(429, "Rate limit exceeded")).toMatch(/Muitas exportações/);
-		expect(api.exportErrorMessage(503, "Database schema is not initialized")).toMatch(/migrations/);
+		expect(api.exportErrorMessage(503, "Database schema is not initialized")).toMatch(/migrações/);
 		expect(api.exportErrorMessage(404, "Not found")).toMatch(/não está disponível/);
 	});
 
@@ -138,7 +138,7 @@ describe("Phase 5, Gate 5.2: export error mapping", () => {
 		const api = loadPortabilityApi();
 		const mapped = api.exportErrorMessage(409, 'Portability export refused: invalid slug: link "admin"');
 
-		expect(mapped).toMatch(/estado persistido não é válido/);
+		expect(mapped).toMatch(/configuração salva.*BoltLink não aceita/);
 		expect(mapped).toMatch(/Nada foi alterado no banco/);
 		// The refused row is named by the API response, not republished by the panel.
 		expect(mapped).not.toContain("admin");

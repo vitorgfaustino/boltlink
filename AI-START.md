@@ -1,6 +1,6 @@
 # AI-START
 
-Este arquivo é a entrada única para qualquer IA operar o BoltLink (versão **3.0.0**, release publicada atual — tag `v3.0.0`, commit `60c8575`; a release anterior imediata é `v2.2.1`, que também é o baseline histórico do upgrade das features) com segurança.
+Este arquivo é a entrada única para qualquer IA operar o BoltLink (versão **3.0.0**, release publicada atual — tag `v3.0.0`, branch `main`; a release anterior imediata é `v2.2.1`, que também é o baseline histórico do upgrade das features) com segurança.
 
 O objetivo dele é permitir que a IA:
 
@@ -24,11 +24,11 @@ Leia nesta ordem antes de agir:
 
 ## Bases de código (não confundir)
 
-A release atual é a **`3.0.0`**, publicada como tag `v3.0.0` sobre `60c8575`. Ela contém as migrations `0004` a `0006` e todos os recursos das Fases 2–5. As Fases 2–5 são **origem histórica** do que ela publica, não estados ativos de desenvolvimento:
+A release atual publicada é a **`3.0.0`**, identificada pela tag `v3.0.0` na branch `main`. A tag publicada e `main` devem convergir para o mesmo release commit; essa igualdade é um invariante operacional verificado externamente por Git/GitHub API nos gates de publicação e auditoria pós-publicação, sem exigir um SHA corrente literal neste documento. Ela contém as migrations `0004` a `0006` e todos os recursos das Fases 2–5. As Fases 2–5 são **origem histórica** do que ela publica, não estados ativos de desenvolvimento:
 
 | Base | Como identificar | Migrations | Recursos extras |
 | --- | --- | --- | --- |
-| **Release atual publicada** (`3.0.0`) | tag `v3.0.0` (`git rev-parse v3.0.0` → `60c8575`), HEAD de `main` | `0000` a `0006` | todos abaixo: Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
+| **Release atual publicada** (`3.0.0`) | tag `v3.0.0`, branch `main` (convergência verificada no gate de publicação/pós-publicação) | `0000` a `0006` | todos abaixo: Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
 | **Release anterior** (`v2.2.1`) | tag real: `git rev-parse v2.2.1` → `8b3895e` | `0000` a `0003` | — |
 | Fase 2 (checkpoint histórico) | baseline local `23353a1` | `0000` a `0004` | Split Test A/B |
 | Fase 3 (checkpoint congelado) | HEAD `548f179` | `0000` a `0005` | Fase 2 + Smart Routing |
@@ -37,7 +37,7 @@ A release atual é a **`3.0.0`**, publicada como tag `v3.0.0` sobre `60c8575`. E
 
 Não chame a `v2.2.1` de release atual: ela é a **release anterior imediata** e o **baseline histórico do upgrade** (conceitos distintos que hoje coincidem). A `v2.2.1` não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a integridade de hierarquia de grupos nem a exportação portátil da Fase 5 (a tag tem a tabela `link_groups` desde a `0002`, mas sem validação de ciclo, profundidade, delete ou concorrência, e não existe `GET /api/export`).
 
-Release atual publicada (`3.0.0`, commit `60c8575`):
+Release atual publicada (`3.0.0`, tag `v3.0.0`):
 
 - redirect público por slug
 - painel administrativo estático
@@ -61,10 +61,10 @@ Release atual publicada (`3.0.0`, commit `60c8575`):
 - Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Essa linha evoluiu para a release `3.0.0` (o `package.json` está em `3.0.0`).
 - Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
 - Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fechou o finding BL-54-04 e reconciliou a documentação, sem feature nova, sem migration, sem bump de versão, sem tag e sem deploy.
-- **Phase 6 — Release Readiness: COMPLETE**, terminando em **Gate 6.6 (publicação): PASSED** — tag `v3.0.0` criada sobre `60c8575`, push de `main` e da tag e GitHub Release concluídos. A `v3.0.0` **já possui tag e GitHub Release**; Cloudflare/D1 continuam per-installation.
-- **Phase 7 — Current-State Reconciliation (em andamento)**: Gate 7.2 corrige o finding **BL-66-01** (P2, release-state documentation drift): reconciliação documental somente (sem bump, sem migration, sem mudança funcional, sem nova tag).
+- **Phase 6 — Release Readiness: COMPLETE**, terminando em **Gate 6.6 (publicação): PASSED** — na publicação inicial, a tag `v3.0.0` foi criada sobre `60c8575`, com push de `main` e da tag e GitHub Release concluídos. A `v3.0.0` **já possui tag e GitHub Release**; Cloudflare/D1 continuam per-installation.
+- **Phase 7 — Current-State Reconciliation (Gate 7.8 em andamento)**: Gate 7.2 concluído (BL-66-01); Gate 7.3 rejeitado; Gate 7.4 concluído (correções BL-73-01..04); Gate 7.5 aprovado; Gate 7.6 produziu o commit de correção; Gate 7.7 concluiu a republicação controlada da mesma `v3.0.0`. Gate 7.8 reconcilia a identificação corrente sem SHA literal (BL-77-01), sem bump, migration ou mudança funcional.
 - **Modelo de distribuição da release do repositório**: source commit + tag `v3.0.0` + push + GitHub Release. Não existe Worker, D1, hostname, Cloudflare Account, deploy ou migration remota oficiais: cada instalação é self-hosted e executa o próprio backup, as próprias migrations e o próprio deploy. Cloudflare login **não** é requisito para publicar o repositório.
-- Ao retomar o trabalho, o estado é: **release `3.0.0` publicada** (tag `v3.0.0` sobre `60c8575`), Phase 6 completa, Phase 7 em andamento no Gate 7.2 (patch de documentação BL-66-01). Publicar a tag não significa que instalações foram atualizadas — deploy e migrations são por instalação.
+- Ao retomar o trabalho, o estado é: **release `3.0.0` publicada** (tag `v3.0.0`, branch `main`), Phase 6 completa, republicação controlada concluída no Gate 7.7 e Phase 7 no Gate 7.8 (reconciliação BL-77-01). Publicar a tag não significa que instalações foram atualizadas — deploy e migrations são por instalação.
 - A dívida técnica `TS7016` do módulo `qrcode` foi **aceita para a 3.0.0** como **não bloqueante**.
 
 O produto não mantém:

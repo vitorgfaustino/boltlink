@@ -24,10 +24,10 @@
   var ERROR_MESSAGES = {
     CORRUPT: "A hierarquia de grupos está inconsistente. Nenhuma alteração foi feita.",
     PARENT_CHANGED: "O grupo foi movido em outra sessão. A árvore foi recarregada; confira e tente novamente.",
-    OWN_SUBTREE: "Um grupo não pode ser movido para dentro dele mesmo.",
-    DEPTH: "Limite de profundidade de " + MAX_DEPTH + " níveis atingido. Escolha um grupo pai menos profundo.",
+    OWN_SUBTREE: "Um grupo não pode ser seu próprio pai nem ser movido para um de seus subgrupos.",
+    DEPTH: "Limite de hierarquia de " + MAX_DEPTH + " níveis atingido. Escolha um grupo pai menos profundo.",
     HAS_CHILDREN: "Este grupo tem subgrupos. Mova ou exclua os subgrupos primeiro.",
-    HAS_LINKS: "Este grupo ainda tem links (inclusive desabilitados). Mova ou exclua os links primeiro.",
+    HAS_LINKS: "Este grupo ainda tem links (inclusive desativados). Mova os links para outro grupo antes de excluir este grupo.",
     PARENT_MISSING: "O grupo pai informado não existe mais. Recarregue a árvore.",
     NOT_FOUND: "Grupo não encontrado. Recarregue a árvore.",
   };

@@ -534,7 +534,7 @@ describe("Phase 3: Smart Routing admin error UX", () => {
 		for (const [code, expected] of [
 			["DUPLICATE_MATCHER", "Já existe uma regra com o mesmo país e dispositivo."],
 			["SHADOWED_RULE", "Uma regra anterior já cobre completamente esta regra."],
-			["INVALID_URL", "Informe um destino http ou https válido."],
+			["INVALID_URL", "Informe uma URL de destino HTTP ou HTTPS válida."],
 			["RULES_TOO_LARGE", "O conjunto de regras excede o tamanho máximo permitido."],
 		] as Array<[string, string]>) {
 			const message = api.smartErrorMessage(`Invalid smartRoutingRules (${code})`);
@@ -2707,7 +2707,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
  * BL-66-01 (Gate 7.2): before the v3.0.0 publication the documentation framed
  * every shipped feature as "Unreleased / Fase N" and described the release as
  * pending ("NOT TAGGED / NOT PUSHED", "Next: GitHub publication"). Gate 6.6
- * published the release (tag `v3.0.0` on `60c8575`, push and GitHub Release),
+ * initially published the release (tag `v3.0.0` on `60c8575`, push and GitHub Release),
  * which turned those framings into stale current-state claims. The guards below
  * keep the reconciled state checkable: a manifest of current-scope docs that
  * must name the current release, a stale-marker scan with a structural
@@ -2725,7 +2725,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
  */
 describe("Gate 7.2: current-state release documentation guard (BL-66-01)", () => {
 	const CURRENT_RELEASE = "3.0.0";
-	const CURRENT_RELEASE_COMMIT = "60c8575";
+	const CURRENT_TAG = "v3.0.0";
 
 	/**
 	 * Append-only histories keep their pre-publication wording on purpose: the
@@ -2938,6 +2938,56 @@ describe("Gate 7.2: current-state release documentation guard (BL-66-01)", () =>
 		return featureFramingViolationsIn(file, readDoc(file));
 	}
 
+	/**
+	 * BL-77-01: a versioned document cannot stably name its own release commit:
+	 * committing a SHA correction changes that SHA again. Identity is version,
+	 * tag and published state. main SHA == tag v3.0.0 SHA is an external
+	 * publication invariant, checked through Git/GitHub API in the publication
+	 * gate and post-publication audit, never through versioned text.
+	 *
+	 * Scan claim-sized fragments, including soft wraps and current headings.
+	 * BL-79-01: the historical exception is clause-local, never fragment-wide. A
+	 * fragment can hold several independent claims, so it is split before
+	 * classification — a history marker in one claim cannot sanitize the next.
+	 */
+	const CLAIM_SEPARATOR_PATTERN =
+		/\s*[,;]?\s*\b(?:mas|por[ée]m|contudo|entretanto|todavia|but|however|while)\b\s*|\s*;\s*/i;
+
+	function currentReleaseShaViolationsIn(file: string, markdown: string): string[] {
+		// Current-state scope: the release/tag a reader is in now, plus the
+		// markers that flip an otherwise historical sentence to the present
+		// ("hoje", "now"). A marker alone is not a violation; it only scopes a
+		// claim that also names a SHA as current-state.
+		const currentState =
+			/release\s+(?:atual|publicada(?:\s+atual)?)|current\s+(?:published\s+)?(?:release|tag)|tag\s+atual|\bhoje\b|\batualmente\b|\bagora\b|\btoday\b|\bcurrently\b|\bnow\b/i;
+		// A claim that points at the current tag/branch, in PT or EN.
+		const releaseTarget = /tag\s+v3\.0\.0|v3\.0\.0\s+tag|publicada\s+sobre|published\s+(?:on|at)|\bmain\b/i;
+		const historicalEvent =
+			/publica[çc][ãa]o\s+inicial|initial\s+publication|\binicialmente\b|\binitially\b|gate\s+hist[óo]rico\s+usou|gate\s+\d+(?:\.\d+)+[a-z]?\s+(?:finalizou|produziu|usou)|na\s+[ée]poca|historicamente|historical\s+gate|^Os checkpoints hist[óo]ricos de desenvolvimento aplicavam cadeias mais curtas/i;
+		// A historical checkpoint list only excuses inherited heading context,
+		// never an explicit tag/main target in that same claim.
+		const historicalCheckpoint = /^Os checkpoints hist[óo]ricos de desenvolvimento/i;
+		const violations: string[] = [];
+		for (const section of parseMarkdownSections(markdown)) {
+			const currentHeading = [section.title, ...section.ancestors.map((ancestor) => ancestor.title)]
+				.some((title) => currentState.test(title.replace(/[`*]/g, "")));
+			for (const fragment of framingFragments(section.text)) {
+				for (const clause of fragment.split(CLAIM_SEPARATOR_PATTERN)) {
+					const claim = clause.replace(/[`*]/g, "");
+					if (!/\b[0-9a-f]{7,40}\b/i.test(claim)) {
+						continue;
+					}
+					const historical = historicalEvent.test(claim);
+					if (currentState.test(claim) || (releaseTarget.test(claim) && (!historical || historicalCheckpoint.test(claim))) ||
+						(currentHeading && !historical)) {
+						violations.push(`${file} > ${section.heading}: current release SHA literal: ${clause.trim()}`);
+					}
+				}
+			}
+		}
+		return violations;
+	}
+
 	it("manifests every current-scope documentation file and names the current release", () => {
 		// The manifest is structural: root docs plus docs/, minus the append-only
 		// histories, and it must keep covering the BL-66-01 surfaces.
@@ -2976,11 +3026,104 @@ describe("Gate 7.2: current-state release documentation guard (BL-66-01)", () =>
 	it("keeps AGENTS.md and AI-START.md on the published post-Gate-6.6 state", () => {
 		for (const file of ["AGENTS.md", "AI-START.md"]) {
 			const text = readDoc(file);
-			expect(text, `${file} must record the published commit`).toMatch(new RegExp(CURRENT_RELEASE_COMMIT));
+			const identity = framingFragments(text).map((fragment) => fragment.replace(/[`*]/g, ""))
+				.find((fragment) => /release\s+atual\s+publicada/i.test(fragment) && fragment.includes(CURRENT_RELEASE) && fragment.includes(CURRENT_TAG));
+			expect(identity, `${file} must identify the current published release and tag`).toBeDefined();
+				expect(identity, `${file} must identify the current branch`).toMatch(/branch\s+main/i);
+				expect(text, `${file} must describe tag/main equality as externally verified`).toMatch(/tag publicada e `main` devem convergir[^.]+verificado externamente por Git\/GitHub API/);
 			expect(text, `${file} must record Gate 6.6 as passed`).toMatch(/Gate\s+6\.6[^.\n]*PASSED/);
 			expect(text, `${file} must record Phase 6 as complete`).toMatch(/Phase 6[^.\n]*COMPLETE/);
 			expect(text, `${file} must not describe the release as pending`).not.toMatch(/NOT\s+TAGGED|NOT\s+PUSHED|Next:\s*GitHub\s+publication/);
 		}
+	});
+
+	it("keeps current release SHA literals out of current-scope documentation (BL-77-01)", () => {
+		const violations = CURRENT_RELEASE_DOC_MANIFEST.flatMap((file) => currentReleaseShaViolationsIn(file, readDoc(file)));
+		expect(violations, violations.join("\n")).toEqual([]);
+	});
+
+	it.each([
+		"Release atual publicada:\nv3.0.0, commit 3d98f13.",
+		"Release atual v3.0.0, commit deadbee",
+		"tag v3.0.0 -> 3d98f13",
+		"tag `v3.0.0` → `60c8575`",
+		"Release publicada sobre abc1234.",
+		"## Release atual publicada\nCommit: abc1234",
+		"## Release atual publicada\n### Target\nCommit: 0123456789abcdef0123456789abcdef01234567",
+		"Gate histórico usou commit deadbee; Release atual v3.0.0, commit abc1234.",
+		"## Estado atual (contexto histórico)\ntag v3.0.0 -> abc1234",
+		"Na publicação inicial, Gate 6.6 usou o commit deadbee. tag v3.0.0 -> abc1234",
+		"Os checkpoints históricos de desenvolvimento aplicavam cadeias mais curtas, tag v3.0.0 -> abc1234",
+		"A release publicada está no commit deadbee.",
+		"Current release commit: deadbee.",
+		// BL-79-01: the historical exception is clause-local, so a valid
+		// historical claim never sanitizes a current claim in the same fragment.
+		"A publicação inicial usou commit cafe123,\nmas hoje tag v3.0.0 -> deadbee.",
+		"Gate 6.6 publicou inicialmente no commit cafe123,\nporém a release atual v3.0.0 está no commit deadbee.",
+		"A publicação inicial usou commit cafe123;\ntag v3.0.0 -> deadbee.",
+		"The initial publication used commit cafe123,\nbut the current v3.0.0 tag points to deadbee.",
+		"Hoje tag v3.0.0 -> deadbee,\nmas a publicação inicial usou commit cafe123.",
+	])("rejects a current release SHA claim: %s (BL-77-01)", (fixture) => {
+		expect(currentReleaseShaViolationsIn("AGENTS.md", fixture)).not.toEqual([]);
+	});
+
+	it.each([
+		"Na publicação inicial, Gate 6.6 usou o commit 60c8575.",
+		"Gate 6.5B finalizou metadata no commit 60c8575.",
+		"Gate histórico usou commit deadbee",
+		"Na publicação inicial, a tag v3.0.0 foi criada sobre 60c8575.",
+		"## Release atual publicada\nNa publicação inicial, Gate 6.6 usou o commit 60c8575.",
+		"Release atual publicada: 3.0.0, tag v3.0.0, branch main. Gate histórico usou commit deadbee.",
+		"## Fluxo rápido (release atual v3.0.0)\nOs checkpoints históricos de desenvolvimento aplicavam cadeias mais curtas: a Fase 2 (23353a1) parava na 0004.",
+		// BL-79-01: a pure historical claim stays legal, and a current claim
+		// without a SHA names no commit, so it is out of this scanner's scope.
+		"A publicação inicial usou commit cafe123.",
+		"Gate 6.5B produziu o commit cafe123.",
+		"Na publicação inicial,\na tag foi criada no commit cafe123.",
+		"A release atual é v3.0.0.",
+		"A tag atual é v3.0.0.",
+		"A release está publicada.",
+		"main e v3.0.0 devem convergir,\nverificados externamente.",
+	])("accepts an explicit historical SHA claim: %s (BL-77-01)", (fixture) => {
+		expect(currentReleaseShaViolationsIn("AI-START.md", fixture)).toEqual([]);
+	});
+
+	it("isolates the historical exception to the clause that carries it (BL-79-01)", () => {
+		const mixed = currentReleaseShaViolationsIn(
+			"AGENTS.md",
+			"A publicação inicial usou commit cafe123,\nmas hoje tag v3.0.0 -> deadbee.",
+		);
+		expect(mixed).toHaveLength(1);
+		// The violation is the current clause, not the historical one.
+		expect(mixed[0]).toContain("tag v3.0.0 -> deadbee");
+		expect(mixed[0]).not.toContain("publicação inicial");
+	});
+
+	it("does not let an allowlisted historical section mask an explicit current clause (BL-79-01)", () => {
+		const fixture = [
+			"# Doc",
+			"## Procedimento histórico: v2.2.1",
+			"Na época a tag apontava para cafe123,",
+			"mas hoje a tag v3.0.0 aponta para deadbee.",
+		].join("\n");
+
+		const violations = currentReleaseShaViolationsIn("docs/upgrading.md", fixture);
+
+		expect(violations).toHaveLength(1);
+		expect(violations[0]).toContain("hoje a tag v3.0.0 aponta para deadbee");
+	});
+
+	it("does not let a 'contexto histórico' heading release a current clause (BL-79-01 / BL-73-02)", () => {
+		const fixture = [
+			"# Doc",
+			"## Estado atual (contexto histórico)",
+			"A publicação inicial usou commit cafe123,",
+			"mas hoje tag v3.0.0 -> deadbee.",
+		].join("\n");
+
+		const violations = currentReleaseShaViolationsIn("AGENTS.md", fixture);
+
+		expect(violations.some((entry) => entry.includes("tag v3.0.0 -> deadbee"))).toBe(true);
 	});
 
 	/**
@@ -3556,5 +3699,378 @@ describe("Phase 3: Smart Routing admin safety", () => {
 		]) {
 			expect(ids).toContain(expected);
 		}
+	});
+});
+
+describe("Gate 7.12: localized country ordering", () => {
+	function countryApi(intl: unknown = Intl): SmartRoutingApi {
+		const sandbox = { window: {} as { BoltLinkSmartRouting: SmartRoutingApi }, URL, Intl: intl };
+		vm.runInNewContext(readPublic("smart-routing-ui.js"), sandbox);
+		return sandbox.window.BoltLinkSmartRouting;
+	}
+
+	function expectOrdered(options: Array<{ value: string; label: string }>, locale = "pt-BR") {
+		const compare = new Intl.Collator(locale, { usage: "sort", sensitivity: "base" }).compare;
+		for (let index = 1; index < options.length; index += 1) {
+			const previous = options[index - 1];
+			const current = options[index];
+			expect(compare(previous.label, current.label), `${previous.label} <= ${current.label}`).toBeLessThanOrEqual(0);
+			if (compare(previous.label, current.label) === 0) {
+				expect(previous.value < current.value).toBe(true);
+			}
+		}
+	}
+
+	it.each([undefined, "pt-BR", "en-US"])("sorts displayed labels in locale %s without changing any ISO value", (locale) => {
+		const api = countryApi();
+		const options = api.countryOptions(locale);
+		expect(options[0]).toEqual({ value: "", label: "Qualquer país" });
+		expect(options.filter((option) => option.value === "")).toHaveLength(1);
+		const countries = options.slice(1);
+		expect(countries).toHaveLength(249);
+		expect(new Set(countries.map((option) => option.value)).size).toBe(249);
+		expect(countries.map((option) => option.value).sort()).toEqual([...api.ISO_COUNTRIES].sort());
+		// Independent authority: the backend's unchanged country set.
+		const backend = readFileSync(resolve(process.cwd(), "src/smart-routing.ts"), "utf8");
+		const list = backend.slice(backend.indexOf("export const ISO_3166_ALPHA2_COUNTRIES"), backend.indexOf("export function", backend.indexOf("export const ISO_3166_ALPHA2_COUNTRIES")));
+		const backendCodes = [...list.matchAll(/"([A-Z]{2}(?: [A-Z]{2})* ?)"/g)].flatMap((match) => match[1].trim().split(" "));
+		expect(countries.map((option) => option.value).sort()).toEqual(backendCodes.sort());
+		expect(countries.find((option) => option.value === "BR")?.label).toBe(api.countryLabel("BR", locale));
+		for (const option of countries) {
+			expect(option.label).toBe(api.countryLabel(option.value, locale));
+			expect(api.toPayloadRule({ country: option.value, url: "https://example.com/" }).country).toBe(option.value);
+		}
+		expectOrdered(countries, locale);
+	});
+
+	it("rejects the previous ISO ordering and places AF before AE in pt-BR", () => {
+		const api = countryApi();
+		const old = api.ISO_COUNTRIES.map((value) => ({ value, label: api.countryLabel(value, "pt-BR") }));
+		const compare = new Intl.Collator("pt-BR", { usage: "sort", sensitivity: "base" }).compare;
+		expect(compare(api.countryLabel("AE"), api.countryLabel("AF"))).toBeGreaterThan(0);
+		expect(() => expectOrdered(old)).toThrow();
+		const current = api.countryOptions("pt-BR");
+		expect(current.findIndex((option) => option.value === "AF")).toBeLessThan(current.findIndex((option) => option.value === "AE"));
+		expectOrdered(current.slice(1));
+	});
+
+	it("uses ISO labels deterministically when DisplayNames is unavailable", () => {
+		const api = countryApi({ Collator: Intl.Collator });
+		const options = api.countryOptions().slice(1);
+		expect(options.every((option) => option.label === option.value)).toBe(true);
+		expect(options.map((option) => option.value)).toEqual([...api.ISO_COUNTRIES].sort());
+		expectOrdered(options);
+	});
+
+	it("collates accented labels and breaks equivalent labels by ISO code", () => {
+		const labels: Record<string, string> = { AD: "Éclair", AE: "ábaco", AF: "Abaco", AG: "Çedro", AI: "Àrvore" };
+		class DisplayNames {
+			of(code: string) { return labels[code] || "Zulu"; }
+		}
+		const api = countryApi({ Collator: Intl.Collator, DisplayNames });
+		const options = api.countryOptions("pt-BR").slice(1);
+		expect(options.slice(0, 5).map((option) => option.value)).toEqual(["AE", "AF", "AI", "AG", "AD"]);
+		expectOrdered(options);
+	});
+
+	it("keeps a deterministic fallback without Intl and leaves the exported ISO list intact", () => {
+		const api = countryApi(undefined);
+		const before = [...api.ISO_COUNTRIES];
+		api.countryOptions();
+		expect(api.ISO_COUNTRIES).toEqual(before);
+		const noIntl = countryApi(null);
+		expect(noIntl.countryOptions().slice(1).map((option) => option.value)).toEqual([...noIntl.ISO_COUNTRIES].sort());
+	});
+});
+
+describe("Gate 7.12: Admin pt-BR copy", () => {
+	const stale = /Control A|Variant B|Traffic Allocation|Split Test A\/B|Split A\/B|redirect temporário|visitor ID|fingerprint|Fallback:|destination mismatch|plataformas de ads|\bmigrations?\b/i;
+	const files = ["admin.js", "smart-routing-ui.js", "ab-display.js", "expired-redirect-ui.js", "group-hierarchy-ui.js", "portability-ui.js", "portability-import-ui.js"];
+
+	function presentationStrings(source: string) {
+		const parsed = ts.createSourceFile("copy.js", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+		const strings: string[] = [];
+		function visit(node: ts.Node) {
+			if (ts.isStringLiteralLike(node) || ts.isTemplateLiteralToken(node)) {
+				// Literal keys compare server messages; they are never displayed.
+				if (!(ts.isPropertyAssignment(node.parent) && node.parent.name === node)) strings.push(node.text);
+			}
+			ts.forEachChild(node, visit);
+		}
+		visit(parsed);
+		return strings;
+	}
+
+	function errorCopy() {
+		const source = ts.createSourceFile("admin.js", readPublic("admin.js"), ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+		const declaration = source.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === "adminErrorCopy")!;
+		const sandbox = {} as { adminErrorCopy: (message: unknown) => string };
+		vm.runInNewContext(declaration.getText(source), sandbox);
+		return sandbox.adminErrorCopy;
+	}
+
+	it("has no stale terms in visible HTML, ARIA, titles or helper copy", () => {
+		const html = readPublic("admin.html").replace(/<!--[\s\S]*?-->/g, "");
+		const visible = html.replace(/<[^>]*>/g, " ");
+		const accessibility = [...html.matchAll(/(?:aria-label|title|placeholder)="([^"]*)"/g)].map((match) => match[1]);
+		expect(visible).not.toMatch(stale);
+		expect(accessibility.join(" ")).not.toMatch(stale);
+		for (const file of files) {
+			for (const text of presentationStrings(readPublic(file))) expect(text, `${file}: ${text}`).not.toMatch(stale);
+		}
+	});
+
+	it("detects stale user copy but permits internal message keys and comments", () => {
+		expect(presentationStrings('/* Split Test A/B */ var x = { "requires migration": "Aplique a migração" };').some((text) => stale.test(text))).toBe(false);
+		expect(presentationStrings('var x = "Variant B";').some((text) => stale.test(text))).toBe(true);
+	});
+
+	it("retains A/B labels, privacy meaning and matching accessible help", () => {
+		const html = readPublic("admin.html");
+		const block = html.slice(html.indexOf('<details id="ab-testing-section"'), html.indexOf('id="smart-routing-unavailable"'));
+		expect(block).toMatch(/<summary>Teste A\/B/);
+		expect(block).toMatch(/Ativar Teste A\/B/);
+		expect(block).toMatch(/Variante B \(URL alternativa\)/);
+		expect(block).toMatch(/aria-label="Ajuda sobre Variante B"/);
+		expect(block).toMatch(/Distribuição do tráfego/);
+		expect(block).toMatch(/variante A[^.]*destino principal/i);
+		expect(block).toMatch(/variante B[^.]*URL alternativa/i);
+		expect(block).toMatch(/redirecionamento 302/);
+		expect(block).toMatch(/sem cookies nem identificadores persistentes/);
+	});
+
+	it("explains ordered Smart Routing, both criteria, default destination and privacy", () => {
+		const html = readPublic("admin.html");
+		const block = html.slice(html.indexOf('<details id="smart-routing-section"'), html.indexOf('<div class="actions">'));
+		for (const meaning of [/cima para baixo/, /primeira/i, /país e dispositivo/, /Se nenhuma corresponder/, /destino principal/, /Nenhum dado do visitante é armazenado/]) expect(block).toMatch(meaning);
+		expect(block).toMatch(/Se nenhuma regra corresponder:/);
+		expect(readPublic("admin.js")).toMatch(/Se nenhuma regra corresponder: \$\{value\}/);
+	});
+
+	it("keeps every migration filename in unavailable guidance", () => {
+		const html = readPublic("admin.html");
+		for (const filename of ["0004_ab_testing.sql", "0005_smart_routing.sql", "0006_expired_redirect.sql"]) {
+			const line = html.split("\n").find((line) => line.includes(filename))!;
+			expect(line).toMatch(/não está disponível nesta instalação/);
+			expect(line).toMatch(/Aplique a migração/);
+		}
+	});
+
+	it("corrects misleading history, edit and expiration guidance", () => {
+		const html = readPublic("admin.html"), admin = readPublic("admin.js");
+		expect(html).not.toMatch(/histórico estável|para de funcionar|UTMs e parâmetros serão adicionados automaticamente/);
+		expect(html).toMatch(/campos vazios removem o parâmetro correspondente/);
+		expect(html).toMatch(/deixa de redirecionar \(HTTP 410\)/);
+		expect(admin).not.toMatch(/altere apenas o destino/);
+		expect(admin).toMatch(/editar os demais campos/);
+		expect(html).toMatch(/aria-label="Buscar links por slug, URL de destino ou tags"/);
+	});
+
+	it.each([
+		["Invalid target URL", /URL de destino inválida.*HTTP ou HTTPS/],
+		["Invalid abTargetUrl", /variante B inválida/],
+		["expiresAt cannot be earlier than goLiveAt", /expiração.*antes da ativação/],
+		["Slug already exists", /slug.*uso ou reservado/],
+		["Link was modified concurrently. Reload it and try again", /outra sessão.*Recarregue/],
+		["PASSWORD_SESSION_SECRET is required to add password protection", /Configure PASSWORD_SESSION_SECRET/],
+		["Smart Routing requires migration 0005_smart_routing.sql to be applied", /migração 0005_smart_routing.sql/],
+	])("translates API error %s only for display", (raw, expected) => {
+		expect(errorCopy()(raw)).toMatch(expected);
+	});
+
+	it("preserves unknown-outcome warnings and useful diagnostic codes", () => {
+		const copy = errorCopy();
+		const suffix = " O estado final é desconhecido: recarregue a lista de links e revise antes de tentar novamente.";
+		expect(copy("Failed to fetch" + suffix)).toContain("Verifique a conexão");
+		expect(copy("Failed to fetch" + suffix)).toContain(suffix);
+		expect(copy("Failed to fetch" + suffix)).not.toContain("Nenhuma alteração foi aplicada");
+		expect(copy("Falha do servidor (TRACE_42)")).toBe("Falha do servidor (TRACE_42)");
+		expect(copy("")).toBe("");
+	});
+
+	it("uses textContent at the terminal display boundary without translating API results", () => {
+		const admin = readPublic("admin.js");
+		expect(admin).toContain('type === "error" ? adminErrorCopy(message)');
+		expect(admin).toContain('throw new Error(payload?.error ||');
+		expect(readPublic("portability-import-ui.js")).toContain('var APPLY_INTERNAL_ERROR_MESSAGE = "Import could not be completed"');
+	});
+});
+
+describe("Gate 7.13: global hidden semantics (BL-712-04)", () => {
+	/**
+	 * A miniature quote-aware cascade simulator with the real CSS decision order —
+	 * importance, then specificity, then source position — so the `hidden` contract
+	 * is validated semantically: no line is pinned, any stylesheet position works,
+	 * and only a global `!important` (or stronger) rule passes. Pseudo-class
+	 * selectors never match (rest state) and descendant selectors only match when
+	 * the caller supplies the ancestor scope, so `.drawer [hidden]` can never pose
+	 * as the global protection.
+	 */
+	type SimElement = { tag: string; classes?: string[]; hidden?: boolean };
+	type SimRule = { selector: string; body: string; order: number };
+
+	function styleRules(css: string): SimRule[] {
+		const source = css.replace(/\/\*[\s\S]*?\*\//g, "");
+		const rules: SimRule[] = [];
+		const stack: string[] = [];
+		let pending = "";
+		let quote: string | null = null;
+		for (const char of source) {
+			if (quote) {
+				pending += char;
+				if (char === quote) quote = null;
+				continue;
+			}
+			if (char === '"' || char === "'") {
+				quote = char;
+				pending += char;
+				continue;
+			}
+			if (char === "{") {
+				stack.push(pending.trim());
+				pending = "";
+			} else if (char === "}") {
+				const selector = stack.pop() ?? "";
+				// Style rules at top level or directly inside a conditional group apply;
+				// the group prelude itself and @keyframes frames do not.
+				if (selector && !selector.startsWith("@") && (stack.length === 0 || stack[stack.length - 1].startsWith("@media"))) {
+					rules.push({ selector, body: pending, order: rules.length });
+				}
+				pending = "";
+			} else {
+				pending += char;
+			}
+		}
+		return rules;
+	}
+
+	function specificity(selector: string): [number, number, number] {
+		let ids = 0;
+		let classes = 0;
+		let types = 0;
+		for (const token of selector.match(/[#.][\w-]+|\[[^\]]+\]|\*|\b[a-z][\w-]*\b/gi) ?? []) {
+			if (token.startsWith("#")) ids += 1;
+			else if (token.startsWith(".") || token.startsWith("[")) classes += 1;
+			else if (token !== "*") types += 1;
+		}
+		return [ids, classes, types];
+	}
+
+	function compoundMatches(compound: string, element: SimElement): boolean {
+		const units = compound.match(/[#.][\w-]+|\[[^\]]+\]|\*|\b[a-z][\w-]*\b/gi) ?? [];
+		if (units.length === 0) return false;
+		for (const unit of units) {
+			if (unit === "*") continue;
+			if (unit.startsWith("#")) return false;
+			if (unit.startsWith(".")) {
+				if (!element.classes?.includes(unit.slice(1))) return false;
+			} else if (unit.startsWith("[")) {
+				if (unit.replace(/\s/g, "") !== "[hidden]" || !element.hidden) return false;
+			} else if (unit.toLowerCase() !== element.tag.toLowerCase()) return false;
+		}
+		return true;
+	}
+
+	function selectorMatches(selector: string, element: SimElement, ancestors: SimElement[] = []): boolean {
+		if (selector.includes(":")) return false;
+		const parts = selector.split(/\s+/).filter(Boolean);
+		if (parts.length > 1) {
+			const scope = parts.slice(0, -1).join(" ");
+			return compoundMatches(parts[parts.length - 1], element) && ancestors.some((ancestor) => selectorMatches(scope, ancestor));
+		}
+		return compoundMatches(selector, element);
+	}
+
+	function computedDisplay(css: string, element: SimElement, ancestors: SimElement[] = []): string {
+		type Candidate = { value: string; important: boolean; specificity: [number, number, number]; order: number };
+		const candidates: Candidate[] = [];
+		for (const rule of styleRules(css)) {
+			for (const single of rule.selector.split(",")) {
+				if (!selectorMatches(single.trim(), element, ancestors)) continue;
+				for (const declaration of rule.body.split(";")) {
+					const colon = declaration.indexOf(":");
+					if (colon === -1 || declaration.slice(0, colon).trim().toLowerCase() !== "display") continue;
+					const raw = declaration.slice(colon + 1);
+					candidates.push({
+						value: raw.replace(/!\s*important/i, "").trim(),
+						important: /!\s*important/i.test(raw),
+						specificity: specificity(single),
+						order: rule.order,
+					});
+				}
+			}
+		}
+		if (candidates.length === 0) return "inline";
+		candidates.sort((a, b) => {
+			if (a.important !== b.important) return a.important ? -1 : 1;
+			const [aIds, aClasses, aTypes] = a.specificity;
+			const [bIds, bClasses, bTypes] = b.specificity;
+			if (aIds !== bIds) return bIds - aIds;
+			if (aClasses !== bClasses) return bClasses - aClasses;
+			if (aTypes !== bTypes) return bTypes - aTypes;
+			return b.order - a.order;
+		});
+		return candidates[0].value;
+	}
+
+	/**
+	 * The BL-712-04 contract: a hidden control never keeps its author display —
+	 * the button rule from the finding plus every class-level layout rule in the
+	 * stylesheet, each simulated as a hidden element carrying that class.
+	 */
+	function hiddenStaysOutOfLayout(css: string): boolean {
+		if (computedDisplay(css, { tag: "button", hidden: true }) !== "none") return false;
+		const classDisplays = new Map<string, string>();
+		for (const rule of styleRules(css)) {
+			for (const single of rule.selector.split(",")) {
+				const selector = single.trim();
+				if (!/^\.[\w-]+$/.test(selector)) continue;
+				for (const declaration of rule.body.split(";")) {
+					const colon = declaration.indexOf(":");
+					if (colon !== -1 && declaration.slice(0, colon).trim().toLowerCase() === "display") {
+						classDisplays.set(selector.slice(1), declaration.slice(colon + 1).replace(/!\s*important/i, "").trim());
+					}
+				}
+			}
+		}
+		for (const [className, value] of classDisplays) {
+			if (value === "none") continue;
+			if (computedDisplay(css, { tag: "div", classes: [className], hidden: true }) !== "none") return false;
+		}
+		return true;
+	}
+
+	it("admin.css restores the global hidden contract over the author button display", () => {
+		const css = readPublic("admin.css");
+		expect(computedDisplay(css, { tag: "button", hidden: true })).toBe("none");
+		expect(computedDisplay(css, { tag: "button", hidden: false })).not.toBe("none");
+		expect(hiddenStaysOutOfLayout(css)).toBe(true);
+	});
+
+	it("negative control: the author button display alone keeps hidden controls visible", () => {
+		const css = "button { display: inline-flex; align-items: center; }";
+		expect(computedDisplay(css, { tag: "button", hidden: true })).toBe("inline-flex");
+		expect(hiddenStaysOutOfLayout(css)).toBe(false);
+	});
+
+	it("scoped drawer rules protect their own scope but never satisfy the global contract", () => {
+		const css = ".qr-dialog [hidden] { display: none !important; } button { display: inline-flex; }";
+		expect(computedDisplay(css, { tag: "button", hidden: true })).toBe("inline-flex");
+		expect(hiddenStaysOutOfLayout(css)).toBe(false);
+		expect(computedDisplay(css, { tag: "button", hidden: true }, [{ tag: "div", classes: ["qr-dialog"] }])).toBe("none");
+	});
+
+	it("positive control: the global rule restores the contract next to the button display", () => {
+		const css = "button { display: inline-flex; } [hidden] { display: none !important; }";
+		expect(computedDisplay(css, { tag: "button", hidden: true })).toBe("none");
+		expect(computedDisplay(css, { tag: "button", hidden: false })).toBe("inline-flex");
+		expect(hiddenStaysOutOfLayout(css)).toBe(true);
+	});
+
+	it("generic element: hidden beats a class-level grid regardless of source order", () => {
+		const protectedCss = ".some-grid { display: grid; } [hidden] { display: none !important; }";
+		expect(computedDisplay(protectedCss, { tag: "div", classes: ["some-grid"], hidden: true })).toBe("none");
+		const orderFragileCss = "[hidden] { display: none; } .some-grid { display: grid; }";
+		expect(computedDisplay(orderFragileCss, { tag: "div", classes: ["some-grid"], hidden: true })).toBe("grid");
 	});
 });

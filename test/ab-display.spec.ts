@@ -59,7 +59,7 @@ describe("A/B admin presentation", () => {
 
 		expect(display).toMatchObject({
 			isActive: true,
-			title: "Split A/B Ativo",
+			title: "Ativo",
 			showHistoricalLabel: false,
 			clicksA: 2,
 			clicksB: 1,
@@ -82,7 +82,7 @@ describe("A/B admin presentation", () => {
 
 		expect(display).toMatchObject({
 			isActive: false,
-			title: "Split A/B Encerrado",
+			title: "Encerrado",
 			showHistoricalLabel: true,
 			clicksA: 2,
 			clicksB: 1,
@@ -104,7 +104,7 @@ describe("A/B admin presentation", () => {
 		});
 
 		expect(display).toMatchObject({
-			title: "Split A/B Encerrado",
+			title: "Encerrado",
 			clicksA: 2,
 			clicksB: 1,
 			observed: "66.7% / 33.3%",

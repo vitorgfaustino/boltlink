@@ -27,7 +27,7 @@
 
     return {
       isActive,
-      title: isActive ? "Split A/B Ativo" : "Split A/B Encerrado",
+      title: isActive ? "Ativo" : "Encerrado",
       showHistoricalLabel: !isActive,
       clicksA,
       clicksB,

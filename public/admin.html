@@ -25,7 +25,7 @@
         Gerenciador de Links<span class="terminal-cursor">_</span>
       </h1>
       <p>
-        Organize, atualize e acompanhe seus links em um único painel, com redirecionamento rápido, histórico estável para campanhas e controle total da sua operação.
+        Crie e organize seus links, atualize os destinos e acompanhe a contagem de cliques em um único painel.
       </p>
     </section>
 
@@ -43,7 +43,7 @@
                 <strong>Slug</strong>
                 <span class="help-tip">
                   <button type="button" class="help-tip-btn" aria-label="Ajuda sobre slug">i</button>
-                  <span class="help-tip-text">Deixe em branco para gerar automaticamente ou informe manualmente se quiser um padrão próprio.</span>
+                  <span class="help-tip-text">É a parte final do link curto. Deixe em branco para gerar automaticamente ou informe um valor próprio.</span>
                 </span>
               </span>
             </label>
@@ -64,14 +64,14 @@
               URL de destino
               <span class="help-tip">
                 <button type="button" class="help-tip-btn" aria-label="Ajuda sobre URL de destino">i</button>
-                <span class="help-tip-text">Pode ter ou não barra final. UTMs e parâmetros serão adicionados automaticamente.</span>
+                <span class="help-tip-text">É a página que o visitante acessa ao abrir o link. Os campos do gerador de UTMs definem os parâmetros UTM desta URL; campos vazios removem o parâmetro correspondente.</span>
               </span>
             </span>
             <input id="target-url" name="target-url" type="url" required placeholder="https://exemplo.com/landing" />
           </label>
 
           <label>
-            Tipo de redirect
+            Tipo de redirecionamento
             <select id="redirect-type">
               <option value="302">302 (temporário)</option>
               <option value="301">301 (permanente)</option>
@@ -88,30 +88,30 @@
                   Fonte (utm_source)
                   <span class="help-tip">
                     <button type="button" class="help-tip-btn" aria-label="Ajuda sobre utm_source">i</button>
-                    <span class="help-tip-text">Identifica de onde veio o tráfego: exemplo google, newsletter ou instagram.</span>
+                    <span class="help-tip-text">Identifica a origem do tráfego, como Google, Instagram ou newsletter.</span>
                   </span>
                 </span>
-                <input id="utm-source" type="text" placeholder="google, facebook, newsletter, etc" />
+                <input id="utm-source" type="text" placeholder="google, facebook, newsletter" />
               </label>
               <label>
                 <span class="field-label">
                   Meio (utm_medium)
                   <span class="help-tip">
                     <button type="button" class="help-tip-btn" aria-label="Ajuda sobre utm_medium">i</button>
-                    <span class="help-tip-text">Canal da campanha, como cpc, email, social ou organic.</span>
+                    <span class="help-tip-text">Identifica o tipo de canal, como cpc, email, social ou organic.</span>
                   </span>
                 </span>
-                <input id="utm-medium" type="text" placeholder="cpc, email, social, organic, etc" />
+                <input id="utm-medium" type="text" placeholder="cpc, email, social, organic" />
               </label>
               <label>
                 <span class="field-label">
                   Campanha (utm_campaign)
                   <span class="help-tip">
                     <button type="button" class="help-tip-btn" aria-label="Ajuda sobre utm_campaign">i</button>
-                    <span class="help-tip-text">Nome da ação ou período da campanha, como black_friday ou lancamento_q3.</span>
+                    <span class="help-tip-text">Identifica a campanha, como black_friday ou lancamento_q3.</span>
                   </span>
                 </span>
-                <input id="utm-campaign" type="text" placeholder="black_friday, q1_promo, etc" />
+                <input id="utm-campaign" type="text" placeholder="black_friday, q1_promo" />
               </label>
               <label>
                 Conteúdo (opcional)
@@ -121,7 +121,7 @@
                 Termo (opcional)
                 <input id="utm-term" type="text" placeholder="palavra-chave em campanhas pagas" />
               </label>
-              <div class="preview-box" id="utm-preview">Preview UTM: -</div>
+              <div class="preview-box" id="utm-preview">Prévia da URL com UTMs: —</div>
             </div>
           </details>
 
@@ -138,7 +138,7 @@
                   Grupo
                   <span class="help-tip">
                     <button type="button" class="help-tip-btn" aria-label="Ajuda sobre grupo do link">i</button>
-                    <span class="help-tip-text">Associação direta do link a um grupo. A lista mostra o caminho completo do grupo.</span>
+                    <span class="help-tip-text">Vincula o link ao grupo escolhido. A lista mostra o caminho do grupo na hierarquia.</span>
                   </span>
                 </span>
                 <select id="group-id">
@@ -151,7 +151,7 @@
                   Ativa em (opcional)
                   <span class="help-tip">
                     <button type="button" class="help-tip-btn" aria-label="Ajuda sobre ativação de link">i</button>
-                    <span class="help-tip-text">O link só começa a redirecionar após esta data/hora. Útil para campanhas agendadas.</span>
+                    <span class="help-tip-text">Agenda quando o link começa a redirecionar. Deixe em branco para ativá-lo imediatamente.</span>
                   </span>
                 </span>
                 <input id="go-live-at" type="datetime-local" />
@@ -162,7 +162,7 @@
                   Expira em (opcional)
                   <span class="help-tip">
                     <button type="button" class="help-tip-btn" aria-label="Ajuda sobre expiração de link">i</button>
-                    <span class="help-tip-text">Define quando o link para de funcionar. Deixe vazio para manter ativo sem prazo.</span>
+                    <span class="help-tip-text">Define quando o link expira e passa a usar a opção escolhida em "Após expirar". Deixe em branco para não definir um prazo.</span>
                   </span>
                 </span>
                 <input id="expires-at" type="datetime-local" />
@@ -172,64 +172,64 @@
                 <legend>Após expirar</legend>
                 <label class="radio-row">
                   <input id="expired-redirect-mode-response" name="expired-redirect-mode" type="radio" value="410" checked />
-                  Resposta padrão (410)
+                  Parar de redirecionar (HTTP 410)
                 </label>
                 <label class="radio-row">
                   <input id="expired-redirect-mode-url" name="expired-redirect-mode" type="radio" value="redirect" />
                   Redirecionar para URL
                 </label>
-                <p class="field-help">O destino após a expiração só pode ser configurado quando "Expira em" está preenchido. Sem ele, o link expirado responde 410.</p>
+                <p class="field-help">Escolha o que acontece depois que o link expira. Sem um destino alternativo, ele deixa de redirecionar (HTTP 410).</p>
                 <label id="expired-redirect-url-field" hidden>
                   <span class="field-label">
                     Destino após expiração
                     <span class="help-tip">
                       <button type="button" class="help-tip-btn" aria-label="Ajuda sobre destino após expiração">i</button>
-                      <span class="help-tip-text">Destino usado depois que o link expira. Precisa ser uma URL http ou https válida.</span>
+                      <span class="help-tip-text">É a página usada depois que o link expira. Informe uma URL HTTP ou HTTPS válida e preencha "Expira em".</span>
                     </span>
                   </span>
                   <input id="expired-redirect-url" type="url" placeholder="https://exemplo.com/expirado" />
                 </label>
               </fieldset>
-              <p class="field-help" id="expired-redirect-unavailable" hidden>Destino após expiração requer a migration 0006_expired_redirect.sql aplicada nesta instalação.</p>
+              <p class="field-help" id="expired-redirect-unavailable" hidden>O destino após expiração não está disponível nesta instalação. Aplique a migração 0006_expired_redirect.sql para ativá-lo.</p>
 
               <label>
                 <span class="field-label">
                   Senha do link (opcional)
                   <span class="help-tip">
                     <button type="button" class="help-tip-btn" aria-label="Ajuda sobre senha do link">i</button>
-                    <span class="help-tip-text">Quando configurada, o visitante precisa informar a senha antes do redirecionamento.</span>
+                    <span class="help-tip-text">Quando uma senha é definida, o visitante precisa informá-la antes de acessar o destino.</span>
                   </span>
                 </span>
                 <input id="password" type="password" placeholder="Deixe em branco para link público" />
               </label>
 
-              <small id="domain-warning" style="display:none;color:#facc15;">Este link redireciona para um domínio diferente. Isso pode causar destination mismatch em plataformas de ads.</small>
+              <small id="domain-warning" style="display:none;color:#facc15;">O domínio de destino é diferente do domínio do link curto. Confira as regras da plataforma de anúncios sobre divergência de destino.</small>
             </div>
           </details>
 
-          <p class="field-help" id="ab-testing-unavailable" hidden>Split Test A/B requer a migration 0004_ab_testing.sql aplicada nesta instalação.</p>
+          <p class="field-help" id="ab-testing-unavailable" hidden>O Teste A/B não está disponível nesta instalação. Aplique a migração 0004_ab_testing.sql para ativá-lo.</p>
           <details id="ab-testing-section">
-            <summary>Split Test A/B</summary>
+            <summary>Teste A/B</summary>
             <div class="form-section">
               <label class="checkbox-row">
                 <input id="ab-enabled" type="checkbox" />
-                Ativar Split Test A/B
+                Ativar Teste A/B
               </label>
-              <p class="field-help">Control A usa sempre o destino principal do link. Split Test A/B exige redirect temporário (302) e a decisão da variante não é cacheada. A distribuição é feita por requisição, sem cookies, sem visitor ID e sem fingerprint.</p>
+              <p class="field-help">A variante A usa o destino principal, e a variante B usa a URL alternativa. Escolha como dividir o tráfego entre elas. O teste usa redirecionamento 302, com sorteio a cada acesso elegível, sem cookies nem identificadores persistentes do visitante.</p>
 
               <label>
                 <span class="field-label">
-                  Variant B (URL alternativa)
+                  Variante B (URL alternativa)
                   <span class="help-tip">
-                    <button type="button" class="help-tip-btn" aria-label="Ajuda sobre Variant B">i</button>
-                    <span class="help-tip-text">Destino usado quando o acesso cai na Variant B. Precisa ser uma URL http ou https válida.</span>
+                    <button type="button" class="help-tip-btn" aria-label="Ajuda sobre Variante B">i</button>
+                    <span class="help-tip-text">É a página usada quando o teste seleciona a variante B. Informe uma URL HTTP ou HTTPS válida.</span>
                   </span>
                 </span>
                 <input id="ab-target-url" type="url" placeholder="https://exemplo.com/landing-b" />
               </label>
 
               <label>
-                Traffic Allocation
+                Distribuição do tráfego
                 <select id="ab-weight-b">
                   <option value="10">A 90% / B 10%</option>
                   <option value="25">A 75% / B 25%</option>
@@ -241,7 +241,7 @@
             </div>
           </details>
 
-          <p class="field-help" id="smart-routing-unavailable" hidden>Smart Routing requer a migration 0005_smart_routing.sql aplicada nesta instalação.</p>
+          <p class="field-help" id="smart-routing-unavailable" hidden>O Smart Routing não está disponível nesta instalação. Aplique a migração 0005_smart_routing.sql para ativá-lo.</p>
           <details id="smart-routing-section" hidden>
             <summary>Smart Routing</summary>
             <div class="form-section">
@@ -249,7 +249,7 @@
                 <input id="smart-routing-enabled" type="checkbox" />
                 Ativar Smart Routing
               </label>
-              <p class="field-help">As regras são avaliadas de cima para baixo. A primeira regra compatível define o destino. Sem regra compatível, o visitante segue para o destino principal do link. Nenhum dado do visitante é armazenado.</p>
+              <p class="field-help">As regras são verificadas de cima para baixo. A primeira que corresponder aos critérios de país e dispositivo definidos na regra determina o destino. Se nenhuma corresponder, o link usa o destino principal. Nenhum dado do visitante é armazenado.</p>
 
               <p class="field-help" id="smart-routing-conflict" role="status" aria-live="polite" aria-atomic="true" hidden></p>
               <p class="field-help corrupt-text" id="smart-routing-invalid" role="status" aria-live="polite" aria-atomic="true" hidden></p>
@@ -261,7 +261,7 @@
                 <span class="field-help" id="smart-routing-count">0 / 20</span>
               </div>
 
-              <p class="field-help" id="smart-routing-fallback">Fallback: destino principal do link</p>
+              <p class="field-help" id="smart-routing-fallback">Se nenhuma regra corresponder: destino principal do link</p>
               <p class="field-help error-text" id="smart-routing-error" role="alert" aria-live="assertive" aria-atomic="true" hidden></p>
             </div>
           </details>
@@ -291,7 +291,7 @@
         <div class="panel-header">
           <div class="panel-heading-copy">
             <h2>Links ativos</h2>
-            <p class="search-help">Busca por: slug, URL de destino e tags.</p>
+            <p class="search-help">Busque por slug, URL de destino ou tags.</p>
           </div>
           <div class="counter-pill" aria-live="polite">
             Links ativos exibidos: <strong id="links-count">0</strong>
@@ -311,7 +311,7 @@
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M21 21 16.65 16.65M10.5 18A7.5 7.5 0 1 1 18 10.5 7.5 7.5 0 0 1 10.5 18Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
-                <input id="search-term" name="search-term" type="search" placeholder="Buscar slug ou URL de destino" />
+                <input id="search-term" name="search-term" type="search" placeholder="Buscar slug, URL de destino ou tags" aria-label="Buscar links por slug, URL de destino ou tags" />
                 <button type="button" id="clear-search-button" class="clear-search-btn" aria-label="Limpar busca" title="Limpar busca" hidden>
                   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
@@ -331,7 +331,7 @@
                 <option value="">Todos os grupos</option>
                 <option value="__none__">Sem grupo</option>
               </select>
-              <span class="field-help">O filtro considera apenas a associação direta ao grupo escolhido, sem incluir subgrupos.</span>
+              <span class="field-help">Mostra os links vinculados diretamente ao grupo escolhido. Não inclui links dos subgrupos.</span>
             </div>
           </form>
         </div>
@@ -365,7 +365,7 @@
     <header class="group-drawer-header">
       <div class="panel-heading-copy">
         <h2 id="group-drawer-title">Grupos</h2>
-        <p class="group-drawer-subtitle">Organize seus links em grupos e subgrupos. Use grupos para facilitar a organização e o filtro dos links.</p>
+        <p class="group-drawer-subtitle">Organize seus links em grupos e subgrupos para facilitar a busca.</p>
       </div>
       <button type="button" class="secondary compact group-drawer-close" id="group-drawer-close" aria-label="Fechar painel de grupos">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -416,7 +416,7 @@
         <fieldset class="group-form">
           <legend>Criar grupo</legend>
           <label for="group-create-name">Nome do grupo</label>
-          <input id="group-create-name" type="text" maxlength="120" placeholder="ex: Campanhas 2026" />
+          <input id="group-create-name" type="text" maxlength="120" placeholder="Ex.: Campanhas 2026" />
           <label for="group-create-parent">Grupo pai (opcional)</label>
           <select id="group-create-parent"></select>
           <button type="button" class="secondary compact" id="group-create-button">Criar grupo</button>
@@ -475,7 +475,7 @@
 
         <fieldset class="import-passwords" id="import-passwords" hidden>
           <legend>Novas senhas necessárias</legend>
-          <p class="field-help">As senhas não fazem parte da exportação. Defina uma nova senha para cada link protegido. Elas não são guardadas no navegador.</p>
+          <p class="field-help">As senhas não fazem parte da exportação. Defina uma nova senha para cada link protegido. Elas são descartadas ao concluir a tentativa de importação ou fechar o painel.</p>
           <div class="import-password-fields" id="import-password-fields"></div>
         </fieldset>
 
@@ -521,7 +521,7 @@
     </header>
 
     <div class="qr-dialog-body">
-      <p class="qr-dialog-help">O QR Code aponta para o short link público. Ele continua válido mesmo se você trocar o destino, e quem escanear passa pelo mesmo redirect, senha e métricas do link.</p>
+      <p class="qr-dialog-help">O QR Code aponta para o link curto e continua válido quando você troca o destino. Ao escanear, o visitante segue as mesmas regras de redirecionamento, senha e contagem de cliques do link.</p>
       <div class="qr-preview">
         <img id="qr-image" alt="" width="512" height="512" />
       </div>
