@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased — 3.0.0
+## [3.0.0] - 2026-09-29
 
-> Este bloco cobre o baseline local da **Fase 2** (Split Test A/B, migration `0004`), o estado **Unreleased da Fase 3** (Smart Routing, migration `0005`), a working tree **Unreleased da Fase 4** (destino de expiração + `ROOT_REDIRECT_URL`, migration `0006`) e a working tree **Unreleased da Fase 5** (hierarquia de grupos, portabilidade de configuração e QR Code com preview e downloads, sem migration nova). A tag publicada `v2.2.1` termina na `0003` e não contém nenhum deles. Esta é a release **3.0.0**, com a versão finalizada localmente (o `package.json` está em `3.0.0`) e ainda **não publicada** — sem tag, sem push e sem deploy —, então o bloco permanece `Unreleased` e a data só é preenchida quando a release for efetivamente publicada (todo heading datado deste arquivo corresponde a uma tag já publicada).
+> Este bloco cobre toda a mudança acumulada desde a tag `v2.2.1`, que termina na migration `0003`: o Split Test A/B (**Fase 2**, migration `0004`), o Smart Routing (**Fase 3**, migration `0005`), o destino de expiração + `ROOT_REDIRECT_URL` (**Fase 4**, migration `0006`) e a **Fase 5** (hierarquia de grupos, portabilidade de configuração e QR Code com preview e downloads, sem migration nova). O major se justifica pelo breaking change administrativo em Groups, descrito abaixo. A release do repositório é distribuição de código: cada instalação é self-hosted e executa o próprio backup, as próprias migrations e o próprio deploy — publicar a tag não atualiza nem migra nenhuma instalação automaticamente.
 
 ### Adicionado
 
@@ -199,5 +199,5 @@
 
 ---
 
-Versão 2.2.1
+Versão 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

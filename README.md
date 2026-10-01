@@ -2,9 +2,9 @@
 
 BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel administrativo estático.
 
-**Versão 3.0.0 (finalizada localmente, ainda não publicada) - AGPL-3.0**
+**Versão 3.0.0 - AGPL-3.0**
 
-> Release publicada: **v2.2.1**. O Smart Routing (Fase 3, migration `0005_smart_routing.sql`) e o destino de expiração + `ROOT_REDIRECT_URL` (Fase 4, migration `0006_expired_redirect.sql`) descritos neste documento estão em **Unreleased** nesta branch de desenvolvimento e ainda não fazem parte da release/tag publicada. Os recursos da Fase 5 — hierarquia de grupos com integridade, portabilidade de configuração (exportação e importação) e o QR Code com preview e downloads no painel — também estão **Unreleased**, todos sem migration nova. Um checkout da tag `v2.2.1` não contém nenhum desses recursos nem as migrations `0005`/`0006`.
+> Esta é a release **3.0.0** do repositório (tag `v3.0.0`). Ela reúne o Smart Routing (Fase 3, migration `0005_smart_routing.sql`), o destino de expiração + `ROOT_REDIRECT_URL` (Fase 4, migration `0006_expired_redirect.sql`) e os recursos da Fase 5 — hierarquia de grupos com integridade, portabilidade de configuração (exportação e importação) e o QR Code com preview e downloads no painel, todos sem migration nova. Um checkout da tag anterior `v2.2.1` não contém nenhum desses recursos nem as migrations `0005`/`0006`. O BoltLink é **self-hosted**: a release do repositório é distribuição de código e cada instalação opera o próprio Worker, D1, Cloudflare Access, secrets, migrations e deploy.
 
 Ele funciona como encurtador de URLs, mas o objetivo real do projeto é maior: manter links públicos estáveis, simples de operar e independentes de plataformas terceiras, com controle do redirect, proteção do painel e uma baseline de privacidade mais rígida do que a maioria das ferramentas desse tipo.
 
@@ -59,16 +59,24 @@ O botão continua funcional com o `wrangler.jsonc` público.
 
 ## Três formas de usar
 
-### 1. Wrangler local (release publicada v2.2.1)
+### 1. Wrangler local (instalação da release 3.0.0)
 
-Fluxo da tag `v2.2.1`, que termina na migration `0003_lgpd_minimization.sql`:
+Fluxo principal: instalar a release atual (`3.0.0`, tag `v3.0.0`) a partir do repositório.
 
 ```bash
 npm install
 npm run setup
-npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
+npm run dev-prepare
 npm run dev
 npm test
+```
+
+`npm run dev-prepare` lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc` e aplica a cadeia de migrations no D1 local usado pelo `wrangler dev` (`.wrangler/state/v3/d1`). Nesta release a cadeia vai de `migrations/0000` a `0006` e habilita o Split Test A/B, o Smart Routing, o destino de expiração e os recursos da Fase 5. Sem uma migration aplicada, o produto continua funcionando e apenas o recurso correspondente fica indisponível: sem a `0004` não há Split Test A/B, sem a `0005` não há Smart Routing e sem a `0006` não há destino de expiração — a API recusa o campo com `400` e o Admin oculta a seção. O script `dev-prepare` não existe nas releases anteriores à `3.0.0`.
+
+Numa instalação existente, aplique as migrations pendentes por instalação antes de publicar o Worker:
+
+```bash
+npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc
 ```
 
 Se quiser criar o D1 explicitamente:
@@ -93,40 +101,19 @@ npm run dev-init
 
 Esse comando cria `.dev-env/db.sqlite3` (migrations + seed) apenas para exploração local com `sqlite3`. Ele **não** é o D1 usado pelo Worker. O diretório `.dev-env/` é ignorado pelo Git e não vai para o GitHub.
 
-#### Ambiente local de desenvolvimento (Phase 2 local)
+Os checkpoints históricos de desenvolvimento aplicavam cadeias mais curtas no mesmo script: o baseline local da Fase 2 (`23353a1`) parava na `0004`, o HEAD congelado da Fase 3 (`548f179`) na `0005` e o HEAD congelado da Fase 4 (`cdb9f83`) na `0006`.
 
-No baseline local da Fase 2 (`23353a1`, não publicado) existe o script `npm run dev-prepare`, que lê o banco configurado em `wrangler.jsonc`/`wrangler.local.jsonc` e aplica a cadeia de migrations no D1 local usado pelo `wrangler dev` (`.wrangler/state/v3/d1`):
+#### Procedimento histórico: ambiente local da release anterior (v2.2.1)
 
-```bash
-npm run dev-prepare
-npm run dev
-```
-
-Nessa base, `dev-prepare` aplica `migrations/0000` a `0004` e habilita o Split Test A/B.
-
-`npm run dev-prepare` **não existe** no checkout da tag `v2.2.1`. Lá, use `npm run wrangler -- d1 migrations apply ... --local`, como no fluxo publicado acima.
-
-#### Ambiente local de desenvolvimento (Unreleased / Fase 3)
-
-No HEAD congelado da Fase 3 (`548f179`), `npm run dev-prepare` aplica a cadeia até `migrations/0005`, fonte autoritativa de `links.smart_routing_rules`:
+A tag `v2.2.1` é a **release anterior**, mantida aqui apenas como referência de lineage; este não é o caminho recomendado para instalar a versão atual. Naquele checkout a cadeia termina na migration `0003_lgpd_minimization.sql` e o script de preparação local do D1 não existe, então a cadeia é aplicada manualmente:
 
 ```bash
-npm run dev-prepare
+npm install
+npm run setup
+npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
 npm run dev
+npm test
 ```
-
-Sem a `0005` (por exemplo num checkout da tag), o produto funciona normalmente e apenas o recurso de roteamento fica indisponível.
-
-#### Ambiente local de desenvolvimento (Unreleased / Fase 4)
-
-Na working tree atual da Fase 4 (sobre `548f179`), `npm run dev-prepare` aplica a cadeia até `migrations/0006`, fonte autoritativa de `links.expired_redirect_url`:
-
-```bash
-npm run dev-prepare
-npm run dev
-```
-
-Sem a `0006`, o produto funciona normalmente; apenas o destino de expiração fica indisponível (a API recusa o campo com `400` e o Admin oculta a seção).
 
 ### 2. Operação guiada por IA
 
@@ -178,21 +165,21 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 - mantém slug imutável
 - protege links opcionais com senha
 - permite grupos, tags, QR code, ativação e expiração
-- permite Split Test A/B com distribuição stateless e apenas contadores agregados (Phase 2 local, não publicado)
-- permite Smart Routing por país e dispositivo, com a primeira regra compatível vencendo e fallback no destino principal (Unreleased / Fase 3)
-- permite configurar um destino usado depois da expiração do link: com destino válido o link expirado responde `302`, sem destino responde `410`; requests expirados não contam clique (Unreleased / Fase 4)
-- permite redirecionar a raiz (`GET /`) para uma URL operacional via `ROOT_REDIRECT_URL`, sem consultar D1 (Unreleased / Fase 4)
-- organiza links em grupos hierárquicos, com prevenção de ciclos, limite de 16 níveis, movimentação com detecção de concorrência e exclusão só de grupo realmente vazio (Unreleased / Fase 5)
-- exporta a configuração lógica da instância em um JSON portátil, com download pelo Admin e sem senhas, métricas ou IDs internos (Unreleased / Fase 5)
-- importa de volta um documento BoltLink Portability previamente exportado, com preview, validação estrita e aplicação atômica de grupos e links (Unreleased / Fase 5)
-- oferece QR Code com preview no painel e download em PNG e SVG; o código carrega só a short URL e quem escaneia entra no redirect normal (Unreleased / Fase 5)
+- permite Split Test A/B com distribuição stateless e apenas contadores agregados (release 3.0.0, migration `0004`)
+- permite Smart Routing por país e dispositivo, com a primeira regra compatível vencendo e fallback no destino principal (release 3.0.0, migration `0005`)
+- permite configurar um destino usado depois da expiração do link: com destino válido o link expirado responde `302`, sem destino responde `410`; requests expirados não contam clique (release 3.0.0, migration `0006`)
+- permite redirecionar a raiz (`GET /`) para uma URL operacional via `ROOT_REDIRECT_URL`, sem consultar D1 (release 3.0.0)
+- organiza links em grupos hierárquicos, com prevenção de ciclos, limite de 16 níveis, movimentação com detecção de concorrência e exclusão só de grupo realmente vazio (release 3.0.0, sem migration nova)
+- exporta a configuração lógica da instância em um JSON portátil, com download pelo Admin e sem senhas, métricas ou IDs internos (release 3.0.0, sem migration nova)
+- importa de volta um documento BoltLink Portability previamente exportado, com preview, validação estrita e aplicação atômica de grupos e links (release 3.0.0, sem migration nova)
+- oferece QR Code com preview no painel e download em PNG e SVG; o código carrega só a short URL e quem escaneia entra no redirect normal (release 3.0.0, sem migration nova)
 - conta cliques de forma agregada sem eventos detalhados
 - permite zerar a estatística agregada de um link ativo
 - inclui orientações para reduzir tráfego desnecessário no plano gratuito da Cloudflare
 
-## Upgrade para v2.2.1
+## Procedimento histórico: upgrade para a v2.2.1
 
-Procedimento da **release publicada (tag `v2.2.1`)**, que termina na migration `0003_lgpd_minimization.sql`:
+Procedimento histórico da **release anterior (tag `v2.2.1`)**, que termina na migration `0003_lgpd_minimization.sql`. A release atual é a `3.0.0`; para sair da `v2.2.1` e chegar nela, use o fluxo consolidado de `docs/upgrading.md`.
 
 ```bash
 git pull --ff-only
@@ -219,13 +206,13 @@ Procedimento recomendado:
 
 O `schema.sql` é apenas o baseline da `0000` para ferramentas manuais e não é executado pelo runtime.
 
-## Split Test A/B e migration 0004 (Phase 2 local)
+## Split Test A/B e migration 0004 (release 3.0.0)
 
-> Escopo: **baseline local da Fase 2** (`23353a1`, não publicado). A tag publicada `v2.2.1` não contém a `0004` nem o Split Test A/B.
+> Escopo: release `3.0.0` (migration `0004`). A release anterior `v2.2.1` não contém a `0004` nem o Split Test A/B; o recurso foi introduzido no checkpoint de desenvolvimento da Fase 2 (`23353a1`).
 
 O Split Test A/B adiciona a migration `0004_ab_testing.sql`, que é a fonte autoritativa das colunas A/B. O runtime **não** cria nem altera colunas: uma instalação existente precisa aplicar as migrations pendentes para habilitar A/B, e uma instalação nova precisa aplicar a cadeia completa de migrations.
 
-Procedimento recomendado (baseline local da Fase 2):
+Procedimento recomendado (release 3.0.0):
 
 1. backup conforme o procedimento da instância;
 2. aplicar as migrations pendentes (`npm run wrangler -- d1 migrations apply ...`);
@@ -234,13 +221,13 @@ Procedimento recomendado (baseline local da Fase 2):
 
 Sem a `0004`, links normais continuam criando, editando, duplicando e redirecionando normalmente; apenas o Split Test A/B fica indisponível.
 
-## Unreleased / Fase 3 (próxima release)
+## Smart Routing e migration 0005 (release 3.0.0)
 
-Esta branch de desenvolvimento adiciona o Smart Routing e a migration `0005_smart_routing.sql`, fonte autoritativa de `links.smart_routing_rules`. Um checkout da tag `v2.2.1` **não** contém Smart Routing nem a `0005`; use esta seção apenas na branch de desenvolvimento.
+A release `3.0.0` inclui o Smart Routing e a migration `0005_smart_routing.sql`, fonte autoritativa de `links.smart_routing_rules`. A `0005` faz parte do caminho de upgrade `v2.2.1` → `3.0.0` e é aplicada quando ainda estiver pendente naquela instalação. Um checkout da tag `v2.2.1` **não** contém Smart Routing nem a `0005`.
 
-No fluxo local desta branch, `npm run dev-prepare` também aplica a `0005_smart_routing.sql`; isso não acontece no checkout da tag `v2.2.1`.
+No fluxo local da release `3.0.0`, `npm run dev-prepare` aplica a cadeia até `0006`, incluindo a `0005_smart_routing.sql`; isso não acontece no checkout da tag `v2.2.1`.
 
-Procedimento recomendado (Unreleased / Fase 3):
+Procedimento recomendado (release 3.0.0):
 
 1. backup conforme o procedimento da instância;
 2. aplicar as migrations pendentes, incluindo `0005` (`npm run wrangler -- d1 migrations apply ...`);
@@ -250,9 +237,9 @@ Procedimento recomendado (Unreleased / Fase 3):
 
 Sem a `0005`, links normais e o Split Test A/B continuam funcionando; apenas o Smart Routing fica indisponível.
 
-## Split Test A/B (Phase 2 local)
+## Split Test A/B (release 3.0.0)
 
-> Escopo: **baseline local da Fase 2**. A tag publicada `v2.2.1` não tem Split Test A/B.
+> Escopo: release `3.0.0`. A release anterior `v2.2.1` não tem Split Test A/B.
 
 Um link pode dividir tráfego entre Control A (destino principal) e Variant B (destino alternativo). A escolha é feita por requisição, sem cookie, sem visitor ID e sem fingerprint; qualquer automação reconhecida (bots, crawlers, previews, prefetch/prerender) recebe sempre o Control A.
 
@@ -260,7 +247,9 @@ Links com A/B ativo usam sempre redirect temporário `302` com `Cache-Control: n
 
 O produto expõe apenas distribuição de cliques (`Cliques A`, `Cliques B`, `Distribuição observada`, `Traffic Allocation`). Conversão continua sendo medida por ferramentas externas.
 
-## Smart Routing (Unreleased / Fase 3)
+## Smart Routing (release 3.0.0)
+
+> Escopo: release `3.0.0` (migration `0005`). A release anterior `v2.2.1` não tem Smart Routing.
 
 Smart Routing permite escolher o destino de um link por país e/ou tipo de dispositivo, sem criar regras de analytics. O editor fica no painel e usa uma lista ordenada de regras:
 
@@ -275,9 +264,9 @@ O país vem apenas do metadado aproximado da Cloudflare (`request.cf.country`). 
 
 Links com Smart Routing configurado usam sempre redirect temporário `302` com `Cache-Control: no-store`; `301` é incompatível. Bots, crawlers, previews e prefetch/prerender recebem sempre o destino principal, mesmo quando há regras. Split Test A/B e Smart Routing são mutuamente exclusivos.
 
-## Destino de expiração e redirect da raiz (Unreleased / Fase 4)
+## Destino de expiração e redirect da raiz (release 3.0.0)
 
-> Escopo: **working tree da Fase 4** (Unreleased, sobre o HEAD congelado da Fase 3 `548f179`). A tag publicada `v2.2.1` não contém a migration `0006` nem nenhum recurso desta seção.
+> Escopo: release `3.0.0` (migration `0006` e `ROOT_REDIRECT_URL`). A release anterior `v2.2.1` não contém a migration `0006` nem nenhum recurso desta seção.
 
 ### Destino após expiração
 
@@ -311,7 +300,7 @@ ALTER TABLE links ADD COLUMN expired_redirect_url TEXT;
 
 A mudança é additive: coluna nullable, sem default, sem reescrita de dados e sem rebuild de tabela. Linhas existentes permanecem `NULL`, o que preserva o comportamento anterior à `0006`.
 
-Procedimento recomendado (Unreleased / Fase 4):
+Procedimento recomendado (release 3.0.0):
 
 1. backup conforme o procedimento da instância;
 2. aplicar as migrations pendentes, incluindo a `0006` (`npm run wrangler -- d1 migrations apply ...`);
@@ -336,7 +325,7 @@ Compatibilidade:
 
 O template público `wrangler.jsonc` não define `ROOT_REDIRECT_URL`. O config público usa `keep_vars = true`, que preserve as variáveis configuradas no dashboard durante deploys, então o valor vive no painel da Cloudflare (tipo `Text`) em fluxos de dashboard/GitHub auto-deploy, ou no `wrangler.local.jsonc`/`.dev.vars` em desenvolvimento e deploy Wrangler local. Não é secret e não pertence a listas de segredos.
 
-### O que a Fase 4 não muda
+### O que a release 3.0.0 não muda
 
 - unknown slugs continuam respondendo `404`; `ROOT_REDIRECT_URL` não substitui o 404 e não existe redirect global de 404 nem página custom de 404
 - links futuros continuam `404` antes do go-live; não existe `future_redirect_url`
@@ -344,11 +333,11 @@ O template público `wrangler.jsonc` não define `ROOT_REDIRECT_URL`. O config p
 - expiração por contagem de cliques continua fora de escopo
 - nenhuma métrica individual nova: requests expirados e o redirect da raiz não contam clique
 
-## Hierarquia de grupos (Unreleased / Fase 5)
+## Hierarquia de grupos (release 3.0.0)
 
-> Escopo: **working tree da Fase 5** (Unreleased, sobre o HEAD congelado da Fase 4 `cdb9f83`). A hierarquia de grupos **existe** na tag publicada `v2.2.1` — a tabela `link_groups` com `parent_id` chega na migration `0002`. O que a Fase 5 acrescenta é a integridade: a tag não tem prevenção de ciclo, limite de profundidade, delete protegido nem precondição de concorrência.
+> Escopo: release `3.0.0`, sem migration nova. A release anterior `v2.2.1` **contém** a tabela `link_groups` com `parent_id` (migration `0002`), mas não contém a integridade descrita aqui: a tag não tem prevenção de ciclo, limite de profundidade, delete protegido nem precondição de concorrência.
 
-A Fase 5 **não adiciona migration**: ela usa `link_groups.parent_id`, com a FK auto-referente e o índice que já existem desde a `0002`. Não há closure table, materialized path, nested sets, tabela auxiliar nem coluna `version` em grupos.
+A release `3.0.0` **não adiciona migration** para a hierarquia de grupos: ela usa `link_groups.parent_id`, com a FK auto-referente e o índice que já existem desde a `0002`. Não há closure table, materialized path, nested sets, tabela auxiliar nem coluna `version` em grupos.
 
 Como a árvore se comporta:
 
@@ -362,9 +351,9 @@ Como a árvore se comporta:
 - **Leitura.** `GET /api/groups` continua devolvendo linhas planas com `parent_id`; o Admin monta a árvore, mostra o caminho completo (`Clientes / Brasil / Campinas`) e permite expandir, recolher, criar, mover e excluir. O filtro por grupo continua significando **associação direta** ao grupo escolhido, sem incluir subgrupos.
 - **Redirect inalterado.** `GET /:slug` continua com a mesma leitura de `links`, sem `JOIN` em `link_groups`, sem consulta ao grupo e sem custo adicional por clique.
 
-## Portabilidade de configuração (Unreleased / Fase 5)
+## Portabilidade de configuração (release 3.0.0)
 
-> Escopo: **working tree da Fase 5** (Unreleased, sobre o HEAD congelado da Fase 4 `cdb9f83`). Nada desta seção existe na tag publicada `v2.2.1`.
+> Escopo: release `3.0.0`, sem migration nova. Nada desta seção existe na release anterior `v2.2.1`.
 
 `GET /api/export` devolve um documento **BoltLink Portability JSON v1** com a configuração administrativa da instância, e o Admin oferece a ação `Exportar configuração` para baixá-lo. O mesmo formato pode ser lido de volta em outra instalação pela ação `Importar configuração`.
 

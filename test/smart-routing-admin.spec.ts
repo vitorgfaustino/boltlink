@@ -132,8 +132,10 @@ const PUBLISHED_TAG_REF = "refs/tags/v2.2.1";
 const POST_PUBLISHED_ARTIFACTS = [
 	"src/smart-routing.ts",
 	"public/smart-routing-ui.js",
+	"public/expired-redirect-ui.js",
 	"migrations/0005_smart_routing.sql",
 	"migrations/0004_ab_testing.sql",
+	"migrations/0006_expired_redirect.sql",
 ];
 
 /**
@@ -1110,6 +1112,221 @@ describe("Phase 3: Smart Routing documentation regression guard", () => {
 	});
 
 	/**
+	 * The attribution guard exists because the scope classifier alone was a total
+	 * bypass: a `current` section is allowed to name 0004-0006, so it could also
+	 * state that those artifacts belong to the published v2.2.1 tag and pass every
+	 * scope check. A Phase 3 marker must not rescue such a claim either — where the
+	 * feature was developed says nothing about which release shipped it.
+	 */
+	it("rejects a post-v2.2.1 artifact attributed to the v2.2.1 tag inside a current section", () => {
+		const section = parseMarkdownSections([
+			"# Doc",
+			"## Release atual 3.0.0",
+			"Migration 0005 pertence à v2.2.1.",
+		].join("\n")).find((entry) => entry.title === "Release atual 3.0.0")!;
+		expect(classifySectionScope(section)).toBe("current");
+		expect(findScopeViolations(section)).toEqual(["v2.2.1 cannot contain 0005"]);
+	});
+
+	it("does not accept a Phase 3 marker as proof that 0005 is not content of v2.2.1", () => {
+		const section = parseMarkdownSections([
+			"# Doc",
+			"## Release atual 3.0.0",
+			"Migration 0005 pertence à v2.2.1. Foi criada na Fase 3.",
+		].join("\n")).find((entry) => entry.title === "Release atual 3.0.0")!;
+		expect(classifySectionScope(section)).toBe("current");
+		expect(findCrossVersionAttributionViolations(section.text)).toContain("v2.2.1 cannot contain 0005");
+		expect(findScopeViolations(section)).toContain("v2.2.1 cannot contain 0005");
+	});
+
+	it("rejects every false attribution of a later artifact to the v2.2.1 tag", () => {
+		const claims: Array<[string, string]> = [
+			["Migration 0005 pertence à v2.2.1.", "0005"],
+			["A v2.2.1 inclui a migration `0005_smart_routing.sql`.", "0005_smart_routing"],
+			["A migration `0006` faz parte da v2.2.1.", "0006"],
+			["`expired_redirect_url` está na v2.2.1.", "expired_redirect_url"],
+			["Smart Routing está disponível na v2.2.1.", "Smart Routing"],
+			["O Split Test A/B está presente na v2.2.1.", "Split Test A/B"],
+			["A v2.2.1 tem `ROOT_REDIRECT_URL`.", "ROOT_REDIRECT_URL"],
+		];
+		for (const [claim, artifact] of claims) {
+			expect(findCrossVersionAttributionViolations(claim), claim).toContain(`v2.2.1 cannot contain ${artifact}`);
+		}
+	});
+
+	/**
+	 * BL-65B2-01: naming two releases in one sentence used to make the whole
+	 * fragment invisible to the guard, so an upgrade path and a false attribution
+	 * looked alike. A release that is cited explicitly opens the context of the
+	 * claim next to it; the second release cannot rescue the first proposition, and
+	 * only a clause carrying an upgrade construction is read as a transition.
+	 */
+	it("rejects a false attribution that a second release in the same sentence would hide", () => {
+		const falseAttributions: Array<[string, string]> = [
+			["v2.2.1 inclui 0006 e v3.0.0 adiciona outras melhorias.", "0006"],
+			["Na v2.2.1 a migration 0005 já existia; na v3.0.0 ela continuou disponível.", "0005"],
+		];
+		for (const [claim, artifact] of falseAttributions) {
+			expect(findCrossVersionAttributionViolations(claim), claim).toContain(`v2.2.1 cannot contain ${artifact}`);
+		}
+
+		// The transition the shipped docs write, and two release statements that are
+		// each true, stay valid: the guard splits the claims, it does not ban them.
+		const valid: string[] = [
+			"Para atualizar da v2.2.1 para a v3.0.0, aplique 0004, 0005 e 0006.",
+			"v2.2.1 contém até 0003 e v3.0.0 contém até 0006.",
+			"v2.2.1 não contém 0005; v3.0.0 contém 0005.",
+		];
+		for (const claim of valid) {
+			expect(findCrossVersionAttributionViolations(claim), claim).toEqual([]);
+		}
+	});
+
+	it("rejects an artifact stated to already exist in the v2.2.1 tag", () => {
+		const claim = "Na v2.2.1 a migration 0005 já existia.";
+		expect(findCrossVersionAttributionViolations(claim), claim).toContain("v2.2.1 cannot contain 0005");
+	});
+
+	/**
+	 * BL-65B2-02: a negation used to be read on the whole fragment, so "não possui
+	 * 0004, mas possui 0005" hid the positive claim behind the denial. Negation is
+	 * bound to the construction of its own proposition now, while a coordinated
+	 * negation ("não contém 0005 nem 0006") still covers the whole list it denies.
+	 */
+	it("rejects a membership claim that a coordinated negation does not cover", () => {
+		const falseAttributions: Array<[string, string]> = [
+			["A v2.2.1 não possui 0004, mas possui 0005.", "0005"],
+			["A v2.2.1 não possui 0004, porém possui 0006.", "0006"],
+			["A v2.2.1 não inclui Smart Routing completo, mas inclui a migration 0005.", "0005"],
+		];
+		for (const [claim, artifact] of falseAttributions) {
+			expect(findCrossVersionAttributionViolations(claim), claim).toContain(`v2.2.1 cannot contain ${artifact}`);
+		}
+
+	const denials: string[] = [
+		"A v2.2.1 não contém 0005 nem 0006.",
+		"A v2.2.1 não possui 0005.",
+		"A v2.2.1 contém apenas até 0003, enquanto a v3.0.0 contém 0004-0006.",
+	];
+	for (const claim of denials) {
+		expect(findCrossVersionAttributionViolations(claim), claim).toEqual([]);
+	}
+});
+
+/**
+ * BL-65B2-02, reopened: the guard used to split fragments on every line break,
+ * so the release named on the first line of a wrapped sentence never reached
+ * the second one — "A v2.2.1 não inclui Smart Routing completo,\nmas inclui a
+ * migration 0005." read as two unrelated fragments and the false attribution
+ * passed. A single line break that only wraps the sentence is a Markdown soft
+ * line break: it is normalized to a space before the claim is split, so the
+ * wrapped sentence keeps one release context.
+ */
+it("rejects a false attribution wrapped across a soft line break", () => {
+	const claim = "A v2.2.1 não inclui Smart Routing completo,\nmas inclui a migration 0005.";
+	expect(findCrossVersionAttributionViolations(claim), claim).toContain("v2.2.1 cannot contain 0005");
+
+	const section = parseMarkdownSections([
+		"# Doc",
+		"## Release atual 3.0.0",
+		"A v2.2.1 não inclui Smart Routing completo,",
+		"mas inclui a migration 0005.",
+	].join("\n")).find((entry) => entry.title === "Release atual 3.0.0")!;
+	expect(findScopeViolations(section)).toContain("v2.2.1 cannot contain 0005");
+});
+
+it("rejects a positive claim after every adversative connector wrapped to the next line", () => {
+	const wrappedAdversatives: Array<[string, string]> = [
+		["mas", "0005"],
+		["porém", "0006"],
+		["contudo", "0005"],
+		["entretanto", "0006"],
+		["todavia", "0005"],
+		["enquanto", "0006"],
+	];
+	for (const [connector, artifact] of wrappedAdversatives) {
+		const claim = `A v2.2.1 não possui 0004,\n${connector} possui ${artifact}.`;
+		expect(findCrossVersionAttributionViolations(claim), claim).toContain(`v2.2.1 cannot contain ${artifact}`);
+	}
+});
+
+it("keeps a wrapped denial and a wrapped upgrade instruction valid", () => {
+	const valid: string[] = [
+		"A v2.2.1 não contém\n0005 nem 0006.",
+		"Para atualizar da v2.2.1\npara a v3.0.0,\naplique 0004, 0005 e 0006.",
+	];
+	for (const claim of valid) {
+		expect(findCrossVersionAttributionViolations(claim), claim).toEqual([]);
+	}
+});
+
+/**
+ * Soft line breaks join, structural ones do not: a blank line starts a new
+ * paragraph, a heading and a list item open their own blocks, and none of them
+ * hands its release context to the text after it.
+ */
+it("does not carry release context across a real paragraph, heading or bullet boundary", () => {
+	const reset: string[] = [
+		"A v2.2.1 não contém 0005.\n\nA migration 0005 faz parte da v3.0.0.",
+		"## v2.2.1\nA migration 0005 faz parte desta release.",
+		"- v2.2.1 contém até 0003.\n- v3.0.0 contém até 0006.",
+	];
+	for (const claim of reset) {
+		expect(findCrossVersionAttributionViolations(claim), claim).toEqual([]);
+	}
+
+	// Each bullet is read on its own: the second bullet's release cannot
+	// rescue the first bullet's claim, and the first bullet's release cannot
+	// frame the second one.
+	const bullets = "- v2.2.1 inclui 0005.\n- v3.0.0 inclui 0005.";
+	expect(findCrossVersionAttributionViolations(bullets), bullets).toEqual(["v2.2.1 cannot contain 0005"]);
+});
+
+	it("rejects the post-expiry destination inside a historical v2.2.1 section", () => {
+		const section = parseMarkdownSections([
+			"# Doc",
+			"## Procedimento histórico: upgrade para a v2.2.1",
+			"A migration `0006` adiciona a coluna `expired_redirect_url`; veja `0006_expired_redirect.sql`.",
+		].join("\n")).find((entry) => entry.title.startsWith("Procedimento histórico"))!;
+		expect(classifySectionScope(section)).toBe("published");
+		const expected = expect.arrayContaining(["0006", "0006_expired_redirect", "expired_redirect_url"]);
+		expect(findForbiddenTokens(section.text)).toEqual(expected);
+		expect(findScopeViolations(section)).toEqual(expected);
+	});
+
+	/**
+	 * Positive controls: the guard must not block the documentation the shipped
+	 * release legitimately needs — the current release naming 0004-0006, and an
+	 * upgrade procedure instructing a reader to apply them while leaving the older
+	 * tag.
+	 */
+	it("accepts the current release and the upgrade path naming 0004-0006", () => {
+		const current = parseMarkdownSections([
+			"# Doc",
+			"## Release atual 3.0.0",
+			"A release 3.0.0 inclui a `0005` (Smart Routing) e a `0006` (`expired_redirect_url`).",
+		].join("\n")).find((entry) => entry.title === "Release atual 3.0.0")!;
+		expect(classifySectionScope(current)).toBe("current");
+		expect(findScopeViolations(current)).toEqual([]);
+
+		const upgrade = parseMarkdownSections([
+			"# Doc",
+			"## Upgrade v2.2.1 -> v3.0.0",
+			"Aplique as migrations `0004`, `0005` e `0006`.",
+		].join("\n")).find((entry) => entry.title.startsWith("Upgrade"))!;
+		expect(classifySectionScope(upgrade)).toBe("upgrade");
+		expect(findScopeViolations(upgrade)).toEqual([]);
+
+		const historical = parseMarkdownSections([
+			"# Doc",
+			"## Procedimento histórico: upgrade para a v2.2.1",
+			"A tag termina na migration `0003_lgpd_minimization.sql`.",
+		].join("\n")).find((entry) => entry.title.startsWith("Procedimento histórico"))!;
+		expect(classifySectionScope(historical)).toBe("published");
+		expect(findScopeViolations(historical)).toEqual([]);
+	});
+
+	/**
 	 * The GLOBAL-003 root cause was documentation disagreeing with the artifact.
 	 * This test reads the real tag so the published boundary stays checkable
 	 * instead of being taken from prose. It is evidence validation, not the
@@ -1120,16 +1337,25 @@ describe("Phase 3: Smart Routing documentation regression guard", () => {
 		assertPublishedTagContract(publishedTag!);
 	});
 
-	it("attributes 0003 to the published upgrade line and 0004 to Phase 2", () => {
+	/**
+	 * The name keeps "Phase 2" because `dev-validate-phase-2` selects tests by
+	 * name and this one still verifies the Phase 2 boundary: 0004 and its A/B
+	 * surface belong to the baseline that introduced them, and the migration chains
+	 * above it are declared by the release this checkout ships. A test name is a
+	 * gate label, not user-facing documentation, so it is allowed to name the phase
+	 * even though no section heading does.
+	 */
+	it("attributes 0003 to the published line, 0004 to the Phase 2 baseline and 0005/0006 to the current release", () => {
 		const upgrading = readDoc("docs/upgrading.md");
-		const scope = parseMarkdownSections(upgrading).find((entry) => entry.title.startsWith("Escopo das três bases"))!;
-		expect(classifySectionScope(scope)).toBe("unreleased");
+		const scope = parseMarkdownSections(upgrading).find((entry) => entry.title.startsWith("Escopo das bases"))!;
+		expect(classifySectionScope(scope)).toBe("current");
 		expect(scope.body).toContain("`0000` a `0003`");
 		expect(scope.body).toContain("`0000` a `0004`");
 		expect(scope.body).toContain("`0000` a `0005`");
+		expect(scope.body).toContain("`0000` a `0006`");
 
-		// The published upgrade section never sends a reader to a later migration.
-		const published = parseMarkdownSections(upgrading).find((entry) => entry.title.startsWith("Upgrade para a versão publicada"))!;
+		// The historical v2.2.1 procedure never sends a reader to a later migration.
+		const published = parseMarkdownSections(upgrading).find((entry) => entry.title.startsWith("Procedimento histórico"))!;
 		expect(classifySectionScope(published)).toBe("published");
 		expect(published.body).toContain("0003");
 		expect(findScopeViolations(published)).toEqual([]);
@@ -1718,12 +1944,14 @@ type MarkdownSection = {
 };
 
 /**
- * The documentation describes three different code states, and each section is
+ * The documentation describes five different code states, and each section is
  * scoped to exactly one of them. The published tag is the smallest: it ends at
  * migration 0003. Phase 2 (the local baseline) adds 0004 and A/B. Phase 3 (the
- * working tree) adds 0005 and Smart Routing.
+ * working tree) adds 0005 and Smart Routing. The current release is the state
+ * this checkout ships: 0004 through 0006 plus every Phase 5 surface, all
+ * released together as 3.0.0. `upgrade` is the transition between two releases.
  */
-type SectionScope = "published" | "phase2" | "unreleased" | "neutral";
+type SectionScope = "published" | "phase2" | "unreleased" | "current" | "upgrade" | "neutral";
 
 const PUBLISHED_SCOPE_PATTERNS = [
 	/v2\.2\.1/i,
@@ -1752,30 +1980,71 @@ const UNRELEASED_SCOPE_PATTERNS = [
 	/next release/i,
 ];
 
+/**
+ * The release this checkout ships (3.0.0). Every artifact added after the
+ * published v2.2.1 tag belongs here once it is shipped, so a section about a
+ * released feature is resolved as `current` instead of inheriting the published
+ * scope of a historical parent. It is matched after the published patterns so a
+ * heading that names both keeps the stricter historical scope.
+ */
+const CURRENT_SCOPE_PATTERNS = [
+	/\bv?3\.0\.0\b/i,
+	/release atual/i,
+	/vers[ãa]o atual/i,
+];
+
+/**
+ * A documented artifact that did not exist in the v2.2.1 tag, together with the
+ * migration that introduced it. The number is what makes an attribution checkable:
+ * an artifact cannot be content of a release whose migration ceiling is lower.
+ */
+type FeatureArtifact = { label: string; pattern: RegExp; introducedIn: number };
+
 /** Phase 3 artifacts: absent from both the published tag and the Phase 2 baseline. */
-const UNRELEASED_FEATURE_TOKENS: Array<{ label: string; pattern: RegExp }> = [
-	{ label: "0005", pattern: /\b0005\b/ },
-	{ label: "0005_smart_routing", pattern: /0005_smart_routing/i },
-	{ label: "Smart Routing", pattern: /smart[\s-]?routing/i },
-	{ label: "smartRoutingRules", pattern: /smartRoutingRules/i },
-	{ label: "smart_routing_rules", pattern: /smart_routing_rules/i },
-	{ label: "src/smart-routing.ts", pattern: /src\/smart-routing\.ts/i },
-	{ label: "public/smart-routing-ui.js", pattern: /public\/smart-routing-ui\.js/i },
+const UNRELEASED_FEATURE_TOKENS: FeatureArtifact[] = [
+	{ label: "0005", pattern: /\b0005\b/, introducedIn: 5 },
+	{ label: "0005_smart_routing", pattern: /0005_smart_routing/i, introducedIn: 5 },
+	{ label: "Smart Routing", pattern: /smart[\s-]?routing/i, introducedIn: 5 },
+	{ label: "smartRoutingRules", pattern: /smartRoutingRules/i, introducedIn: 5 },
+	{ label: "smart_routing_rules", pattern: /smart_routing_rules/i, introducedIn: 5 },
+	{ label: "src/smart-routing.ts", pattern: /src\/smart-routing\.ts/i, introducedIn: 5 },
+	{ label: "public/smart-routing-ui.js", pattern: /public\/smart-routing-ui\.js/i, introducedIn: 5 },
 ];
 
 /** Phase 2 artifacts: present in the local baseline, absent from the published tag. */
-const PHASE2_FEATURE_TOKENS: Array<{ label: string; pattern: RegExp }> = [
-	{ label: "0004", pattern: /\b0004\b/ },
-	{ label: "0004_ab_testing", pattern: /0004_ab_testing/i },
-	{ label: "Split Test A/B", pattern: /split\s*test\s*a\/b/i },
-	{ label: "A/B testing", pattern: /a\/b\s*testing/i },
-	{ label: "ab_enabled", pattern: /\bab_enabled\b/i },
-	{ label: "ab_target_url", pattern: /\bab_target_url\b/i },
-	{ label: "dev-prepare", pattern: /dev-prepare/i },
+const PHASE2_FEATURE_TOKENS: FeatureArtifact[] = [
+	{ label: "0004", pattern: /\b0004\b/, introducedIn: 4 },
+	{ label: "0004_ab_testing", pattern: /0004_ab_testing/i, introducedIn: 4 },
+	{ label: "Split Test A/B", pattern: /split\s*test\s*a\/b/i, introducedIn: 4 },
+	{ label: "A/B testing", pattern: /a\/b\s*testing/i, introducedIn: 4 },
+	{ label: "ab_enabled", pattern: /\bab_enabled\b/i, introducedIn: 4 },
+	{ label: "ab_target_url", pattern: /\bab_target_url\b/i, introducedIn: 4 },
+	{ label: "dev-prepare", pattern: /dev-prepare/i, introducedIn: 4 },
 ];
 
-/** Everything the published tag does not contain. */
-const PUBLISHED_FORBIDDEN_TOKENS = [...PHASE2_FEATURE_TOKENS, ...UNRELEASED_FEATURE_TOKENS];
+/**
+ * Phase 4 artifacts: absent from the published tag too, and the half of the
+ * boundary the published forbidden list used to leave open — a published section
+ * could describe the post-expiry destination and `ROOT_REDIRECT_URL` and pass.
+ * The generic word `expiration` is deliberately not a token: it predates the
+ * published tag, so only identifiers of the new feature are listed.
+ */
+const PHASE4_FEATURE_TOKENS: FeatureArtifact[] = [
+	{ label: "0006", pattern: /\b0006\b/, introducedIn: 6 },
+	{ label: "0006_expired_redirect", pattern: /0006_expired_redirect/i, introducedIn: 6 },
+	{ label: "expired_redirect_url", pattern: /expired_redirect_url/i, introducedIn: 6 },
+	{ label: "expiredRedirectUrl", pattern: /expiredRedirectUrl/, introducedIn: 6 },
+	{ label: "ROOT_REDIRECT_URL", pattern: /ROOT_REDIRECT_URL/, introducedIn: 6 },
+];
+
+/** Everything the published v2.2.1 tag does not contain. */
+const POST_PUBLISHED_FEATURE_TOKENS: FeatureArtifact[] = [
+	...PHASE2_FEATURE_TOKENS,
+	...UNRELEASED_FEATURE_TOKENS,
+	...PHASE4_FEATURE_TOKENS,
+];
+
+const PUBLISHED_FORBIDDEN_TOKENS = POST_PUBLISHED_FEATURE_TOKENS;
 
 /** Parses Markdown headings (#..######) into sections with ancestry. */
 function parseMarkdownSections(markdown: string): MarkdownSection[] {
@@ -1819,15 +2088,30 @@ function parseMarkdownSections(markdown: string): MarkdownSection[] {
 }
 
 /**
+ * A heading that names both the published tag and the release this checkout ships
+ * describes the transition between them ("Upgrade v2.2.1 -> v3.0.0"). Forcing it
+ * to `published` flags the upgrade procedure for naming 0004-0006, which is
+ * exactly what an upgrade document has to name; reading it as `current` would let
+ * it rewrite history. The attribution guard still applies, so a transition written
+ * as if the older tag already contained the newer artifacts is rejected.
+ */
+const UPGRADE_SCOPE_PATTERN = /\bv2\.2\.1\b[\s\S]*\bv?3\.0\.0\b|\bv?3\.0\.0\b[\s\S]*\bv2\.2\.1\b/i;
+
+/**
  * Resolves the effective scope from the nearest heading/ancestor marker. The
  * nearest marker wins, so a Phase 3 child of a published parent is scanned as
- * Phase 3. Phase 2 is matched before the generic `development` marker so a
- * "development Phase 2" heading is not read as Phase 3.
+ * Phase 3. An upgrade heading naming both releases is matched first, then Phase 2
+ * before the generic `development` marker so a "development Phase 2" heading is
+ * not read as Phase 3, and the published tag before the current release so a
+ * heading naming the historical tag keeps the stricter scope.
  */
 function classifySectionScope(section: MarkdownSection): SectionScope {
 	const chain = [...section.ancestors.map((entry) => entry.title), section.title];
 	for (let index = chain.length - 1; index >= 0; index -= 1) {
 		const title = chain[index];
+		if (UPGRADE_SCOPE_PATTERN.test(title)) {
+			return "upgrade";
+		}
 		if (PHASE2_SCOPE_PATTERNS.some((pattern) => pattern.test(title))) {
 			return "phase2";
 		}
@@ -1836,6 +2120,9 @@ function classifySectionScope(section: MarkdownSection): SectionScope {
 		}
 		if (PUBLISHED_SCOPE_PATTERNS.some((pattern) => pattern.test(title))) {
 			return "published";
+		}
+		if (CURRENT_SCOPE_PATTERNS.some((pattern) => pattern.test(title))) {
+			return "current";
 		}
 	}
 	return "neutral";
@@ -1851,16 +2138,216 @@ function findPhase3Tokens(text: string): string[] {
 	return UNRELEASED_FEATURE_TOKENS.filter((token) => token.pattern.test(text)).map((token) => token.label);
 }
 
-/** Scope-aware violation report for one section. */
+/**
+ * A release the documentation has to keep apart, with the last migration it
+ * contains. `v2.2.1` is the published tag (ceiling `0003`); `3.0.0` is the release
+ * this checkout ships (ceiling `0006`). The ceiling is the fact a false
+ * attribution contradicts, and this map is the only place the version/migration
+ * numbers live.
+ */
+type ReleaseLine = { release: string; through: number; pattern: RegExp };
+
+const RELEASE_LINES: ReleaseLine[] = [
+	{ release: "v2.2.1", through: 3, pattern: /v2\.2\.1|vers[ãa]o publicada|release publicada/i },
+	{ release: "3.0.0", through: 6, pattern: /\bv?3\.0\.0\b/i },
+];
+
+/**
+ * Constructions that link an artifact to a release as content of it. The list is
+ * closed on purpose: an upgrade instruction ("aplique `0004`") is not membership,
+ * so every pattern states a claim of belonging instead of matching any verb.
+ */
+const MEMBERSHIP_CLAIM_PATTERNS = [
+	/\bpertence(?:m)?\b/i,
+	/\bfaz(?:em)?\s+parte\b/i,
+	/\bintegra(?:m|va|r)?\b/i,
+	/\bsuporta(?:m|va|r)?\b/i,
+	/\b(?:inclui|incluem|cont[ée]m|cont[êe]m|possui|possuem|traz|trazem|tem|t[êe]m|adiciona|adicionam|introduz|introduzem|chega|chegam)\b/i,
+	/\best[áa]\s+(?:na|no|em|presente)/i,
+	/\b(?:dispon[íi]vel|presente|existe)\s+(?:n[ao]|em)\b/i,
+	/\bj[áa]\s+(?:existia|existiam|estava|estavam)\b/i,
+	/\b(?:belongs?|includes?|contains?|ships?|introduces?|adds?)\b/i,
+];
+
+/**
+ * The same constructions denying membership, bound to the proposition it sits in.
+ * "Um checkout da tag `v2.2.1` não contém a `0005`" states the boundary instead of
+ * breaking it, so a negated proposition is never a false attribution. Emphasis
+ * markers are allowed between the words because the docs bold the negation:
+ * `**não** contém`.
+ */
+const NEGATED_MEMBERSHIP_PATTERN =
+	/\b(?:n[ãa]o|nunca|sem)\b[\s*_]*(?:\w+[\s*_]+){0,2}?(?:pertence|faz(?:em)?\s+parte|integra|suporta|inclui|incluem|cont[ée]m|cont[êe]m|possui|possuem|traz|trazem|tem|t[êe]m|est[áa]|dispon[íi]vel|presente|existe|existia|estava)/i;
+
+/**
+ * Lines that open a context of their own instead of wrapping the running
+ * sentence: a heading, a bullet, a numbered item, a table row or a thematic
+ * break. Together with a blank line (a new paragraph) they are the boundaries
+ * the attribution guard resets on.
+ */
+const STRUCTURAL_LINE_PATTERN =
+	/^ {0,3}(?:#{1,6}(?:\s|$)|[-*+](?:\s|$)|\d+[.)]\s|\||-{3,}\s*$|\*{3,}\s*$|_{3,}\s*$)/;
+
+/**
+ * Groups a section into paragraph blocks. Markdown calls a single line break
+ * inside one paragraph a soft line break: it only wraps the sentence visually,
+ * so consecutive prose lines join into one block and the wrap reads as a space.
+ * Every structural line — and every fenced-code line, through the same mask the
+ * heading parser uses — stands as a block of its own, so its context never
+ * blends with a neighbor's.
+ */
+function splitAttributionBlocks(text: string): string[] {
+	const lines = text.split(/\r?\n/);
+	const fenced = fencedCodeMask(lines);
+	const blocks: string[] = [];
+	let paragraph: string[] = [];
+	const flushParagraph = () => {
+		if (paragraph.length > 0) {
+			blocks.push(paragraph.join(" "));
+			paragraph = [];
+		}
+	};
+	for (let index = 0; index < lines.length; index += 1) {
+		const line = lines[index];
+		if (fenced[index] || line.trim().length === 0 || STRUCTURAL_LINE_PATTERN.test(line)) {
+			flushParagraph();
+			if (line.trim().length > 0) {
+				blocks.push(line.trim());
+			}
+			continue;
+		}
+		paragraph.push(line.trim());
+	}
+	flushParagraph();
+	return blocks;
+}
+
+/**
+ * Splits a section into claim-sized fragments: a sentence end or a semicolon
+ * separates them inside a block, and the block boundaries (a real paragraph, a
+ * heading, a list item, a code line) separate them too. A period inside
+ * `v2.2.1` or `0006_expired.sql` is followed by a non-space, so release names
+ * and file names survive intact. A line break that only wraps the sentence is
+ * normalized to a space first: "…não inclui X,\nmas inclui Y" is one sentence
+ * with two clauses, not two fragments that forgot each other's release.
+ */
+function splitAttributionFragments(text: string): string[] {
+	return splitAttributionBlocks(text)
+		.flatMap((block) => block.split(/(?<=[.;!?])\s+/))
+		.map((fragment) => fragment.trim())
+		.filter((fragment) => fragment.length > 0);
+}
+
+/**
+ * Adversative connectors start a new proposition. In "não possui 0004, mas possui
+ * 0005" one artifact is denied and another is claimed, so the negation of the
+ * first must not reach the second. Requiring the comma keeps the split on the
+ * adversative clause the docs write instead of on any textual "mas".
+ */
+const ADVERSATIVE_CLAUSE_BOUNDARY = /,\s*(?:mas|por[ée]m|contudo|entretanto|todavia|enquanto)\s+/i;
+
+/** Release names, derived from `RELEASE_LINES` so the map is never duplicated. */
+const RELEASE_REFERENCE_SOURCE = RELEASE_LINES.map((line) => `(?:${line.pattern.source})`).join("|");
+
+/**
+ * A conjunction that puts a release back in front starts a new proposition: in
+ * "v2.2.1 inclui 0006 e v3.0.0 adiciona outras melhorias" the two releases carry
+ * two claims, and the first has to be read on its own.
+ */
+const CONJUNCTION_BEFORE_RELEASE = new RegExp(
+	`\\s+e\\s+(?=(?:[ao]s?\\s+)?(?:${RELEASE_REFERENCE_SOURCE}))`,
+	"i",
+);
+
+/**
+ * A clause naming two releases is an upgrade path only when it says so. The docs
+ * and the fixtures write it as an arrow ("`v2.2.1` → `3.0.0`"), with the upgrade
+ * vocabulary, or with "de X para Y". Two releases merely mentioned together are
+ * two release claims, not a transition.
+ */
+const TRANSITION_CONSTRUCTION_PATTERNS = [
+	/→|->|⇒|➜/,
+	/\b(?:atualiz\w+|upgrade|migra\w+)\b/i,
+	/\b(?:de|da|do)\b[^.;]{0,80}?\bpara\b/i,
+];
+
+/** Splits one fragment into the propositions the guard decides on. */
+function splitAttributionClauses(fragment: string): string[] {
+	const clauses: string[] = [];
+	for (const part of fragment.split(ADVERSATIVE_CLAUSE_BOUNDARY)) {
+		for (const clause of part.split(CONJUNCTION_BEFORE_RELEASE)) {
+			const trimmed = clause.trim();
+			if (trimmed.length > 0) {
+				clauses.push(trimmed);
+			}
+		}
+	}
+	return clauses;
+}
+
+/**
+ * The cross-version attribution guard. Scope classification resolves which code
+ * state a section *documents*; it says nothing about what that section *claims*
+ * about other releases, so a `current` section could still state that migration
+ * 0005 belongs to the v2.2.1 tag and pass every scope check.
+ *
+ * The decision is per proposition, never per fragment. A release named in a
+ * sentence carries its context to the following clause of that same sentence
+ * ("… não possui 0004, mas possui 0005") and never across a sentence boundary, so
+ * a scope note cannot leak its release into the next claim. Negation is read on
+ * the clause that carries the construction, so denying one artifact does not deny
+ * another. A clause naming two releases is an upgrade path only when it carries an
+ * upgrade construction; otherwise each named release has to contain the artifact
+ * on its own.
+ */
+function findCrossVersionAttributionViolations(text: string): string[] {
+	const violations: string[] = [];
+	for (const fragment of splitAttributionFragments(text)) {
+		let context: ReleaseLine | null = null;
+		for (const clause of splitAttributionClauses(fragment)) {
+			const named = RELEASE_LINES.filter((line) => line.pattern.test(clause));
+			const isTransition = named.length > 1 && TRANSITION_CONSTRUCTION_PATTERNS.some((pattern) => pattern.test(clause));
+			context = named.length === 1 ? named[0] : named.length > 1 ? null : context;
+			if (isTransition) {
+				continue;
+			}
+			const releases = named.length > 0 ? named : context ? [context] : [];
+			if (!releases.length) {
+				continue;
+			}
+			const artifacts = POST_PUBLISHED_FEATURE_TOKENS.filter((artifact) => artifact.pattern.test(clause));
+			if (!artifacts.length) {
+				continue;
+			}
+			const claimsMembership = MEMBERSHIP_CLAIM_PATTERNS.some((pattern) => pattern.test(clause));
+			if (!claimsMembership || NEGATED_MEMBERSHIP_PATTERN.test(clause)) {
+				continue;
+			}
+			for (const release of releases) {
+				for (const artifact of artifacts) {
+					if (artifact.introducedIn > release.through) {
+						violations.push(`${release.release} cannot contain ${artifact.label}`);
+					}
+				}
+			}
+		}
+	}
+	return violations;
+}
+
+/**
+ * Scope-aware violation report for one section: what the section's own code state
+ * excludes, plus the attribution guard that applies to every scope.
+ */
 function findScopeViolations(section: MarkdownSection): string[] {
 	const scope = classifySectionScope(section);
 	if (scope === "published") {
-		return findForbiddenTokens(section.text);
+		return [...findForbiddenTokens(section.text), ...findCrossVersionAttributionViolations(section.text)];
 	}
 	if (scope === "phase2") {
-		return findPhase3Tokens(section.text);
+		return [...findPhase3Tokens(section.text), ...findCrossVersionAttributionViolations(section.text)];
 	}
-	return [];
+	return findCrossVersionAttributionViolations(section.text);
 }
 
 const EXCLUDED_DOC_DIRECTORIES = new Set([
@@ -1916,44 +2403,128 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 		expect(smartIndex).toBeLessThan(versionIndex);
 	});
 
-	it("keeps the published README upgrade section free of Smart Routing and 0005", () => {
+	it("keeps the historical README upgrade section free of Smart Routing and 0005", () => {
 		const readme = readDoc("README.md");
-		const published = markdownSection(readme, "## Upgrade para v2.2.1");
+		const published = markdownSection(readme, "## Procedimento histórico: upgrade para a v2.2.1");
 		expect(published).not.toBeNull();
 		expect(published).not.toMatch(/0005|Smart Routing/i);
 
-		const unreleased = markdownSection(readme, "## Unreleased / Fase 3 (próxima release)");
-		expect(unreleased).not.toBeNull();
-		expect(unreleased).toMatch(/0005/);
-		expect(unreleased).toMatch(/Smart Routing/i);
+		const current = markdownSection(readme, "## Smart Routing e migration 0005 (release 3.0.0)");
+		expect(current).not.toBeNull();
+		expect(current).toMatch(/0005/);
+		expect(current).toMatch(/Smart Routing/i);
 	});
 
-	it("keeps the README Wrangler local procedure published-scoped", () => {
+	it("keeps the README usage section led by the shipped release", () => {
 		const readme = readDoc("README.md");
 		const section = parseMarkdownSections(readme).find((entry) => entry.title.startsWith("1. Wrangler local"))!;
 		expect(section).toBeTruthy();
-		expect(classifySectionScope(section)).toBe("published");
+		// The main installation path is the release this checkout ships, and it
+		// carries both the clean-install helper and the pending-migration step.
+		expect(classifySectionScope(section)).toBe("current");
 		expect(findScopeViolations(section)).toEqual([]);
-
-		// Direct content only: the Phase 2 and Phase 3 development children have
-		// their own scope and are not part of the published procedure.
+		expect(section.body).toMatch(/dev-prepare/);
 		expect(section.body).toMatch(/migrations apply/);
-		expect(section.body).not.toMatch(/dev-prepare|0004|0005/i);
+
+		// The previous release stays documented, in a child section whose heading
+		// says it is historical; that child is where the published boundary applies.
+		const historical = parseMarkdownSections(readme).find(
+			(entry) => entry.ancestors.some((ancestor) => ancestor.title.startsWith("1. Wrangler local")) && /v2\.2\.1/.test(entry.title),
+		)!;
+		expect(historical).toBeTruthy();
+		expect(classifySectionScope(historical)).toBe("published");
+		expect(historical.body).toMatch(/migrations apply/);
+		expect(findScopeViolations(historical)).toEqual([]);
 	});
 
-	it("keeps the README v2.2.1 upgrade section free of Smart Routing and 0005", () => {
+	/**
+	 * The ambiguity BL-65B1-01 named was positional, not textual: the previous
+	 * release was the first procedure a reader met, with the shipped release
+	 * nested under it. This asserts the structure instead of the copy, so the
+	 * lineage can stay as long as it is never the leading path.
+	 */
+	it("keeps the previous release out of the leading position of the README usage section", () => {
 		const readme = readDoc("README.md");
-		const published = markdownSection(readme, "## Upgrade para v2.2.1");
+		const usage = parseMarkdownSections(readme).filter((entry) =>
+			entry.ancestors.some((ancestor) => ancestor.title === "Três formas de usar"),
+		);
+		expect(usage.length).toBeGreaterThan(0);
+
+		const leading = usage.filter((entry) => entry.level === 3);
+		expect(leading.length).toBeGreaterThan(0);
+		expect(leading[0].title, "the first usage path must be the shipped release").toMatch(/3\.0\.0/);
+		expect(leading[0].title, "the first usage path must not be the previous release").not.toMatch(/v2\.2\.1/);
+
+		// Lineage is preserved, but every heading naming the previous release has to
+		// say that it is historical.
+		const previousRelease = usage.filter((entry) => /v2\.2\.1/.test(entry.title));
+		expect(previousRelease.length).toBeGreaterThan(0);
+		for (const entry of previousRelease) {
+			expect(entry.title, `${entry.heading} must be framed as historical`).toMatch(/hist[óo]ric|anterior|legacy|antig/i);
+		}
+	});
+
+	/**
+	 * The 3.0.0 transition renamed what "later than v2.2.1" is called, so the docs
+	 * no longer agree on a single marker, and asking the whole file was the wrong
+	 * unit twice over: a file naming 3.0.0 somewhere used to license every mention
+	 * of 0005 in it, and a bare "Fase 3" marker used to count as proof of the
+	 * release boundary — where a feature was developed does not say which release
+	 * shipped it. The invariant is asked of the section that mentions the migration
+	 * and needs no marker at all: the section must not be scoped to the historical
+	 * tag or to the Phase 2 baseline, and it must not claim that v2.2.1 contains
+	 * the migration. A section that names the migration as a schema capability,
+	 * without any release framing, is not making a release claim and passes.
+	 */
+	it("never presents migration 0005 as content of the v2.2.1 tag in any doc section", () => {
+		const files = [
+			"README.md",
+			"AI-START.md",
+			"AGENTS.md",
+			"docs/architecture.md",
+			"docs/upgrading.md",
+			"docs/cloudflare-setup.md",
+			"docs/local-development.md",
+			"docs/ai-guided-operations.md",
+			"docs/privacy.md",
+			"docs/click-policy.md",
+			"docs/free-plan-traffic.md",
+			"docs/privacy-template.md",
+		];
+
+		for (const file of files) {
+			for (const section of parseMarkdownSections(readDoc(file))) {
+				// The migration is what a release boundary is about. A constraints page
+				// that names the feature without the migration is describing behavior,
+				// not the content of a release, so it is out of scope here.
+				if (!/\b0005\b|0005_smart_routing|smart_routing_rules/.test(section.text)) {
+					continue;
+				}
+				const scope = classifySectionScope(section);
+				expect(scope, `${file} > ${section.heading} must not scope Smart Routing to the v2.2.1 tag`).not.toBe("published");
+				expect(scope, `${file} > ${section.heading} must not scope Smart Routing to the Phase 2 baseline`).not.toBe("phase2");
+				expect(
+					findCrossVersionAttributionViolations(section.text),
+					`${file} > ${section.heading} must not claim 0005 for the v2.2.1 tag`,
+				).toEqual([]);
+			}
+		}
+	});
+
+	it("keeps the historical README v2.2.1 upgrade section free of Smart Routing and 0005", () => {
+		const readme = readDoc("README.md");
+		const published = markdownSection(readme, "## Procedimento histórico: upgrade para a v2.2.1");
 		expect(published).not.toBeNull();
 		expect(published).not.toMatch(/0005|Smart Routing|smartRouting|smart_routing_rules/i);
 	});
 
-	it("keeps the upgrading A/B Phase 2 section free of Phase 3 artifacts", () => {
+	it("keeps the upgrading Phase 2 A/B section free of Phase 3 artifacts", () => {
 		const upgrading = readDoc("docs/upgrading.md");
 		const section = parseMarkdownSections(upgrading).find((entry) => entry.title.startsWith("Split Test A/B e migration 0004"))!;
 		expect(section).toBeTruthy();
-		expect(classifySectionScope(section)).toBe("phase2");
-		expect(findScopeViolations(section)).toEqual([]);
+		expect(classifySectionScope(section)).toBe("current");
+		// The A/B section stays about A/B: Smart Routing belongs to the 0005 section.
+		expect(findPhase3Tokens(section.text)).toEqual([]);
 		expect(section.body).toMatch(/0004/);
 	});
 
@@ -1969,15 +2540,15 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 		expect(unreleased).toMatch(/Smart Routing/i);
 	});
 
-	it("keeps the published upgrading section free of Smart Routing and 0005", () => {
+	it("keeps the historical upgrading section free of Smart Routing and 0005", () => {
 		const upgrading = readDoc("docs/upgrading.md");
-		const published = markdownSection(upgrading, "## Upgrade para a versão publicada (v2.2.1)");
+		const published = markdownSection(upgrading, "## Procedimento histórico: upgrade para a v2.2.1");
 		expect(published).not.toBeNull();
 		expect(published).not.toMatch(/0005|Smart Routing/i);
 
-		const unreleased = markdownSection(upgrading, "## Smart Routing e migration 0005 (Unreleased / Fase 3)");
-		expect(unreleased).not.toBeNull();
-		expect(unreleased).toMatch(/0005/);
+		const current = markdownSection(upgrading, "## Smart Routing e migration 0005 (release 3.0.0)");
+		expect(current).not.toBeNull();
+		expect(current).toMatch(/0005/);
 	});
 
 	it("keeps each migration attributed to its own baseline in cloudflare-setup", () => {
@@ -2048,26 +2619,30 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 		}
 	});
 
-	it("marks migration 0005 as Unreleased in every doc that mentions it", () => {
-		const files = [
-			"README.md",
-			"AI-START.md",
-			"AGENTS.md",
-			"docs/architecture.md",
-			"docs/upgrading.md",
-			"docs/cloudflare-setup.md",
-			"docs/local-development.md",
-			"docs/ai-guided-operations.md",
-			"docs/privacy.md",
-			"docs/click-policy.md",
-			"docs/free-plan-traffic.md",
-			"docs/privacy-template.md",
-		];
-
-		for (const file of files) {
+	/**
+	 * The counterpart of the scope scanner for the shipped release: the sections
+	 * that document 0004-0006 belong to the current release, so they must not be
+	 * framed as upcoming (the pre-3.0.0 wording) nor inherit the historical
+	 * v2.2.1 scope of a parent section.
+	 */
+	it("frames the shipped release as current in README and upgrading", () => {
+		for (const file of ["README.md", "docs/upgrading.md"]) {
 			const text = readDoc(file);
-			if (/\b0005\b|smart_routing_rules|Smart Routing/.test(text)) {
-				expect(text, `${file} must mark Smart Routing as Unreleased`).toMatch(/Unreleased|próxima release|Proxima release|development/i);
+			expect(text, `${file} must not frame the shipped release as upcoming`).not.toMatch(/pr[óo]xima release|next release/i);
+			expect(text, `${file} must not send readers of shipped features to a development branch`).not.toMatch(/branch de desenvolvimento|development branch/i);
+			expect(text, `${file} must name the current release`).toMatch(/3\.0\.0/);
+		}
+	});
+
+	it("keeps every 3.0.0 artifact out of the historical v2.2.1 scope", () => {
+		for (const file of ["README.md", "docs/upgrading.md"]) {
+			for (const section of parseMarkdownSections(readDoc(file))) {
+				if (!/\b000[456]\b|smart_routing_rules|Smart Routing|expired_redirect_url|api\/export|api\/import/.test(section.text)) {
+					continue;
+				}
+				const scope = classifySectionScope(section);
+				expect(scope, `${file} > ${section.heading} must not be historical or pre-release`).not.toBe("published");
+				expect(scope, `${file} > ${section.heading} must not be historical or pre-release`).not.toBe("unreleased");
 			}
 		}
 	});

@@ -34,13 +34,13 @@ A tag publicada `v2.2.1` **não** é o baseline local da Fase 2: ela não conté
 
 ### Status de desenvolvimento (Fase 5 congelada; Phase 6 em andamento)
 
-- Baseline pre-freeze: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. A Fase 5 está **Unreleased** e a versão desta release está **finalizada localmente como `3.0.0`** (o `package.json` está em `3.0.0`); a release ainda **não foi publicada** — sem tag, sem push e sem deploy.
+- Baseline pre-freeze: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. A versão desta release é **`3.0.0`** (o `package.json` está em `3.0.0`).
 - Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
 - Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fecha o finding BL-54-04 e reconcilia a documentação; não adicionou feature, migration, bump de versão, tag nem deploy.
 - Com o freeze do Gate 5.5, a Fase 5 está **FEATURE FROZEN**: nenhuma feature adicional deve ser iniciada, e a Phase 6 não pode ser iniciada dentro de um gate da Fase 5.
-- **Phase 6 — Release Readiness (em andamento)**: Gate 6.1 (auditoria global final) concluído com P0 = 0, P1 = 0 e P2 = 0; Gate 6.2 (correção dos blockers) concluído, fechando BL-61-01 e BL-61-02; Gate 6.3 (version finalization) **FINALIZED LOCALLY** — versão `3.0.0` finalizada e os P3 BL-61-03, BL-61-04 e o wording "nullable" de `docs/upgrading.md` fechados; Gate 6.4 (local release commit) **FINALIZED LOCALLY** — commit local de preparação da release criado sobre o pre-release baseline `04a6873`. Estado da release: **NOT TAGGED / NOT PUSHED / NOT DEPLOYED / NOT PUBLISHED**. Next: release publication/deployment gate.
+- **Phase 6 — Release Readiness (em andamento)**: Gate 6.1 (auditoria global final) concluído com P0 = 0, P1 = 0 e P2 = 0; Gate 6.2 (correção dos blockers) concluído, fechando BL-61-01 e BL-61-02; Gate 6.3 (version finalization) **FINALIZED LOCALLY** — versão `3.0.0` finalizada e os P3 BL-61-03, BL-61-04 e o wording "nullable" de `docs/upgrading.md` fechados; Gate 6.4 (local release commit) **FINALIZED LOCALLY** — commit local de preparação da release `6847e47` (`release: prepare 3.0.0`), sobre o pre-release baseline `04a6873`; Gate 6.5A (publication preflight): **RECLASSIFIED** — BL-65A-01 é **NOT APPLICABLE** (o finding assumia uma instalação canônica Cloudflare/D1 vinculada ao repositório-base, e ela não existe; Cloudflare login, D1/Worker remotos e production smoke não são requisito da release do repositório), e BL-65A-02 (wording de release não publicada no commit de preparação) foi fechado no Gate 6.5B; Gate 6.5B (final publication metadata) **FINALIZED LOCALLY** — a metadata de publicação final está neste commit, que é o alvo da tag `v3.0.0`. Modelo de distribuição: a release do repositório é **source distribution** (source commit + tag `v3.0.0` + push de `main` + push da tag + GitHub Release); Cloudflare deploy, migrations e D1 são **por instalação** e não fazem parte da release do repositório. Estado da release: **NOT TAGGED / NOT PUSHED**. Next: GitHub publication.
 - A dívida técnica `TS7016` do módulo `qrcode` foi **aceita para a 3.0.0** como **não bloqueante** (runtime, bundle do Wrangler e suíte passam; o CI atual não usa `tsc` como gate de release).
-- O estado correto da versão é **"finalizada localmente"**, nunca "publicada": nenhum documento pode afirmar que a `3.0.0` foi taggeada, publicada, enviada ou implantada.
+- A versão `3.0.0` é o estado do repositório e a tag alvo é `v3.0.0`; nenhum documento pode afirmar que instalações foram atualizadas, que migrations remotas foram aplicadas por quem publica a tag, ou que existe Worker/D1/hostname/Cloudflare Account oficial — cada instalação é self-hosted e executa o próprio upgrade (`docs/upgrading.md`).
 
 ## Regra obrigatória para tarefas Cloudflare
 
@@ -195,5 +195,5 @@ Para mudanças de banco:
 
 ---
 
-Versão 3.0.0 (finalizada localmente, não publicada)
+Versão 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

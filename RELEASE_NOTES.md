@@ -1,6 +1,8 @@
-## BoltLink 3.0.0 (Unreleased — versão finalizada localmente, ainda não publicada)
+## BoltLink 3.0.0
 
-Notas consolidadas da release **3.0.0**, cobrindo toda a mudança acumulada desde a tag publicada `v2.2.1` (commit `8b3895e`, migrations `0000` a `0003`). **Baseline do upgrade:** `v2.2.1`. **Alvo:** `3.0.0`. A versão está **finalizada localmente** — o `package.json` está em `3.0.0` — e a release ainda **não foi publicada**: não existe tag nova, não houve push nem deploy. O major se justifica pelo breaking change administrativo em Groups descrito abaixo.
+Notas da release **3.0.0**, cobrindo toda a mudança acumulada desde a release anterior `v2.2.1` (commit `8b3895e`, migrations `0000` a `0003`). **Baseline do upgrade:** `v2.2.1`. **Alvo:** `3.0.0` (tag `v3.0.0`). O major se justifica pelo breaking change administrativo em Groups descrito abaixo.
+
+**Modelo de distribuição:** este repositório é a **base do produto**, e a release dele é distribuição de código — source commit, tag `v3.0.0`, push e GitHub Release. Não existe instalação canônica em Cloudflare vinculada ao repositório: o BoltLink é self-hosted e cada instalação tem o próprio Worker, D1, domínio, Cloudflare Access e secrets. Publicar a release no GitHub **não** faz deploy nem aplica migration em nenhuma instalação; backup, migrations (`0004` a `0006`), deploy e validação são etapas operacionais de **cada instalação**, conforme `docs/upgrading.md`.
 
 ### Breaking changes (API administrativa de grupos)
 
@@ -93,7 +95,7 @@ Os detalhes de implementação por fase (gates de trabalho) permanecem nas seç�
 
 ## Unreleased - Fase 5 (hierarquia de grupos, portabilidade de configuração e QR Code)
 
-Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.
+Notas de trabalho da fase, mantidas como registro histórico dos gates de desenvolvimento; o consolidado desta release está no bloco 3.0.0 acima.
 
 > Escopo: este bloco cobre a **working tree da Fase 5** (sobre o HEAD congelado da Fase 4 `cdb9f83`). A tabela `link_groups` com `parent_id` já existe na tag publicada `v2.2.1` (migration `0002`); o que não existe na tag é a integridade descrita aqui. A Fase 5 **não adiciona migration**.
 
@@ -133,7 +135,7 @@ Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.
 
 ## Unreleased - Fase 4 (destino de expiração e redirect da raiz)
 
-Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.
+Notas de trabalho da fase, mantidas como registro histórico dos gates de desenvolvimento; o consolidado desta release está no bloco 3.0.0 acima.
 
 > Escopo: este bloco cobre a **working tree da Fase 4** (sobre o HEAD congelado da Fase 3 `548f179`): destino de expiração, migration `0006` e `ROOT_REDIRECT_URL`. Nada disso está na tag publicada `v2.2.1`, que termina na `0003`.
 
@@ -150,7 +152,7 @@ Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.
 
 ## Unreleased - Smart Routing (Fase 3)
 
-Notas de trabalho para a próxima release. Nenhuma tag ou versão foi publicada.
+Notas de trabalho da fase, mantidas como registro histórico dos gates de desenvolvimento; o consolidado desta release está no bloco 3.0.0 acima.
 
 > Escopo: este bloco cobre o **baseline local da Fase 2** (Split Test A/B, migration `0004`) e o **estado Unreleased da Fase 3** (Smart Routing, migration `0005`). Nenhum dos dois está na tag publicada `v2.2.1`, que termina na `0003`.
 
@@ -292,5 +294,5 @@ npm test
 
 ---
 
-Versão 2.2.1
+Versão 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br
