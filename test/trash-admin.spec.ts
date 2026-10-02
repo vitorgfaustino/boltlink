@@ -524,6 +524,87 @@ describe("Phase 8 Gate 8.6.1: measured long content", () => {
     expect(css).toMatch(/\.content-text:not\(\.is-expanded\)\s*\{[^}]*-webkit-line-clamp: 1;[^}]*overflow: hidden;/);
     expect(css).toMatch(/@media \(max-width: 900px\)\s*\{\s*\.content-text:not\(\.is-expanded\) \{ -webkit-line-clamp: 2; \}/);
     expect(css).toMatch(/\.card\s*\{[^}]*overflow: visible;/);
-    expect(css).toMatch(/\.metric:not\(\.state-chip\) \+ \.metric:not\(\.state-chip\)::before \{ content: "·"/);
+    expect(css).not.toMatch(/\.metric[^{}]*::before\s*\{[^}]*content: "·"/);
+  });
+});
+
+describe("Phase 8 Gate 8.6.2: mobile component consistency", () => {
+  it("renders tags through the measured expander without changing data or injecting markup", () => {
+    const ui = contentSetup();
+    const tag = '<img src=x onerror="alert(1)">' + "a".repeat(40);
+    const link = { slug: "tags", target_url: "https://example.com/", tags: JSON.stringify([tag, "b".repeat(40)]), group_name: 'Grupo "<script>"' };
+    ui.sandbox.state.links = [link]; const original = JSON.stringify(link);
+    ui.sandbox.renderLinks();
+    expect(ui.list.innerHTML).toContain('id="link-content-0-tags"');
+    expect(ui.list.innerHTML).toContain('aria-controls="link-content-0-tags"');
+    expect(ui.list.innerHTML).toContain('data-content-label="tags"');
+    expect(ui.list.innerHTML).toContain("&lt;img"); expect(ui.list.innerHTML).not.toContain("<img");
+    expect(ui.list.innerHTML).toContain('aria-label="Grupo: Grupo &quot;&lt;script&gt;&quot;"');
+    expect(ui.list.innerHTML).not.toContain("<script>");
+    expect(JSON.stringify(link)).toBe(original); expect(ui.frames).toHaveLength(1);
+  });
+  it("omits the tags region entirely when there are no tags", () => {
+    const ui = contentSetup(); ui.sandbox.state.links = [{ slug: "simple", target_url: "https://example.com/", tags: "[]" }];
+    ui.sandbox.renderLinks(); expect(ui.list.innerHTML).not.toContain('class="link-tags"');
+  });
+  it("hides expansion for ten short tags when they actually fit", () => {
+    const ui = contentSetup(); const row = ui.add(600, 500);
+    row.button.dataset.contentLabel = "tags"; row.text.textContent = "Tags: " + Array.from({ length: 10 }, (_, i) => `tag${i}`).join(", ");
+    ui.sandbox.refreshLinkContent(); expect(row.button.hidden).toBe(true);
+    expect(row.attributes["aria-label"]).toBe("Ver mais: tags");
+  });
+  it("expands and collapses clipped tags through the native button handler, preserving every tag", async () => {
+    const ui = contentSetup(); const row = ui.add(230, 230, 34, 100);
+    row.button.dataset.contentLabel = "tags"; row.text.textContent = "Tags: " + "a".repeat(40) + ", " + "b".repeat(40);
+    const original = row.text.textContent; ui.sandbox.refreshLinkContent(); expect(row.button.hidden).toBe(false);
+    await ui.listeners[0]({ target: { closest: () => row.button } });
+    expect(row.attributes["aria-expanded"]).toBe("true"); expect(row.attributes["aria-label"]).toBe("Ver menos: tags");
+    expect(row.text.classList.contains("is-expanded")).toBe(true);
+    await ui.listeners[0]({ target: { closest: () => row.button } });
+    expect(row.attributes["aria-expanded"]).toBe("false"); expect(row.attributes["aria-label"]).toBe("Ver mais: tags");
+    expect(row.text.textContent).toBe(original);
+  });
+  it("returns focus to short-link Copy when resize makes a focused tags expander unnecessary", () => {
+    const ui = contentSetup(); const row = ui.add(230, 230, 34, 100); row.button.dataset.contentLabel = "tags";
+    ui.sandbox.refreshLinkContent(); ui.sandbox.toggleLinkContent(row.button); ui.doc.activeElement = row.button;
+    row.text.scrollHeight = 34; ui.sandbox.refreshLinkContent();
+    expect(row.button.hidden).toBe(true); expect(row.attributes["aria-expanded"]).toBe("false");
+    expect(ui.shortCopy.focus).toHaveBeenCalledOnce();
+  });
+  it("places the Variant B label above its own complete URL and copy action", () => {
+    const ui = contentSetup(); const variant = "https://example.com/b?x=" + "b".repeat(310);
+    ui.sandbox.state.links = [{ slug: "ab", target_url: "https://example.com/a", ab_enabled: 1, ab_target_url: variant }];
+    ui.sandbox.renderLinks(); const markup = ui.list.innerHTML;
+    expect(markup).toContain('<div class="variant-content"><span class="content-label">Variante B</span>');
+    expect(markup).toContain(`id="link-content-0-variant">${variant}</div>`);
+    expect(markup).toContain(`data-copy-value="${variant}" aria-label="Copiar destino: URL da variante B"`);
+    expect(markup).toContain('data-copy-value="https://example.com/a" aria-label="Copiar destino: URL de destino"');
+  });
+  it("uses a restrained group badge with breathing room instead of a capsule", () => {
+    const css = readFileSync("public/admin.css", "utf8");
+    const badge = css.match(/\.group-badge\s*\{[^}]*\}/)![0];
+    expect(badge).toContain("border-radius: 6px;"); expect(badge).toContain("padding: 4px 8px;");
+    expect(badge).toContain("max-width: 100%;"); expect(badge).toContain("overflow-wrap: anywhere;");
+    expect(badge).not.toContain("999px");
+  });
+  it("limits compact create and equal-width actions to mobile while retaining a 44px touch target", () => {
+    const css = readFileSync("public/admin.css", "utf8"); const mobile = css.slice(css.lastIndexOf("@media (max-width: 900px)"));
+    expect(mobile).toContain('.link-form-panel:has(.create-link-toggle[aria-expanded="false"]) { padding: 8px 16px; }');
+    expect(mobile).toContain('.create-mobile-heading::after { display: none; }');
+    expect(mobile).toMatch(/\.card-actions \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);[^}]*width: 100%;/);
+    expect(mobile).toContain(".primary-actions { display: contents; }");
+    expect(mobile).toMatch(/\.card-actions \.more-actions-dropdown summary \{ width: 100%; min-width: 0; min-height: 44px; \}/);
+    expect(css).toContain('.link-form-panel:has(.create-link-toggle[aria-expanded="false"]) #link-form { display: none; }');
+  });
+  it("keeps metadata facts as separate wrapping items without orphan punctuation", () => {
+    const ui = contentSetup(); ui.sandbox.state.links = [{ slug: "schedule", target_url: "https://example.com/", clicks_total: 6,
+      redirect_type: "302", created_at: "2026-10-01", go_live_at: "2026-10-01", expires_at: "2027-10-01" }];
+    ui.sandbox.renderLinks();
+    for (const label of ["Cliques", "Criado:", "Redirecionamento", "Expira", "Ativa"]) expect(ui.list.innerHTML).toContain(`<span class="metric">${label}`);
+    expect(ui.list.innerHTML).not.toContain("·");
+    const css = readFileSync("public/admin.css", "utf8");
+    expect(css).toMatch(/\.metrics\s*\{[^}]*display: flex;[^}]*flex-wrap: wrap;/);
+    expect(css).toContain(".metrics { gap: 6px 10px; }");
+    expect(css).not.toMatch(/\.metric[^{}]*::before\s*\{[^}]*content: "·"/);
   });
 });

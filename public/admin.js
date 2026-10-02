@@ -2895,14 +2895,14 @@ function renderLinks() {
             <div class="slug-info">
               ${linkContentMarkup(`/${link.slug}`, "slug", `link-content-${index}-slug`, true)}
               ${linkContentMarkup(link.target_url, "URL de destino", `link-content-${index}-url`, false, link.target_url)}
-              ${link.ab_enabled === 1 && link.ab_target_url ? linkContentMarkup(`Variante B: ${link.ab_target_url}`, "URL da variante B", `link-content-${index}-variant`, false, link.ab_target_url) : ""}
+              ${link.ab_enabled === 1 && link.ab_target_url ? `<div class="variant-content"><span class="content-label">Variante B</span>${linkContentMarkup(link.ab_target_url, "URL da variante B", `link-content-${index}-variant`, false, link.ab_target_url)}</div>` : ""}
             </div>
             <div class="card-actions">
               ${actionMarkup}
             </div>
           </div>
           <div class="link-states">
-            ${link.group_name ? `<span class="group-badge">Grupo: ${escapeHtml(link.group_name)}</span>` : ""}
+            ${link.group_name ? `<span class="group-badge" aria-label="Grupo: ${escapeHtml(link.group_name)}">${escapeHtml(link.group_name)}</span>` : ""}
             ${link.has_qrcode ? '<span class="state-chip">QR Code baixado</span>' : ""}
             ${link.has_password ? '<span class="state-chip">Senha definida</span>' : ""}
             ${renderSmartBadge(link)}
@@ -2916,7 +2916,7 @@ function renderLinks() {
             ${renderAbMetrics(link)}
             ${isPendingDelete ? `<span class="metric pending-note">Exclusão em <strong>${Math.ceil((state.pendingDeletes.get(link.slug)?.remaining || 0) / 1000)}s</strong></span>` : ""}
           </div>
-          ${parsedTags.length ? `<div class="link-tags">Tags: ${escapeHtml(parsedTags.join(", "))}</div>` : ""}
+          ${parsedTags.length ? `<div class="link-tags">${linkContentMarkup(`Tags: ${parsedTags.join(", ")}`, "tags", `link-content-${index}-tags`)}</div>` : ""}
         </article>
       `;
     })
