@@ -2,7 +2,7 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 class Node {
   textContent = ""; className = ""; type = ""; value = ""; hidden = false; disabled = false; open = false;
@@ -382,14 +382,15 @@ function contentSetup() {
   const doc: any = { activeElement: null, getElementById: (id: string) => texts.get(id) };
   const sandbox: any = { document: doc, linksList: list, window: { addEventListener: (name: string, fn: Function) => resize.set(name, fn),
     requestAnimationFrame: (fn: Function) => { frames.push(fn); return frames.length; } },
-    copyToClipboard: vi.fn(async () => {}), setStatus: vi.fn(), listStatus: {}, linksCount: {}, ICONS: { more: "" },
+    copyToClipboard: vi.fn(async () => {}), copyStatus: { textContent: "" }, copyFeedbackStates: new WeakMap(),
+    setTimeout, clearTimeout, setStatus: vi.fn(), listStatus: {}, linksCount: {}, ICONS: { more: "", check: '<svg data-icon="check"></svg>', cancel: '<svg data-icon="cancel"></svg>' },
     buildShortLink: (slug: string) => `https://links.example.com/${slug}`,
     state: { links: [], pendingDeletes: new Map() }, cardActionMarkup: () => "", formatDate: () => "01/10/2026 09:00",
     renderAbMetrics: () => "", renderSmartBadge: () => "" };
   vm.createContext(sandbox);
   const actual = readFileSync("public/admin.js", "utf8");
-  const functions = ["escapeHtml", "linkContentMarkup", "refreshLinkContent", "toggleLinkContent", "scheduleLinkContentMeasure", "renderLinks"]
-    .map((name) => actual.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n\\}`))![0]).join("\n");
+  const functions = ["escapeHtml", "buttonMarkup", "linkContentMarkup", "refreshLinkContent", "toggleLinkContent", "scheduleLinkContentMeasure", "restoreCopyFeedback", "copyWithFeedback", "renderLinks"]
+    .map((name) => actual.match(new RegExp(`(?:async )?function ${name}\\([\\s\\S]*?\\n\\}`))![0]).join("\n");
   vm.runInContext("let contentMeasureFrame = null;\n" + functions, sandbox);
   const source = readFileSync("public/admin.js", "utf8");
   const start = source.indexOf('window.addEventListener("resize", scheduleLinkContentMeasure)');
@@ -411,7 +412,16 @@ function contentSetup() {
     texts.set(id, text); controls.push(button);
     return { text, button, attributes };
   }
-  return { sandbox, doc, list, add, controls, texts, listeners, frames, resize, shortCopy };
+  function addCopy(kind = "destination", value = "https://example.com/") {
+    const attributes: Record<string, string> = { "aria-label": kind === "short" ? "Copiar" : `Copiar destino: ${kind}`, title: "Original" };
+    const feedback: any = { innerHTML: "", get textContent() { return this.innerHTML.replace(/<[^>]+>/g, ""); }, set textContent(value: string) { this.innerHTML = value; } };
+    const button: any = { isConnected: true, dataset: { copyValue: value, copyKind: kind },
+      getAttribute: (key: string) => attributes[key] ?? null, setAttribute: (key: string, value: string) => { attributes[key] = value; },
+      removeAttribute: (key: string) => { delete attributes[key]; }, querySelector: () => feedback,
+      classList: { contains: () => false }, closest: () => null };
+    return { button, feedback, attributes };
+  }
+  return { sandbox, doc, list, add, addCopy, controls, texts, listeners, frames, resize, shortCopy };
 }
 
 describe("Phase 8 Gate 8.6.1: measured long content", () => {
@@ -470,23 +480,25 @@ describe("Phase 8 Gate 8.6.1: measured long content", () => {
   });
   it("copies the complete original destination while it is collapsed", async () => {
     const ui = contentSetup(); const url = "https://example.com/" + "a".repeat(320) + "?utm_source=newsletter";
-    const button = { classList: { contains: () => false }, dataset: { copyValue: url } };
+    const { button } = ui.addCopy("destination", url);
     await ui.listeners[0]({ target: { closest: () => button } });
     expect(ui.sandbox.copyToClipboard).toHaveBeenCalledWith(url);
-    expect(ui.sandbox.setStatus).toHaveBeenCalledWith(ui.sandbox.listStatus, "Destino copiado integralmente.", "success");
+    expect(ui.sandbox.copyStatus.textContent).toBe("URL de destino copiada");
   });
-  it("offers the full destination if clipboard access fails", async () => {
+  it("reports clipboard failure without exposing the destination", async () => {
     const ui = contentSetup(); const url = "https://example.com/?x=" + "a".repeat(300);
     ui.sandbox.copyToClipboard.mockRejectedValue(new Error("clipboard denied"));
-    await ui.listeners[0]({ target: { closest: () => ({ classList: { contains: () => false }, dataset: { copyValue: url } }) } });
-    expect(ui.sandbox.setStatus).toHaveBeenCalledWith(ui.sandbox.listStatus, `Copie manualmente: ${url}`);
+    const { button } = ui.addCopy("destination", url);
+    await ui.listeners[0]({ target: { closest: () => button } });
+    expect(ui.sandbox.copyStatus.textContent).toBe("Não foi possível copiar a URL de destino");
+    expect(ui.sandbox.copyStatus.textContent).not.toContain(url);
   });
   it("escapes URL, slug and copy attributes without shortening their original content", () => {
     const ui = contentSetup(); const unsafe = 'https://example.com/?x="<img src=x onerror=alert(1)>&test=\'a\'';
     const markup = ui.sandbox.linkContentMarkup(unsafe, "URL de destino", "safe-id", false, unsafe);
     expect(markup).toContain("&lt;img"); expect(markup).toContain("&quot;"); expect(markup).not.toContain("<img");
     expect(markup).toContain('aria-controls="safe-id"'); expect(markup).toContain('aria-expanded="false"');
-    expect(markup).not.toContain("aria-hidden"); expect(markup).not.toContain("title=");
+    expect(markup).not.toMatch(/class="(?:slug-url|slug) content-text"[^>]*aria-hidden/); expect(markup).not.toContain("title=");
     expect(ui.sandbox.linkContentMarkup("/" + "a".repeat(64), "slug", "slug-id", true)).toContain("/" + "a".repeat(64));
   });
   it("uses native keyboard buttons and labels destination and Variant B copying explicitly", () => {
@@ -506,7 +518,7 @@ describe("Phase 8 Gate 8.6.1: measured long content", () => {
   });
   it("copies the complete short link for a clamped 64-character slug through the original handler", async () => {
     const ui = contentSetup(); const slug = "a".repeat(64); ui.sandbox.state.links = [{ slug }];
-    const button = { dataset: { slug, action: "copy" }, closest: () => null };
+    const { button } = ui.addCopy("short"); Object.assign(button.dataset, { slug, action: "copy" });
     await ui.listeners[1]({ target: { closest: () => button } });
     expect(ui.sandbox.copyToClipboard).toHaveBeenCalledWith(`https://links.example.com/${slug}`);
   });
@@ -514,7 +526,7 @@ describe("Phase 8 Gate 8.6.1: measured long content", () => {
     const admin = readFileSync("public/admin.js", "utf8");
     const start = admin.indexOf('if (action === "copy")');
     const copy = admin.slice(start, admin.indexOf('if (action === "delete")', start));
-    expect(copy).toContain("buildShortLink(link.slug)"); expect(copy).toContain("copyToClipboard(shortLink)");
+    expect(copy).toContain("buildShortLink(link.slug)"); expect(copy).toContain('copyWithFeedback(button, shortLink, "short")');
     expect(copy).not.toContain("target_url");
   });
   it("uses compact surfaces, unclipped menus and one desktop/two mobile text lines", () => {
@@ -577,8 +589,8 @@ describe("Phase 8 Gate 8.6.2: mobile component consistency", () => {
     ui.sandbox.renderLinks(); const markup = ui.list.innerHTML;
     expect(markup).toContain('<div class="variant-content"><span class="content-label">Variante B</span>');
     expect(markup).toContain(`id="link-content-0-variant">${variant}</div>`);
-    expect(markup).toContain(`data-copy-value="${variant}" aria-label="Copiar destino: URL da variante B"`);
-    expect(markup).toContain('data-copy-value="https://example.com/a" aria-label="Copiar destino: URL de destino"');
+    expect(markup).toContain(`data-copy-value="${variant}" data-copy-kind="variant" aria-label="Copiar destino: URL da variante B"`);
+    expect(markup).toContain('data-copy-value="https://example.com/a" data-copy-kind="destination" aria-label="Copiar destino: URL de destino"');
   });
   it("uses a restrained group badge with breathing room instead of a capsule", () => {
     const css = readFileSync("public/admin.css", "utf8");
@@ -606,5 +618,136 @@ describe("Phase 8 Gate 8.6.2: mobile component consistency", () => {
     expect(css).toMatch(/\.metrics\s*\{[^}]*display: flex;[^}]*flex-wrap: wrap;/);
     expect(css).toContain(".metrics { gap: 6px 10px; }");
     expect(css).not.toMatch(/\.metric[^{}]*::before\s*\{[^}]*content: "·"/);
+  });
+});
+
+describe("Phase 8 Gate 8.6.3: local copy feedback", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
+
+  it.each([
+    ["short", "Link curto copiado"],
+    ["destination", "URL de destino copiada"],
+    ["variant", "URL da Variante B copiada"],
+  ])("confirms %s with check, contextual announcement and unchanged focus", async (kind, message) => {
+    const ui = contentSetup(); const { button, feedback, attributes } = ui.addCopy(kind);
+    ui.doc.activeElement = button;
+    await ui.sandbox.copyWithFeedback(button, "https://example.com/full?utm_source=email", kind);
+    expect(button.dataset.copyState).toBe("success");
+    expect(feedback.textContent).toBe("Copiado"); expect(feedback.innerHTML).toContain('data-icon="check"');
+    expect(ui.sandbox.copyStatus.textContent).toBe(message);
+    expect(attributes["aria-label"]).toMatch(/^Copiado: /); expect(attributes["aria-busy"]).toBeUndefined();
+    expect(ui.doc.activeElement).toBe(button); expect(ui.sandbox.copyToClipboard).toHaveBeenCalledWith("https://example.com/full?utm_source=email");
+  });
+  it("restores the original label, title and idle icon at 1800ms", async () => {
+    const ui = contentSetup(); const { button, feedback, attributes } = ui.addCopy("short");
+    await ui.sandbox.copyWithFeedback(button, "https://example.com/slug", "short");
+    vi.advanceTimersByTime(1799); expect(button.dataset.copyState).toBe("success");
+    vi.advanceTimersByTime(1); expect(button.dataset.copyState).toBeUndefined(); expect(feedback.innerHTML).toBe("");
+    expect(attributes["aria-label"]).toBe("Copiar"); expect(attributes.title).toBe("Original"); expect(vi.getTimerCount()).toBe(0);
+  });
+  it("renews the same control's timeout without accumulating timers", async () => {
+    const ui = contentSetup(); const { button } = ui.addCopy("short");
+    await ui.sandbox.copyWithFeedback(button, "https://example.com/slug", "short"); vi.advanceTimersByTime(500);
+    await ui.sandbox.copyWithFeedback(button, "https://example.com/slug", "short"); expect(vi.getTimerCount()).toBe(1);
+    vi.advanceTimersByTime(1300); expect(button.dataset.copyState).toBe("success");
+    vi.advanceTimersByTime(499); expect(button.dataset.copyState).toBe("success");
+    vi.advanceTimersByTime(1); expect(button.dataset.copyState).toBeUndefined();
+  });
+  it("keeps short link, URL A and URL B independent with their own expiry", async () => {
+    const ui = contentSetup(); const short = ui.addCopy("short"), a = ui.addCopy(), b = ui.addCopy("variant");
+    await ui.sandbox.copyWithFeedback(short.button, "https://links.example.com/slug", "short"); vi.advanceTimersByTime(500);
+    await ui.sandbox.copyWithFeedback(a.button, "https://example.com/a", "destination"); vi.advanceTimersByTime(500);
+    await ui.sandbox.copyWithFeedback(b.button, "https://example.com/b", "variant");
+    expect(vi.getTimerCount()).toBe(3); expect([short, a, b].map(row => row.button.dataset.copyState)).toEqual(["success", "success", "success"]);
+    expect(ui.sandbox.copyToClipboard.mock.calls.map((args: string[]) => args[0])).toEqual(["https://links.example.com/slug", "https://example.com/a", "https://example.com/b"]);
+    vi.advanceTimersByTime(800); expect(short.button.dataset.copyState).toBeUndefined(); expect(a.button.dataset.copyState).toBe("success"); expect(b.button.dataset.copyState).toBe("success");
+    vi.advanceTimersByTime(500); expect(a.button.dataset.copyState).toBeUndefined(); expect(b.button.dataset.copyState).toBe("success");
+    vi.advanceTimersByTime(500); expect(b.button.dataset.copyState).toBeUndefined();
+  });
+  it("copies the full Variant B through its actual delegated handler", async () => {
+    const ui = contentSetup(); const url = "https://example.com/b?utm_content=" + "b".repeat(360); const { button } = ui.addCopy("variant", url);
+    await ui.listeners[0]({ target: { closest: () => button } });
+    expect(ui.sandbox.copyToClipboard).toHaveBeenCalledWith(url); expect(ui.sandbox.copyStatus.textContent).toBe("URL da Variante B copiada");
+  });
+  it.each([
+    ["short", "Não foi possível copiar o link"],
+    ["destination", "Não foi possível copiar a URL de destino"],
+    ["variant", "Não foi possível copiar a URL da Variante B"],
+  ])("reports %s failure without Copiado or a leaked URL", async (kind, message) => {
+    const ui = contentSetup(); const { button, feedback } = ui.addCopy(kind); const url = "https://example.com/private?token=secret";
+    ui.sandbox.copyToClipboard.mockRejectedValue(new Error(url));
+    await ui.sandbox.copyWithFeedback(button, url, kind);
+    expect(button.dataset.copyState).toBe("error"); expect(feedback.textContent).toBe("Falhou"); expect(feedback.innerHTML).not.toContain("Copiado");
+    expect(ui.sandbox.copyStatus.textContent).toBe(message); expect(feedback.innerHTML).not.toContain(url);
+    vi.advanceTimersByTime(1800); expect(button.dataset.copyState).toBeUndefined();
+  });
+  it("a retry can replace success with error and then recover", async () => {
+    const ui = contentSetup(); const { button } = ui.addCopy();
+    await ui.sandbox.copyWithFeedback(button, "https://example.com/a", "destination");
+    ui.sandbox.copyToClipboard.mockRejectedValueOnce(new Error("denied"));
+    await ui.sandbox.copyWithFeedback(button, "https://example.com/a", "destination");
+    expect(button.dataset.copyState).toBe("error"); expect(vi.getTimerCount()).toBe(1);
+    await ui.sandbox.copyWithFeedback(button, "https://example.com/a", "destination"); expect(button.dataset.copyState).toBe("success"); expect(vi.getTimerCount()).toBe(1);
+  });
+  it("ignores an older failure that settles after a newer success on the same button", async () => {
+    const ui = contentSetup(); const { button } = ui.addCopy(); let rejectOld!: Function;
+    ui.sandbox.copyToClipboard.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOld = reject; }));
+    const old = ui.sandbox.copyWithFeedback(button, "https://example.com/a", "destination");
+    await ui.sandbox.copyWithFeedback(button, "https://example.com/a", "destination"); rejectOld(new Error("late failure")); await old;
+    expect(button.dataset.copyState).toBe("success"); expect(ui.sandbox.copyStatus.textContent).toBe("URL de destino copiada"); expect(vi.getTimerCount()).toBe(1);
+  });
+  it("does not let an older completion clear the newer request's busy state", async () => {
+    const ui = contentSetup(); const { button, attributes } = ui.addCopy(); let resolveOld!: Function, resolveNew!: Function;
+    ui.sandbox.copyToClipboard.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; })).mockImplementationOnce(() => new Promise(resolve => { resolveNew = resolve; }));
+    const old = ui.sandbox.copyWithFeedback(button, "a", "destination"), current = ui.sandbox.copyWithFeedback(button, "a", "destination");
+    resolveOld(); await old; expect(attributes["aria-busy"]).toBe("true"); expect(button.dataset.copyState).toBeUndefined();
+    resolveNew(); await current; expect(button.dataset.copyState).toBe("success"); expect(attributes["aria-busy"]).toBeUndefined();
+  });
+  it("discards late feedback from a button removed by rerender", async () => {
+    const ui = contentSetup(); const { button } = ui.addCopy(); let resolve!: Function;
+    ui.sandbox.copyToClipboard.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    const pending = ui.sandbox.copyWithFeedback(button, "https://example.com/a", "destination"); button.isConnected = false; resolve(); await pending;
+    expect(ui.sandbox.copyStatus.textContent).toBe(""); expect(button.dataset.copyState).toBeUndefined(); expect(vi.getTimerCount()).toBe(0);
+  });
+  it("does not interpolate persisted strings into confirmation markup", async () => {
+    const ui = contentSetup(); const { button, feedback } = ui.addCopy(); const value = '<img src=x onerror="alert(1)">';
+    await ui.sandbox.copyWithFeedback(button, value, "destination");
+    expect(ui.sandbox.copyToClipboard).toHaveBeenCalledWith(value); expect(feedback.innerHTML).not.toContain(value); expect(ui.sandbox.copyStatus.textContent).not.toContain(value);
+  });
+  it("reserves idle geometry, overlays feedback and removes motion without hiding confirmation", () => {
+    const css = readFileSync("public/admin.css", "utf8"), html = readFileSync("public/admin.html", "utf8");
+    expect(css).toContain('.copy-control[data-copy-state] .copy-idle { visibility: hidden; }');
+    expect(css).toMatch(/\.copy-feedback \{[^}]*position: absolute; inset: 0;/);
+    expect(css).toContain('.copy-control[data-copy-state] .copy-feedback { display: flex; }');
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*\.copy-control[^}]*transform: none; transition: none !important;/);
+    expect(html).toContain('id="copy-status" class="copy-status" role="status" aria-live="polite" aria-atomic="true"');
+  });
+});
+
+function clipboardSetup(result: boolean | Error = true, api?: Function) {
+  const opener: any = { focus: vi.fn(() => { doc.activeElement = opener; }) };
+  const input: any = { value: "", style: {}, setAttribute: vi.fn(), select: vi.fn(() => { doc.activeElement = input; }), remove: vi.fn(() => { doc.activeElement = doc.body; }) };
+  const doc: any = { activeElement: opener, createElement: vi.fn(() => input), body: { appendChild: vi.fn() }, execCommand: vi.fn(() => { if (result instanceof Error) throw result; return result; }) };
+  const sandbox: any = { document: doc, navigator: { clipboard: api ? { writeText: api } : undefined } };
+  vm.createContext(sandbox); vm.runInContext(readFileSync("public/admin.js", "utf8").match(/async function copyToClipboard\([\s\S]*?\n\}/)![0], sandbox);
+  return { sandbox, doc, opener, input };
+}
+
+describe("Phase 8 Gate 8.6.3: clipboard fallback", () => {
+  it("retains the fallback's full value and restores button focus after success", async () => {
+    const ui = clipboardSetup(); const value = "https://example.com/?utm=" + "a".repeat(350);
+    await ui.sandbox.copyToClipboard(value);
+    expect(ui.input.value).toBe(value); expect(ui.doc.execCommand).toHaveBeenCalledWith("copy"); expect(ui.input.remove).toHaveBeenCalledOnce();
+    expect(ui.doc.activeElement).toBe(ui.opener); expect(ui.opener.focus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+  it.each([false, new Error("denied")])("cleans up and restores focus when fallback fails: %s", async result => {
+    const ui = clipboardSetup(result); await expect(ui.sandbox.copyToClipboard("https://example.com/")).rejects.toThrow();
+    expect(ui.input.remove).toHaveBeenCalledOnce(); expect(ui.doc.activeElement).toBe(ui.opener);
+  });
+  it("preserves the existing API path and propagates rejection without inventing success", async () => {
+    const api = vi.fn().mockRejectedValue(new Error("denied")); const ui = clipboardSetup(true, api);
+    await expect(ui.sandbox.copyToClipboard("https://example.com/")).rejects.toThrow("denied");
+    expect(api).toHaveBeenCalledWith("https://example.com/"); expect(ui.doc.createElement).not.toHaveBeenCalled(); expect(ui.doc.activeElement).toBe(ui.opener);
   });
 });

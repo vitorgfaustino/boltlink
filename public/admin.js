@@ -113,6 +113,7 @@ const ICONS = {
       <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
       <rect x="8" y="2" width="8" height="4" rx="1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></rect>
     </svg>`,
+  check: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 12 4 4L19 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
   duplicate: `
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke="currentColor" stroke-width="1.8"></rect>
@@ -229,6 +230,8 @@ const trashDrawerBackdrop = document.getElementById("trash-drawer-backdrop");
 const formTitle = document.getElementById("form-title");
 const formStatus = document.getElementById("form-status");
 const listStatus = document.getElementById("list-status");
+const copyStatus = document.getElementById("copy-status");
+const copyFeedbackStates = new WeakMap();
 const linksList = document.getElementById("links-list");
 const linksCount = document.getElementById("links-count");
 const exportButton = document.getElementById("export-button");
@@ -278,13 +281,13 @@ function cardActionMarkup(action, variant, icon, label, slug) {
   return `
     <button
       type="button"
-      class="${variant}"
+      class="${variant}${action === "copy" ? " copy-control" : ""}"
       data-action="${action}"
       data-slug="${safeSlug}"
       aria-label="${label}"
       title="${label}"
     >
-      ${buttonMarkup(icon, label)}
+      ${action === "copy" ? `<span class="copy-idle">${buttonMarkup(icon, label)}</span><span class="copy-feedback" aria-hidden="true"></span>` : buttonMarkup(icon, label)}
     </button>
   `;
 }
@@ -2805,7 +2808,7 @@ function linkContentMarkup(value, label, id, isSlug = false, copyValue = null) {
   return `<div class="link-content">
     <${tag} class="${className} content-text" id="${id}">${escapeHtml(value)}</${tag}>
     <div class="content-actions">
-    ${copyValue === null ? "" : `<button type="button" class="content-copy" data-copy-value="${escapeHtml(copyValue)}" aria-label="Copiar destino: ${escapeHtml(label)}">Copiar destino</button>`}
+    ${copyValue === null ? "" : `<button type="button" class="content-copy copy-control" data-copy-value="${escapeHtml(copyValue)}" data-copy-kind="${label === "URL da variante B" ? "variant" : "destination"}" aria-label="Copiar destino: ${escapeHtml(label)}"><span class="copy-idle">Copiar destino</span><span class="copy-feedback" aria-hidden="true"></span></button>`}
     <button type="button" class="content-toggle" data-content-label="${escapeHtml(label)}" aria-controls="${id}" aria-expanded="false" aria-label="Ver mais: ${escapeHtml(label)}" hidden>Ver mais</button>
     </div>
   </div>`;
@@ -2847,6 +2850,54 @@ function scheduleLinkContentMeasure() {
     contentMeasureFrame = null;
     refreshLinkContent();
   });
+}
+
+function restoreCopyFeedback(button, control) {
+  delete button.dataset.copyState;
+  button.querySelector(".copy-feedback").textContent = "";
+  for (const [attribute, value] of [["aria-label", control.label], ["title", control.title]]) {
+    if (value === null) button.removeAttribute(attribute);
+    else button.setAttribute(attribute, value);
+  }
+}
+
+/** Each control owns its timer and request generation; URLs never become feedback text. */
+async function copyWithFeedback(button, value, kind = "destination") {
+  const messages = {
+    short: { label: "link curto", success: "Link curto copiado", error: "Não foi possível copiar o link" },
+    destination: { label: "URL de destino", success: "URL de destino copiada", error: "Não foi possível copiar a URL de destino" },
+    variant: { label: "URL da Variante B", success: "URL da Variante B copiada", error: "Não foi possível copiar a URL da Variante B" },
+  }[kind];
+  let control = copyFeedbackStates.get(button);
+  if (!control) {
+    control = { label: button.getAttribute("aria-label"), title: button.getAttribute("title"), generation: 0, timer: null };
+    copyFeedbackStates.set(button, control);
+  }
+  const generation = ++control.generation;
+  clearTimeout(control.timer);
+  control.timer = null;
+  restoreCopyFeedback(button, control);
+  button.setAttribute("aria-busy", "true");
+  let success = false;
+  try {
+    await copyToClipboard(value);
+    success = true;
+  } catch {
+    // Neither the persisted URL nor a clipboard error is suitable announcement text.
+  }
+  if (generation !== control.generation) return;
+  button.removeAttribute("aria-busy");
+  if (!button.isConnected) return;
+  const label = success ? "Copiado" : "Falhou";
+  button.dataset.copyState = success ? "success" : "error";
+  button.querySelector(".copy-feedback").innerHTML = buttonMarkup(success ? "check" : "cancel", label);
+  button.setAttribute("aria-label", `${label}: ${messages.label}`);
+  button.setAttribute("title", success ? messages.success : messages.error);
+  copyStatus.textContent = success ? messages.success : messages.error;
+  control.timer = setTimeout(() => {
+    restoreCopyFeedback(button, control);
+    control.timer = null;
+  }, 1800);
 }
 
 function renderLinks() {
@@ -3559,12 +3610,7 @@ linksList.addEventListener("click", async (event) => {
     toggleLinkContent(button);
     return;
   }
-  try {
-    await copyToClipboard(button.dataset.copyValue);
-    setStatus(listStatus, "Destino copiado integralmente.", "success");
-  } catch {
-    setStatus(listStatus, `Copie manualmente: ${button.dataset.copyValue}`);
-  }
+  await copyWithFeedback(button, button.dataset.copyValue, button.dataset.copyKind);
 });
 
 linksList.addEventListener("click", async (event) => {
@@ -3592,12 +3638,7 @@ linksList.addEventListener("click", async (event) => {
 
   if (action === "copy") {
     const shortLink = buildShortLink(link.slug);
-    try {
-      await copyToClipboard(shortLink);
-      setStatus(listStatus, `Link copiado: ${shortLink}`);
-    } catch {
-      setStatus(listStatus, `Copie manualmente: ${shortLink}`);
-    }
+    await copyWithFeedback(button, shortLink, "short");
     return;
   }
 
@@ -3663,12 +3704,14 @@ async function copyToClipboard(text) {
   fallbackInput.style.position = "absolute";
   fallbackInput.style.left = "-9999px";
   document.body.appendChild(fallbackInput);
-  fallbackInput.select();
-  const copied = document.execCommand("copy");
-  fallbackInput.remove();
-
-  if (!copied) {
-    throw new Error("Falha ao copiar link");
+  const previousFocus = document.activeElement;
+  try {
+    fallbackInput.select();
+    if (!document.execCommand("copy")) throw new Error("Falha ao copiar link");
+  } finally {
+    const restoreFocus = document.activeElement === fallbackInput;
+    fallbackInput.remove();
+    if (restoreFocus) previousFocus?.focus({ preventScroll: true });
   }
 }
 

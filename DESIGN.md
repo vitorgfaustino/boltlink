@@ -74,7 +74,7 @@ components:
 
 # Design System: BoltLink
 
-## Admin — 3.1.0 development (Gates 8.6, 8.6.1 e 8.6.2)
+## Admin — 3.1.0 development (Gates 8.6, 8.6.1, 8.6.2 e 8.6.3)
 
 Esta seção prevalece sobre os exemplos da base 3.0.0 abaixo. Tema, branding, fontes e acento permanecem. Criar link e Links ativos usam superfície principal discreta (fundo branco a 1.8%, borda a 6.5%, radius 12px), sem sombra/blur. Registros têm fundo ligeiramente mais claro (3.5%), borda suave, radius 8px, padding 16px (12px em mobile estreito) e gap 12px (16px até 900px). Não há terceiro nível de cards: accordions continuam leves, com divisores, e métricas são itens independentes com flex-wrap e gap, sem pontuação separadora órfã; chips comunicam estado. Grupos usam badge de contexto com raio 6px, padding 4px 8px, fundo/borda discretos e só o nome visível (o rótulo acessível mantém “Grupo:”).
 
@@ -85,6 +85,8 @@ URL, Variante B e slug são truncados apenas visualmente: uma linha acima de 900
 Tags reutilizam a mesma medição e expansão do conteúdo: uma linha desktop, até duas mobile, sem transformar cada tag em pill. Copiar destino usa cor de apoio, fonte menor e indicação ↳; a Variante B tem rótulo próprio acima da URL. Até 900px, estados precedem a grade de três ações iguais (Copiar, Editar, Mais opções), todas com altura mínima 44px; métricas e tags vêm depois. Desktop preserva as ações no topo e a densidade existente.
 
 Até 900px, Criar link é heading expansível, inicialmente recolhido e sem estado persistido. Fechado, o mesmo painel mede 62px (padding vertical 8px + controle 44px + bordas), sem underline ou margem inferior no heading; aberto, recupera o formulário no próprio container. Desktop mantém duas colunas. Grupos, Lixeira e Importar / Exportar preservam o offcanvas de até 30rem, largura total no mobile, overlay, ESC, trap de foco, fundo inert e scroll interno. Importar / Exportar mantém seções verticais e status junto à exportação. Nenhuma mudança de backend, schema, migration, retenção ou portabilidade neste refinamento.
+
+Cópia tem feedback local por controle: check + “Copiado” no sucesso, “Falhou” no erro, com restauração após 1800ms e timers independentes/renovados por clique. O conteúdo normal reserva a mesma caixa; o feedback sobreposto não altera largura, altura nem a grade de ações. Um status polite exclusivo anuncia link curto, destino ou Variante B sem expor URLs em falhas. Press usa escala 0.98 com transição curta; reduced motion remove transform/transition sem remover confirmação.
 
 ## 1. Overview
 

@@ -2126,7 +2126,7 @@ input, select, textarea { min-width: 0; max-width: 100%; }
 }
 .content-toggle:hover, .content-copy:hover { background: transparent; color: #bae6fd; }
 .content-copy { color: var(--muted); font-size: 0.74rem; font-weight: 400; }
-.content-copy::before { content: "↳"; margin-right: 4px; }
+.content-copy .copy-idle::before { content: "↳"; margin-right: 4px; }
 .content-label { display: block; color: var(--text-secondary); font-size: 0.78rem; margin-bottom: 4px; }
 .content-actions { display: flex; flex-wrap: wrap; gap: 0 12px; }
 .content-actions:has(> .content-toggle[hidden]:only-child) { display: none; }
@@ -2185,4 +2185,23 @@ input, select, textarea { min-width: 0; max-width: 100%; }
   .card-actions button { padding: 8px; gap: 6px; font-size: 0.78rem; }
   .card-actions button svg { width: 14px; height: 14px; }
   .links-panel .panel-header { gap: 20px; }
+}
+
+/* The idle content reserves exactly the same box while confirmation overlays it. */
+.copy-control { position: relative; transition: transform var(--motion-fast), color var(--motion-fast), background-color var(--motion-fast), border-color var(--motion-fast); }
+.copy-idle { display: inline-flex; align-items: center; gap: inherit; }
+.copy-feedback { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; gap: 4px; font-size: 0.78rem; white-space: nowrap; pointer-events: none; }
+.content-copy .copy-feedback { justify-content: flex-start; padding-inline: 4px; font-size: inherit; }
+.copy-control[data-copy-state] .copy-idle { visibility: hidden; }
+.copy-control[data-copy-state] .copy-feedback { display: flex; }
+button.copy-control[data-copy-state="success"] { color: var(--text-secondary); border-color: var(--accent-soft); background: var(--accent-soft); }
+button.copy-control[data-copy-state="error"] { color: #fca5a5; border-color: rgba(239,68,68,0.2); background: rgba(239,68,68,0.06); }
+.copy-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (hover: hover) {
+  .copy-control:hover:not(:disabled) { transform: none; }
+  .copy-control:not([data-copy-state]):hover:not(:disabled) { background: var(--accent-soft); }
+}
+.copy-control:active:not(:disabled) { transform: scale(0.98); }
+@media (prefers-reduced-motion: reduce) {
+  .copy-control, .copy-control:hover:not(:disabled), .copy-control:active:not(:disabled) { transform: none; transition: none !important; }
 }
