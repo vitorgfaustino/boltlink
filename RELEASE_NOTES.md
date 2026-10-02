@@ -1,6 +1,11 @@
-## BoltLink 3.1.0 — development / não publicada
+## BoltLink 3.1.0 — publicada
 
-Ciclo local de Lixeira, recuperação e higiene de dados. A última release publicada permanece **v3.0.0**, congelada; estas notas não anunciam uma publicação.
+- Rate limit administrativo ajustado para 120 requests por IP por janela de 60 segundos, local ao isolate; redirect público e tentativas de senha continuam independentes.
+- Amplificação de requests da Lixeira reduzida: exclusão definitiva atualiza estado local e resumo; restore recarrega somente links ativos; purge consulta somente a Lixeira.
+- HTTP 429 administrativo inclui `Retry-After`; o Admin informa o tempo de espera em pt-BR quando disponível.
+- Documentação corrente reconciliada com a identidade publicada 3.1.0, sem SHA corrente literal.
+
+Release atual publicada **3.1.0**, tag **v3.1.0**. Lixeira, recuperação, higiene de dados e melhorias no Admin; a release anterior **v3.0.0** permanece congelada.
 
 - Admin mais flat, com Lixeira em offcanvas e Importar / Exportar consolidados em um drawer. Criar link integra o fluxo mobile, recolhido a cada abertura/reload e após salvar; desktop mantém o formulário visível. Teclado, ESC, foco e scroll seguem um padrão comum, sem alteração de API, schema ou migrations.
 - Lixeira com restauração validada e preservação dos dados existentes.
@@ -309,5 +314,5 @@ npm test
 
 ---
 
-Versão 3.0.0
+Release atual publicada: 3.1.0 · Tag: v3.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

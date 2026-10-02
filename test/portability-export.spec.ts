@@ -19,9 +19,10 @@ import {
 	createExecutionContext,
 	waitOnExecutionContext,
 } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetRateLimitStore } from "../src/rate-limit";
 import worker from "../src/index";
+afterEach(() => vi.useRealTimers());
 import {
 	PORTABILITY_MAX_BYTES,
 	PORTABILITY_MAX_GROUPS,
@@ -1399,8 +1400,11 @@ describe("Phase 5, Gate 5.2: export endpoint", () => {
 	});
 
 	it("shares the existing administrative rate limiter", async () => {
-		for (let index = 0; index < 30; index += 1) {
-			await fetchWorker(EXPORT_URL);
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date("2026-10-02T12:00:00.000Z"));
+		for (let index = 0; index < 120; index += 1) {
+			const response = await fetchWorker(index % 2 === 0 ? EXPORT_URL : "http://localhost/api/links");
+			expect(response.status).toBe(200);
 		}
 
 		const limited = await fetchWorker(EXPORT_URL);

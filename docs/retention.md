@@ -1,10 +1,10 @@
 # Retention (BoltLink 3.0.0)
 
-## Desenvolvimento local — 3.1.0
+## Release publicada — 3.1.0
 
-A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo pertencem à `3.1.0`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
 ## Estado atual
@@ -80,7 +80,7 @@ Não há ganho relevante de espaço no D1: todos os campos afetados são número
 
 Excluir um link é uma exclusão lógica.
 
-O registro continua em `links`, com `disabled_at` preenchido. Isso reserva o slug enquanto a linha existir. Na 3.1.0 development, o operador pode restaurar ou excluir definitivamente. A remoção física libera o slug; purge manual com preview remove apenas tombstones com pelo menos 90 dias, sem Cron automático. A retenção é uma elegibilidade para limpeza, não um prazo de remoção garantido.
+O registro continua em `links`, com `disabled_at` preenchido. Isso reserva o slug enquanto a linha existir. Na 3.1.0, o operador pode restaurar ou excluir definitivamente. A remoção física libera o slug; purge manual com preview remove apenas tombstones com pelo menos 90 dias, sem Cron automático. A retenção é uma elegibilidade para limpeza, não um prazo de remoção garantido.
 
 Como a linha `2.0.x` não possui tabela `stats`, a exclusão do link não precisa limpar eventos de clique.
 
@@ -116,5 +116,5 @@ Ao atualizar de versões anteriores, a migration `0003_lgpd_minimization.sql` re
 
 ---
 
-Versão 3.0.0
+Release atual publicada: 3.1.0 · Tag: v3.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

@@ -30,7 +30,7 @@ import {
 	createExecutionContext,
 	waitOnExecutionContext,
 } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetRateLimitStore } from "../src/rate-limit";
 import worker from "../src/index";
 
@@ -140,6 +140,7 @@ beforeEach(async () => {
 	await resetDatabase();
 	resetRateLimitStore();
 });
+afterEach(() => vi.useRealTimers());
 
 describe("URL shortener worker", () => {
 	it("serves a public landing page at the root path", async () => {
@@ -755,18 +756,43 @@ describe("URL shortener worker", () => {
 		expect(await response.text()).toBe("Authentication required");
 	});
 
-	it("rate limits API endpoints after 30 requests", async () => {
-		// Burst 30 GET requests
-		for (let i = 0; i < 30; i++) {
+	it("rate limits API endpoints after 120 requests and resets with Retry-After", async () => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date("2026-10-02T12:00:42.500Z"));
+		for (let i = 0; i < 120; i++) {
 			const response = await fetchWorker("http://localhost/api/links");
 			expect(response.status).toBe(200);
 		}
 
-		// 31st request should be rate limited
+		// The 121st request is blocked until the aligned minute window resets.
 		const limitedResponse = await fetchWorker("http://localhost/api/links");
 		expect(limitedResponse.status).toBe(429);
 		const payload = (await limitedResponse.json()) as { error: string };
 		expect(payload.error).toBe("Rate limit exceeded");
+		expect(limitedResponse.headers.get("Retry-After")).toBe("18");
+		vi.setSystemTime(new Date("2026-10-02T12:00:59.999Z"));
+		expect((await fetchWorker("http://localhost/api/links")).headers.get("Retry-After")).toBe("1");
+		vi.setSystemTime(new Date("2026-10-02T12:01:00.000Z"));
+		const resetResponse = await fetchWorker("http://localhost/api/links");
+		expect(resetResponse.status).toBe(200);
+		expect(resetResponse.headers.has("Retry-After")).toBe(false);
+	});
+
+	it.each(["admin-first", "public-first"])("isolates admin and public budgets: %s", async (order) => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date("2026-10-02T12:00:00.000Z"));
+		// No API budget is spent on fixture setup.
+		await env.db_boltlink.prepare("INSERT INTO links (slug, target_url) VALUES (?, ?)")
+			.bind("isolated-budget", "https://destination.example.com/").run();
+		const headers = { "CF-Connecting-IP": "203.0.113.121", "user-agent": "bot" };
+		const paths = order === "admin-first" ? ["/api/links", "/isolated-budget"] : ["/isolated-budget", "/api/links"];
+		for (const path of paths) {
+			for (let i = 0; i < 120; i++) {
+				const response = await fetchWorker("http://localhost" + path, { headers });
+				expect(response.status).toBe(path.startsWith("/api") ? 200 : 302);
+			}
+			expect((await fetchWorker("http://localhost" + path, { headers })).status).toBe(429);
+		}
 	});
 
 	it("rate limits public redirect lookups before they keep reading D1", async () => {

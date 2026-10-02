@@ -1,10 +1,10 @@
 # Arquitetura do Projeto
 
-## Desenvolvimento local — 3.1.0
+## Release publicada — 3.1.0
 
-A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo pertencem à `3.1.0`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
 ## Visão geral
@@ -241,9 +241,9 @@ O módulo `src/portability-import.ts` é dono da validação e do plano; os hand
 - O runtime **não** executa `schema.sql`, **não** cria colunas, **não** aplica migrations implicitamente e **não** reconstrói tabelas. Ele valida que o banco foi preparado; sem a tabela `links` ou sem colunas obrigatórias, responde `503` com erro operacional controlado e sem vazar SQL.
 - Colunas legadas extras (`last_clicked_at`, `notes`, `stats`) são ignoradas e permanecem até que uma migration explícita as remova. Nenhum rebuild destrutivo roda durante requests.
 - `schema.sql` é apenas o snapshot baseline da migration `0000_initial_schema.sql` para ferramentas manuais; não é executado pelo runtime e não deve receber colunas de features.
-- Instalação limpa da release atual (`3.0.0`): criar o D1, aplicar as migrations `0000` até `0006` (localmente com `npm run dev-prepare`), publicar o Worker. Upgrade da release anterior `v2.2.1`: aplicar as pendentes `0004` a `0006`, depois publicar e validar. Mesmo sem restart, um isolate antigo detecta uma migration aplicada no request seguinte.
+- Instalação limpa da release atual (`3.1.0`): criar o D1, aplicar as migrations `0000` até `0006` (localmente com `npm run dev-prepare`), publicar o Worker. Upgrade da release histórica `v2.2.1`: aplicar as pendentes `0004` a `0006`, depois publicar e validar. Mesmo sem restart, um isolate antigo detecta uma migration aplicada no request seguinte.
 
-#### Procedimento histórico: instalação da release anterior (v2.2.1)
+#### Procedimento histórico: instalação da release histórica (v2.2.1)
 
 Instalação limpa e upgrade daquela tag aplicam `migrations/0000` até `0003` e param aí: a `0003_lgpd_minimization.sql` é a última migration da linha `v2.2.1`, e os recursos posteriores não existem naquele checkout.
 
@@ -284,13 +284,13 @@ Na release `3.0.0`, a instalação limpa e o upgrade aplicam também a `0006_exp
 
 ## Rate limiting
 
-- `/api` e `/api/*` continuam com rate limit em memória.
-- redirects públicos têm rate limit em memória antes da leitura D1.
+- `/api` e `/api/*` compartilham 120 requests por IP por janela de 60 segundos em memória local ao isolate. HTTP 429 preserva o JSON de erro e inclui `Retry-After` com os segundos restantes da janela. O limite acomoda as leituras do Admin (Groups, Trash, Portability e Capabilities); continua sendo proteção contra rajadas locais e não substitui autenticação/Access. Veja [Lixeira e recuperação](trash-recovery.md) para o contrato de refresh reduzido.
+- redirects públicos mantêm um budget independente de 120 requests por IP por 60 segundos em memória antes da leitura D1; o limiter de tentativas de senha também permanece separado.
 - o gate de senha usa chave derivada de IP apenas em memória.
 - **Atenção (Escopo Edge):** Como a memória em Workers não é compartilhada globalmente, esses limites atuam apenas no nível de Isolate/Datacenter (Colo) para evitar rajadas localizadas (DoS acidental). Eles não mitigam ataques de negação de serviço distribuídos pelo mundo. Para ataques DDoS e Rate Limite global estrito, recomenda-se configurar regras nativas de WAF no painel da Cloudflare.
 - para plano gratuito, consulte `docs/free-plan-traffic.md` antes de considerar recursos pagos.
 
 ---
 
-Versão em desenvolvimento: 3.1.0 · Release publicada: 3.0.0
+Release atual publicada: 3.1.0 · Tag: v3.1.0 · Release anterior: 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

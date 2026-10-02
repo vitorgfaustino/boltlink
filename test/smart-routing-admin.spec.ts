@@ -1994,7 +1994,7 @@ const UNRELEASED_SCOPE_PATTERNS = [
  * heading that names both keeps the stricter historical scope.
  */
 const CURRENT_SCOPE_PATTERNS = [
-	/\bv?3\.0\.0\b/i,
+	/\bv?3\.(?:0|1)\.0\b/i,
 	/release atual/i,
 	/vers[ãa]o atual/i,
 ];
@@ -2147,6 +2147,9 @@ function classifySectionScope(section: MarkdownSection): SectionScope {
 		if (UNRELEASED_SCOPE_PATTERNS.some((pattern) => pattern.test(title))) {
 			return "unreleased";
 		}
+		// Explicit current-version identity supersedes generic published wording.
+		// A heading naming v2.2.1 still retains its strict historical ceiling.
+		if (/\bv?3\.1\.0\b/i.test(title) && !/v2\.2\.1/i.test(title)) return "current";
 		if (PUBLISHED_SCOPE_PATTERNS.some((pattern) => pattern.test(title))) {
 			return "published";
 		}
@@ -2481,7 +2484,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 
 		const leading = usage.filter((entry) => entry.level === 3);
 		expect(leading.length).toBeGreaterThan(0);
-		expect(leading[0].title, "the first usage path must be the shipped release").toMatch(/3\.0\.0/);
+		expect(leading[0].title, "the first usage path must be the shipped release").toMatch(/3\.1\.0/);
 		expect(leading[0].title, "the first usage path must not be the previous release").not.toMatch(/v2\.2\.1/);
 
 		// Lineage is preserved, but every heading naming the previous release has to
@@ -2562,14 +2565,14 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 		const sections = parseMarkdownSections(setup);
 
 		// The leading flow is the shipped release and carries its full chain.
-		const fluxoA = markdownSection(setup, "## Fluxo A: Wrangler local (release atual v3.0.0)");
+		const fluxoA = markdownSection(setup, "## Fluxo A: Wrangler local (release atual v3.1.0)");
 		expect(fluxoA).not.toBeNull();
 		expect(fluxoA).toMatch(/dev-prepare/);
 		expect(fluxoA).toMatch(/0006/);
 
 		// The previous release stays documented as an explicitly historical child
 		// section; the published boundary applies there.
-		const historical = sections.find((section) => section.heading === "### Procedimento histórico: checkout da release anterior (v2.2.1)")!;
+		const historical = sections.find((section) => section.heading === "### Procedimento histórico: checkout da release histórica (v2.2.1)")!;
 		expect(historical).toBeTruthy();
 		expect(classifySectionScope(historical)).toBe("published");
 		expect(findScopeViolations(historical)).toEqual([]);
@@ -2627,7 +2630,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 
 		// The previous release stays documented as an explicitly historical child
 		// section, and the published boundary applies there.
-		const historical = sections.find((section) => section.heading === "#### Procedimento histórico: instalação da release anterior (v2.2.1)");
+		const historical = sections.find((section) => section.heading === "#### Procedimento histórico: instalação da release histórica (v2.2.1)");
 		expect(historical).toBeTruthy();
 		expect(classifySectionScope(historical!)).toBe("published");
 		expect(findForbiddenTokens(historical!.text)).toEqual([]);
@@ -2685,7 +2688,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 			const text = readDoc(file);
 			expect(text, `${file} must not frame the shipped release as upcoming`).not.toMatch(/pr[óo]xima release|next release/i);
 			expect(text, `${file} must not send readers of shipped features to a development branch`).not.toMatch(/branch de desenvolvimento|development branch/i);
-			expect(text, `${file} must name the current release`).toMatch(/3\.0\.0/);
+			expect(text, `${file} must name the current release`).toMatch(/3\.1\.0/);
 		}
 	});
 
@@ -2724,8 +2727,8 @@ describe("Phase 3: Smart Routing documentation scope", () => {
  * and templates are never comments (BL-73-04).
  */
 describe("Gate 7.2: current-state release documentation guard (BL-66-01)", () => {
-	const CURRENT_RELEASE = "3.0.0";
-	const CURRENT_TAG = "v3.0.0";
+	const CURRENT_RELEASE = "3.1.0";
+	const CURRENT_TAG = "v3.1.0";
 
 	/**
 	 * Append-only histories keep their pre-publication wording on purpose: the
@@ -2961,7 +2964,7 @@ describe("Gate 7.2: current-state release documentation guard (BL-66-01)", () =>
 		const currentState =
 			/release\s+(?:atual|publicada(?:\s+atual)?)|current\s+(?:published\s+)?(?:release|tag)|tag\s+atual|\bhoje\b|\batualmente\b|\bagora\b|\btoday\b|\bcurrently\b|\bnow\b/i;
 		// A claim that points at the current tag/branch, in PT or EN.
-		const releaseTarget = /tag\s+v3\.0\.0|v3\.0\.0\s+tag|publicada\s+sobre|published\s+(?:on|at)|\bmain\b/i;
+		const releaseTarget = /tag\s+v3\.(?:0|1)\.0|v3\.(?:0|1)\.0\s+tag|publicada\s+sobre|published\s+(?:on|at)|\bmain\b/i;
 		const historicalEvent =
 			/publica[çc][ãa]o\s+inicial|initial\s+publication|\binicialmente\b|\binitially\b|gate\s+hist[óo]rico\s+usou|gate\s+\d+(?:\.\d+)+[a-z]?\s+(?:finalizou|produziu|usou)|na\s+[ée]poca|historicamente|historical\s+gate|^Os checkpoints hist[óo]ricos de desenvolvimento aplicavam cadeias mais curtas/i;
 		// A historical checkpoint list only excuses inherited heading context,
@@ -3009,7 +3012,7 @@ describe("Gate 7.2: current-state release documentation guard (BL-66-01)", () =>
 		expect(CURRENT_RELEASE_DOC_MANIFEST).not.toContain("RELEASE_NOTES.md");
 
 		for (const file of CURRENT_RELEASE_DOC_MANIFEST) {
-			expect(readDoc(file), `${file} must name the current release`).toMatch(/3\.0\.0/);
+			expect(readDoc(file), `${file} must name the current release`).toMatch(/3\.1\.0/);
 		}
 	});
 
@@ -3891,7 +3894,8 @@ describe("Gate 7.12: Admin pt-BR copy", () => {
 	it("uses textContent at the terminal display boundary without translating API results", () => {
 		const admin = readPublic("admin.js");
 		expect(admin).toContain('type === "error" ? adminErrorCopy(message)');
-		expect(admin).toContain('throw new Error(payload?.error ||');
+		expect(admin).toContain('error.payload = payload');
+		expect(admin).toContain('throw error');
 		expect(readPublic("portability-import-ui.js")).toContain('var APPLY_INTERNAL_ERROR_MESSAGE = "Import could not be completed"');
 	});
 });
@@ -4072,5 +4076,45 @@ describe("Gate 7.13: global hidden semantics (BL-712-04)", () => {
 		expect(computedDisplay(protectedCss, { tag: "div", classes: ["some-grid"], hidden: true })).toBe("none");
 		const orderFragileCss = "[hidden] { display: none; } .some-grid { display: grid; }";
 		expect(computedDisplay(orderFragileCss, { tag: "div", classes: ["some-grid"], hidden: true })).toBe("grid");
+	});
+});
+
+describe("Gate 8.10: published 3.1.0 identity (BL-89-01)", () => {
+	function staleIdentity(text: string): boolean {
+		const prose = text.replace(/[`*]/g, "");
+		return /3\.1\.0[^\n.]{0,100}(?:não publicada|não foi publicada|not published|development)/i.test(prose)
+			|| /(?:release\s+(?:atual(?:\s+publicada)?|publicada\s+atual)|(?:última|latest)\s+(?:release\s+)?(?:publicada\b\s*)?)\s*(?:é(?:\s+a)?|=|:)?\s*v?3\.0\.0/i.test(prose)
+			|| /main\s*(?:==|=|e|\/)\s*(?:tag\s+)?v3\.0\.0/i.test(prose);
+	}
+	it("scans all current documents and the current blocks of the release histories", () => {
+		for (const file of collectDocumentationFiles(process.cwd())) {
+			const name = relative(process.cwd(), file);
+			// This exact file is the historical local Gates 8.1-8.5 report.
+			if (name === "docs/phase8-local-validation.md") continue;
+			let text = readDoc(name);
+			if (name === "CHANGELOG.md") text = text.split("## [3.0.0]")[0];
+			if (name === "RELEASE_NOTES.md") text = text.split("## BoltLink 3.0.0")[0];
+			expect(staleIdentity(text), name).toBe(false);
+		}
+		for (const name of ["AGENTS.md", "AI-START.md", "README.md", "docs/cloudflare-setup.md", "docs/upgrading.md"]) {
+			const text = readDoc(name);
+			expect(text).toContain("3.1.0 está publicada");
+			expect(text).toContain("v3.1.0");
+			expect(text).not.toMatch(/3\.1\.1|3\.2\.0/);
+		}
+	});
+	it.each([
+		"3.1.0 está em desenvolvimento, não publicada",
+		"3.1.0 not published",
+		"3.1.0 development",
+		"release atual é a 3.0.0",
+		"Última release publicada: v3.0.0",
+		"main == v3.0.0",
+		"Gate histórico foi concluído; release atual é a 3.0.0",
+	])("rejects the stale identity reproducer: %s", (text) => {
+		expect(staleIdentity(text)).toBe(true);
+	});
+	it("accepts historical origins and the frozen previous release", () => {
+		expect(staleIdentity("Release atual publicada: 3.1.0, tag v3.1.0. Release anterior: v3.0.0. Smart Routing publicado desde a 3.0.0.")).toBe(false);
 	});
 });

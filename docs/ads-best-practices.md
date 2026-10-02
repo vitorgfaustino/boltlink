@@ -27,5 +27,5 @@ BoltLink não troca essa origem pelo domínio curto nem tenta reconstruí-la. O 
 
 ---
 
-Versão 3.0.0
+Release atual publicada: 3.1.0 · Tag: v3.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

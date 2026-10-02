@@ -4,6 +4,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
 import { resetRateLimitStore } from "../src/rate-limit";
 import { trashCutoff, TRASH_RETENTION_DAYS } from "../src/trash";
+import trashUiSource from "../public/trash-ui.js?raw";
 import m0 from "../migrations/0000_initial_schema.sql";
 import m1 from "../migrations/0001_link_management.sql";
 import m2 from "../migrations/0002_advanced_features.sql";
@@ -341,5 +342,60 @@ describe("Phase 8: administrative boundary", () => {
     const response = await fetchApi(path, method, undefined, { API_KEY: "required-test-key", TEAM_DOMAIN: "https://test.cloudflareaccess.com", POLICY_AUD: "test", db_boltlink: proxyDb((sql) => { statements.push(sql); }) });
     expect(response.status).toBe(401);
     expect(statements).toEqual([]);
+  });
+});
+
+// Executes the shipped frontend against the real Worker and local test D1.
+// Setup and mounting are excluded from the mutation request count.
+describe("Gate 8.10: legitimate Trash UI/API burst", () => {
+  it.each([30, 130])("hard-deletes 30 of %s tombstones with 60 actual requests and no 429", async (initialSize) => {
+    for (let i = 0; i < initialSize; i++) await insert("burst-" + i, "2026-01-01T00:00:00.000Z");
+    class Element {
+      textContent = ""; className = ""; value = ""; hidden = false; disabled = false;
+      children: Element[] = []; handlers: Record<string, Function> = {};
+      appendChild(node: Element) { this.children.push(node); return node; }
+      replaceChildren() { this.children = []; }
+      setAttribute() {} focus() {}
+      querySelectorAll() { return []; }
+      addEventListener(name: string, handler: Function) { this.handlers[name] = handler; }
+    }
+    const nodes: Record<string, Element> = {};
+    const document = { getElementById: (id: string) => nodes[id] ||= new Element(), createElement: () => new Element() };
+    const window: any = { confirm: () => true };
+    new Function("document", "window", trashUiSource)(document, window);
+    const requests: Array<{ path: string; method: string; status: number }> = [];
+    const request = async (path: string, options?: { method: string }) => {
+      const response = await fetchApi(path, options?.method);
+      requests.push({ path, method: options?.method || "GET", status: response.status });
+      const payload: any = await response.json();
+      if (!response.ok) throw new Error(payload.error);
+      return payload;
+    };
+    const onRestore = vi.fn(async () => { await request("/api/links"); });
+    const controller = window.BoltLinkTrash.mount({ request, onRestore });
+    await controller.open();
+    requests.length = 0;
+    resetRateLimitStore();
+    for (let i = 0; i < 30; i++) {
+      const button = nodes["trash-list"].children[0].children[3].children[1];
+      expect(button.disabled).toBe(false);
+      await button.handlers.click();
+    }
+    expect(requests).toHaveLength(60);
+    expect(requests.filter((request) => request.method === "DELETE")).toHaveLength(30);
+    expect(requests.filter((request) => request.method === "GET").every((request) => request.path === "/api/trash/purge-preview")).toBe(true);
+    expect(requests.every((request) => request.status === 200)).toBe(true);
+    expect(onRestore).not.toHaveBeenCalled();
+    expect(await env.db_boltlink.prepare("SELECT COUNT(*) AS n FROM links WHERE disabled_at IS NOT NULL").first("n")).toBe(initialSize - 30);
+    expect(nodes["trash-count"].textContent).toBe("Links excluídos: " + (initialSize - 30));
+    if (initialSize === 130) {
+      expect(nodes["trash-next"].textContent).toBe("Atualizar página");
+      await nodes["trash-next"].handlers.click();
+      // The offset has shifted: refill page 1 before allowing page 2.
+      expect(requests[60].path).toBe("/api/trash?search=&page=1");
+      expect(nodes["trash-list"].children.map((row) => row.children[0].textContent))
+        .toEqual(Array.from({ length: 100 }, (_, i) => "/burst-" + (99 - i)));
+      expect(nodes["trash-next"].disabled).toBe(true);
+    }
   });
 });

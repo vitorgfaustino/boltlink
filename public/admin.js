@@ -310,7 +310,16 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(payload?.error || "Não foi possível concluir a operação. Tente novamente.");
+    const retryAfter = response.headers.get("Retry-After");
+    const seconds = retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : 0;
+    const message = response.status === 429 && Number.isSafeInteger(seconds) && seconds > 0
+      ? `Muitas operações em sequência. Tente novamente em ${seconds} segundos.`
+      : adminErrorCopy(payload?.error || "Não foi possível concluir a operação. Tente novamente.");
+    const error = new Error(message);
+    error.status = response.status;
+    error.headers = response.headers;
+    error.payload = payload;
+    throw error;
   }
 
   return payload;
@@ -3717,9 +3726,8 @@ async function copyToClipboard(text) {
 
 const trashController = window.BoltLinkTrash ? window.BoltLinkTrash.mount({
   request,
-  onChange: async () => {
+  onRestore: async () => {
     await loadLinks(searchTermInput.value, searchGroupIdInput.value);
-    await loadGroups();
   },
 }) : null;
 if (!trashController) {

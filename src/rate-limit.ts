@@ -43,7 +43,7 @@
  * gratuitos do painel Cloudflare, como Bot Fight Mode, ou de recursos
  * pagos/por plano quando o operador optar por eles.
  */
-const API_RATE_LIMIT = 30;
+const API_RATE_LIMIT = 120;
 const API_RATE_WINDOW_MS = 60_000;
 const PUBLIC_REDIRECT_RATE_LIMIT = 120;
 const PUBLIC_REDIRECT_RATE_WINDOW_MS = 60_000;
@@ -85,7 +85,7 @@ async function hashIdentifier(identifier: string): Promise<string> {
 	return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 
-async function consumeRateLimit(store: Map<string, RateEntry>, identifier: string, limit: number, windowMs: number): Promise<boolean> {
+async function consumeRateLimit(store: Map<string, RateEntry>, identifier: string, limit: number, windowMs: number): Promise<number> {
 	const hashedIdentifier = await hashIdentifier(identifier);
 	const now = Date.now();
 	const currentWindow = getWindowStart(now, windowMs);
@@ -98,21 +98,23 @@ async function consumeRateLimit(store: Map<string, RateEntry>, identifier: strin
 	const existing = store.get(hashedIdentifier);
 	if (existing && existing.windowStart === currentWindow) {
 		if (existing.count >= limit) {
-			return false;
+			return Math.max(1, Math.ceil((currentWindow + windowMs - now) / 1000));
 		}
 		existing.count++;
 	} else {
 		store.set(hashedIdentifier, { count: 1, windowStart: currentWindow });
 	}
 
-	return true;
+	return 0;
 }
 
 export async function rateLimitMiddleware(c: { req: { header: (name: string) => string | undefined; path: string }; json: (data: Record<string, unknown>, status?: number) => Response }, next: () => Promise<void>) {
 	const ip = c.req.header("CF-Connecting-IP") || "unknown";
-	const allowed = await consumeRateLimit(apiRateStore, `${ip}/api`, API_RATE_LIMIT, API_RATE_WINDOW_MS);
-	if (!allowed) {
-		return c.json({ error: "Rate limit exceeded" }, 429);
+	const retryAfter = await consumeRateLimit(apiRateStore, `${ip}/api`, API_RATE_LIMIT, API_RATE_WINDOW_MS);
+	if (retryAfter) {
+		const response = c.json({ error: "Rate limit exceeded" }, 429);
+		response.headers.set("Retry-After", String(retryAfter));
+		return response;
 	}
 
 	await next();
@@ -120,12 +122,12 @@ export async function rateLimitMiddleware(c: { req: { header: (name: string) => 
 
 export async function consumePublicRedirectBudget(request: Request): Promise<boolean> {
 	const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-	return consumeRateLimit(
+	return (await consumeRateLimit(
 		publicRedirectRateStore,
 		`${ip}/public-redirect`,
 		PUBLIC_REDIRECT_RATE_LIMIT,
 		PUBLIC_REDIRECT_RATE_WINDOW_MS,
-	);
+	)) === 0;
 }
 
 export function resetRateLimitStore(): void {

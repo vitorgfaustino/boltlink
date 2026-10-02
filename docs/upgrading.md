@@ -1,29 +1,36 @@
 # Upgrading
 
-## Desenvolvimento local — 3.1.0
+## Release publicada — 3.1.0
 
-A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo pertencem à `3.1.0`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
-## Escopo das bases de código (release 3.0.0)
+## Escopo das bases de código (release 3.1.0)
 
 Os documentos abaixo descrevem estados de código diferentes. Confirme em qual você está antes de seguir um procedimento:
 
 | Base | Como identificar | Migrations | Recursos de produto |
 | --- | --- | --- | --- |
-| Release atual | tag `v3.0.0` (este repositório) | `0000` a `0006` | links, grupos, tags, QR code, senha, agenda/expiração, Split Test A/B, Smart Routing, destino de expiração, `ROOT_REDIRECT_URL`, hierarquia de grupos, portabilidade (exportação e importação) e QR Code com preview e downloads no painel |
-| Release anterior | tag `v2.2.1` (`git rev-parse v2.2.1` → `8b3895e`) | `0000` a `0003` | links, grupos, tags, QR code, senha, agenda/expiração |
-| Checkpoint histórico da Fase 2 | baseline local `23353a1` | `0000` a `0004` | release anterior + Split Test A/B |
+| Release atual | tag `v3.1.0` (este repositório) | `0000` a `0006` | links, grupos, tags, QR code, senha, agenda/expiração, Split Test A/B, Smart Routing, destino de expiração, `ROOT_REDIRECT_URL`, hierarquia de grupos, portabilidade (exportação e importação) e QR Code com preview e downloads no painel |
+| Release anterior congelada | tag `v3.0.0` | `0000` a `0006` | recursos das Fases 2–5; sem Lixeira recuperável no Admin |
+| Baseline histórico do upgrade | tag `v2.2.1` (`git rev-parse v2.2.1` → `8b3895e`) | `0000` a `0003` | links, grupos, tags, QR code, senha, agenda/expiração |
+| Checkpoint histórico da Fase 2 | baseline local `23353a1` | `0000` a `0004` | baseline v2.2.1 + Split Test A/B |
 | Checkpoint histórico da Fase 3 | HEAD `548f179` | `0000` a `0005` | Fase 2 + Smart Routing |
 | Checkpoint histórico da Fase 4 | HEAD `cdb9f83` | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
 
-A release `3.0.0` é a última versão publicada deste repositório (tag `v3.0.0`); a release anterior publicada é `v2.2.1`, que termina na `0003`. O fluxo de upgrade consolidado está na seção seguinte e é executado **por cada instalação**: publicar a release no repositório não aplica migrations nem faz deploy em nenhuma instalação.
+A release `3.1.0` é a última versão publicada deste repositório (tag `v3.1.0`); a release anterior é `v3.0.0`, congelada. `v2.2.1` permanece baseline histórico das migrations `0004`–`0006`. O upgrade é executado **por cada instalação**: publicar a release no repositório não aplica migrations nem faz deploy em nenhuma instalação.
+
+## Upgrade 3.0.0 → 3.1.0
+
+Com a cadeia `0000`–`0006` já aplicada, atualize apenas o código para a tag `v3.1.0`, preservando configuração privada, overlays, bindings e secrets existentes. Faça backup integral do D1, instale as dependências, execute os testes, publique pelo processo normal da instalação e valide links ativos, Lixeira, restauração e portabilidade. Preserve `PASSWORD_SESSION_SECRET`; não o regenere apenas pelo upgrade. **MIGRATION_0007 = NOT REQUIRED**: nenhuma migration, binding ou variável nova para esta atualização. Não há Cron automático.
+
+Instalações anteriores à 3.0.0 seguem o fluxo de migrations abaixo antes de executar código que depende delas. Os recursos e mudanças de secrets introduzidos na 3.0.0 continuam necessários na 3.1.0.
 
 ## Upgrade para a versão 3.0.0
 
-> Escopo: fluxo operacional consolidado da release `3.0.0`, partindo da release anterior `v2.2.1` (commit `8b3895e`, migrations `0000` a `0003`). Este repositório é a base do produto e sua release é distribuição de código: não existe instalação canônica em Cloudflare, e o upgrade abaixo é executado **por cada instalação**, no próprio Worker e D1. As seções por migration abaixo permanecem como referência; este é o fluxo único.
+> Escopo: fluxo operacional consolidado da release `3.0.0`, partindo da release histórica `v2.2.1` (commit `8b3895e`, migrations `0000` a `0003`). Este repositório é a base do produto e sua release é distribuição de código: não existe instalação canônica em Cloudflare, e o upgrade abaixo é executado **por cada instalação**, no próprio Worker e D1. As seções por migration abaixo permanecem como referência; este é o fluxo único.
 
 1. **Backup do D1 antes das migrations.** Faça backup do estado do banco conforme o procedimento da instância, antes de aplicar qualquer migration. O **Portability Export não é backup**: o documento `boltlink-portability` carrega apenas configuração lógica, sem métricas, sem hashes e sem IDs internos — a recuperação integral do estado operacional continua sendo backup do D1.
 2. **Atualize o código:**
@@ -82,7 +89,7 @@ Se você usa apenas o Admin UI: o painel já envia o contrato atual (inclusive `
 
 ## Procedimento histórico: upgrade para a v2.2.1
 
-Procedimento da release anterior `v2.2.1`, mantido como referência para quem opera um checkout dessa tag. Para atualizar da `v2.2.1` até a release atual, use o fluxo consolidado acima.
+Procedimento da release histórica `v2.2.1`, mantido como referência para quem opera um checkout dessa tag. Para atualizar da `v2.2.1` até a release atual, use o fluxo consolidado acima.
 
 Não há bindings novos. A `v2.2.1` termina na migration `0003_lgpd_minimization.sql`; um checkout da tag `v2.2.1` não possui os recursos das bases locais. Instalações alinhadas com a `0003` não precisam de migration nova. Aplique as migrations pendentes antes de publicar o Worker.
 
@@ -90,7 +97,7 @@ Os recursos descritos nas seções seguintes pertencem à release `3.0.0`; nenhu
 
 ## Split Test A/B e migration 0004 (release 3.0.0)
 
-> Escopo: release `3.0.0` (migration `0004`). A release anterior `v2.2.1` não contém esta migration nem o Split Test A/B; o recurso foi introduzido no checkpoint de desenvolvimento da Fase 2 (`23353a1`).
+> Escopo: release `3.0.0` (migration `0004`). A release histórica `v2.2.1` não contém esta migration nem o Split Test A/B; o recurso foi introduzido no checkpoint de desenvolvimento da Fase 2 (`23353a1`).
 
 O Split Test A/B adiciona a migration `0004_ab_testing.sql`. Ela é a fonte autoritativa das colunas A/B.
 
@@ -123,7 +130,7 @@ O Smart Routing adiciona a migration `0005_smart_routing.sql`, fonte autoritativ
 
 ## Destino de expiração e migration 0006 (release 3.0.0)
 
-> Escopo: release `3.0.0` (migration `0006`). A release anterior `v2.2.1` não contém esta migration nem o destino de expiração.
+> Escopo: release `3.0.0` (migration `0006`). A release histórica `v2.2.1` não contém esta migration nem o destino de expiração.
 
 O destino de expiração adiciona a migration `0006_expired_redirect.sql`, fonte autoritativa da coluna `links.expired_redirect_url` (TEXT, nullable). A mudança é additive: sem default, sem reescrita de dados e sem rebuild de tabela; linhas existentes permanecem `NULL`, o que preserva o comportamento anterior (link expirado responde `410`). Instalações limpas na release `3.0.0` aplicam a cadeia `0000` a `0006`.
 
@@ -143,7 +150,7 @@ A release `3.0.0` também introduz a variável opcional `ROOT_REDIRECT_URL` (red
 
 ## Hierarquia de grupos (release 3.0.0)
 
-> Escopo: release `3.0.0`, sem migration nova. A release anterior `v2.2.1` **contém** a tabela `link_groups` com `parent_id` (migration `0002`), mas não contém nada desta seção.
+> Escopo: release `3.0.0`, sem migration nova. A release histórica `v2.2.1` **contém** a tabela `link_groups` com `parent_id` (migration `0002`), mas não contém nada desta seção.
 
 - **Não há migration**: a release `3.0.0` usa `link_groups.parent_id`, com a FK auto-referente e o índice `idx_link_groups_parent_id` que já existem desde a `0002`. Nada para aplicar, nenhum binding novo e nenhuma coluna nova. Uma instalação em `0006` já tem o schema necessário.
 - **O que muda no upgrade é comportamento, não schema.** Se a instalação já convivia com `link_groups.parent_id` gravado à mão, aplique as mudanças e valide: ciclos existentes passam a falhar fechado (veja abaixo).
@@ -163,7 +170,7 @@ SELECT id, name, parent_id FROM link_groups;
 
 ### Portabilidade de configuração: exportação e importação (release 3.0.0)
 
-> Escopo: release `3.0.0`, sem migration nova. A release anterior `v2.2.1` não possui `GET /api/export`, nem as rotas de importação, nem os botões `Exportar configuração` e `Importar configuração`.
+> Escopo: release `3.0.0`, sem migration nova. A release histórica `v2.2.1` não possui `GET /api/export`, nem as rotas de importação, nem os botões `Exportar configuração` e `Importar configuração`.
 
 - **Não há migration**: o export lê as colunas que já existem. Nenhum binding novo, nenhuma capability nova e nada para aplicar; uma instalação em `0006` (ou até em `0004`/`0005`) exporta com as capacidades que o banco já tem.
 - **Aditivo do ponto de vista do upgrade**: as superfícies novas da release `3.0.0` são administrativas, e apenas três são rotas novas — `GET /api/export`, `POST /api/import/preview` e `POST /api/import/apply` — acompanhadas das ações `Exportar configuração` e `Importar configuração` no Admin e do diálogo de QR Code. O QR usa os endpoints `GET/POST /api/links/:slug/qrcode` e a hierarquia de grupos usa `GET/POST /api/groups`, `PATCH /api/groups/:id` e `DELETE /api/groups/:id`, todos já existentes na base publicada: a release `3.0.0` muda o contrato e a UI dessas rotas, não cria rotas novas. Nenhuma dessas superfícies é pública — todas ficam atrás do boundary administrativo de `/api` — e o redirect público `GET /:slug`, o CRUD e o lifecycle não ganham API nova por causa de grupos, portabilidade ou QR.
@@ -270,5 +277,5 @@ Se você atualiza pelo GitHub ou pelo botão:
 
 ---
 
-Versão em desenvolvimento: 3.1.0 · Release publicada: 3.0.0
+Release atual publicada: 3.1.0 · Tag: v3.1.0 · Release anterior: 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

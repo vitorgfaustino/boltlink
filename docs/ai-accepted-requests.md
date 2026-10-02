@@ -1,10 +1,10 @@
 # Catálogo de Pedidos Aceitos pela IA
 
-## Desenvolvimento local — 3.1.0
+## Release publicada — 3.1.0
 
-A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo pertencem à `3.1.0`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
 ## Regras de uso
@@ -24,7 +24,7 @@ Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recover
 | `atualizar_projeto` | `Atualizar o Projeto`, `pull latest version` | atualizar código, dependências, `wrangler.local.jsonc`, migrations e testes | antes de sobrescrever mudanças locais |
 | `aplicar_migrations` | `Aplicar migrations`, `rodar migrations` | aplicar migrations local e/ou remoto | se o banco alvo estiver indefinido |
 | `gerenciar_lixeira` | `Restaurar link`, `Excluir definitivamente`, `Limpar itens antigos` | inspecionar Lixeira, validar restore, preparar preview | exclusão definitiva/purge exige intenção explícita; mostrar preview antes da limpeza |
-| `desenvolver_3_1_0_local` | `Phase 8`, `Trash, Recovery & Data Hygiene` | implementar e testar localmente o contrato 3.1.0 | antes de push, deploy, D1 remoto, tag ou release |
+| `manter_codigo_local` | `Corrigir código`, `Testar localmente` | corrigir e testar o contrato da release corrente | push, tag e GitHub Release exigem autorização explícita; deploy e D1 remoto têm escopo próprio |
 | `auditar_estado_operacional` | `Auditar estado operacional`, `check status` | revisar config, docs e pendências | não há parada especial |
 | `publicar_workers_dev` | `Publicar no workers.dev`, `deploy inicial` | deploy padrão e validação pública | antes de Access |
 | `publicar_com_deploy_button` | `Deploy to Cloudflare Workers`, `usar o botão de deploy` | revisar template público e preparar pós-deploy | antes da criação final do Access |
@@ -34,7 +34,7 @@ Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recover
 ## Notas da linha atual
 
 - não existe mais `IP_HASH_SECRET`
-- a release atual publicada é a `3.0.0` (tag `v3.0.0`, migrations `0000` a `0006`); a release anterior `v2.2.1` (tag real) termina na `0003_lgpd_minimization.sql`. A `0004` (Split Test A/B, origem Fase 2), a `0005` (Smart Routing, origem Fase 3) e a `0006` + `ROOT_REDIRECT_URL` (origem Fase 4) estão publicadas desde a `3.0.0`
+- a release atual publicada é a `3.1.0` (tag `v3.1.0`, migrations `0000` a `0006`); a release histórica `v2.2.1` (tag real) termina na `0003_lgpd_minimization.sql`. A `0004` (Split Test A/B, origem Fase 2), a `0005` (Smart Routing, origem Fase 3) e a `0006` + `ROOT_REDIRECT_URL` (origem Fase 4) estão publicadas desde a `3.0.0`
 - a hierarquia de grupos da Fase 5 não adiciona migration: ela usa `link_groups.parent_id`, criado pela `0002`. `PATCH /api/groups/:id` com `parentId` exige `expectedParentId`, e `409` (ciclo, profundidade, delete não vazio, pai desatualizado, grafo corrompido) é resultado normal da API, não falha a esconder
 - a exportação portátil da Fase 5 (`GET /api/export`, formato `boltlink-portability` v1) também não adiciona migration e é somente leitura no **request inteiro**, não apenas no handler: `409` significa estado persistido que o BoltLink não aceitaria hoje (incluindo nome de grupo em forma não canônica, que nunca é normalizado no export) e `413` significa acima dos limites do formato (50 grupos, 100 links ou 256 KiB); o JSON não substitui backup do D1
 - a importação portátil da Fase 5 (`POST /api/import/preview` e `POST /api/import/apply`) consome exatamente o documento do export e também não adiciona migration. O preview é somente leitura no request inteiro (zero escrita, zero DDL, zero bootstrap de schema) e o apply grava o documento em um **único `batch`** — uma transação, portanto tudo ou nada. `400` significa documento malformado (chave desconhecida, tipo errado, referência órfã, ciclo, slug duplicado) ou corpo que não é UTF-8 válido (recusado, nunca reparado com U+FFFD), `409` significa que o destino não aceita o documento como está (colisão de slug com link ativo/desabilitado/tombstone, link do destino apontando para grupo inexistente, feature usada que o banco não suporta, árvore acima de 16 níveis, grafo de destino corrompido, `PASSWORD_SESSION_SECRET` ausente, senha de substituição faltando) e `413` significa acima dos limites do formato. Falha de batch que não seja a `UNIQUE` de `links.slug` responde `500` controlado, nunca `SLUG_COLLISION`. O import nunca sobrescreve slug, nunca faz merge de grupo por nome, nunca reutiliza um id que a sequência `AUTOINCREMENT` do destino já gastou, nunca restaura métricas e exige nova senha para cada link protegido; no drawer, o apply exige preview aprovado para o mesmo arquivo mostrado e toda falha terminal descarta as senhas digitadas
@@ -46,5 +46,5 @@ Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recover
 
 ---
 
-Versão em desenvolvimento: 3.1.0 · Release publicada: 3.0.0
+Release atual publicada: 3.1.0 · Tag: v3.1.0 · Release anterior: 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

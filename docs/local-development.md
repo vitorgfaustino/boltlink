@@ -1,6 +1,6 @@
 # Desenvolvimento Local
 
-> Escopo: release atual = **`3.0.0`** (tag `v3.0.0`, migrations `0000` a `0006`, com `npm run dev-prepare`). Este documento descreve o desenvolvimento local da release atual; os checkpoints de desenvolvimento (Fase 2 = `0004`/Split Test A/B, Fase 3 = `0005`/Smart Routing, Fase 4 = `0006`/destino de expiração, Fase 5 = hierarquia de grupos, portabilidade e QR Code sem migration nova) são **origem histórica** desses recursos, publicados juntos na `3.0.0` — não são estados ativos.
+> Escopo: release atual = **`3.1.0`** (tag `v3.1.0`, migrations `0000` a `0006`, com `npm run dev-prepare`). Este documento descreve o desenvolvimento local da release atual; os checkpoints de desenvolvimento (Fase 2 = `0004`/Split Test A/B, Fase 3 = `0005`/Smart Routing, Fase 4 = `0006`/destino de expiração, Fase 5 = hierarquia de grupos, portabilidade e QR Code sem migration nova) são **origem histórica** desses recursos, publicados juntos na `3.0.0` — não são estados ativos.
 
 Este projeto suporta desenvolvimento local com banco SQLite isolado para teste manual e validação rápida.
 
@@ -19,7 +19,7 @@ Este projeto suporta desenvolvimento local com banco SQLite isolado para teste m
 
 Esse diretório **não vai para o GitHub**.
 
-## Fluxo rápido (release atual v3.0.0)
+## Fluxo rápido (release atual v3.1.0)
 
 1. Instale dependências:
 
@@ -43,7 +43,7 @@ npm run dev-prepare
 
 Os checkpoints históricos de desenvolvimento aplicavam cadeias mais curtas no mesmo script: a Fase 2 (`23353a1`) parava na `0004`, a Fase 3 (`548f179`) na `0005` e a Fase 4 (`cdb9f83`) na `0006` — todas essas fases são origem dos recursos publicados na `3.0.0`.
 
-### Referência histórica: checkout da release anterior (v2.2.1)
+### Referência histórica: checkout da release histórica (v2.2.1)
 
 No checkout histórico da tag `v2.2.1`, que termina na `0003_lgpd_minimization.sql`, o script de preparação local do D1 não existe; lá a cadeia é aplicada manualmente:
 
@@ -73,7 +73,7 @@ npm test
 
 - cria `.dev-env/`
 - cria `.dev-env/db.sqlite3` (auxiliar, não usado pelo Worker)
-- aplica a cadeia de migrations (`migrations/0000` a `0006` na release atual `3.0.0`) nesse arquivo
+- aplica a cadeia de migrations (`migrations/0000` a `0006` na release atual `3.1.0`) nesse arquivo
 - insere links fictícios para navegação local
 
 Para o Worker, o comando correto na release atual é `npm run dev-prepare`. `npm run dev-init` também existe na tag `v2.2.1`, mas lá a cadeia disponível termina na `0003`.
@@ -102,5 +102,5 @@ Quando o usuário pedir para iniciar o projeto localmente, a IA deve incluir `np
 
 ---
 
-Versão 3.0.0
+Release atual publicada: 3.1.0 · Tag: v3.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

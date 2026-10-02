@@ -20,6 +20,7 @@
     var busy = false;
     var isOpen = false;
     var hasMore = false;
+    var pageDirty = false;
     var purgePreview = null;
     var previewGeneration = 0;
     var rows = [];
@@ -37,6 +38,7 @@
       root.querySelectorAll("button, input").forEach(function (node) { node.disabled = busy; });
       previous.disabled = busy || page === 1;
       next.disabled = busy || !hasMore;
+      next.textContent = pageDirty && hasMore ? "Atualizar página" : "Próxima";
       confirmPurge.disabled = busy || !purgePreview || purgePreview.eligible === 0;
       root.setAttribute("aria-busy", String(busy));
     }
@@ -50,7 +52,9 @@
       list.replaceChildren();
       if (!rows.length) {
         list.appendChild(text("p", search.value.trim()
-          ? "Nenhum item na Lixeira corresponde à busca."
+          ? "Nenhum item na Lixeira nesta página corresponde à busca. Use a paginação ou refaça a busca."
+          : page > 1 || hasMore
+          ? "Esta página está vazia. Use a paginação para continuar, ou refaça a busca."
           : "A Lixeira está vazia. Links excluídos aparecerão aqui para restauração ou exclusão definitiva."));
       }
       rows.forEach(function (row) {
@@ -66,7 +70,7 @@
           button.type = "button";
           button.className = action[2] + " compact";
           button.setAttribute("aria-label", action[1] + " /" + row.slug);
-          button.addEventListener("click", function () { mutate(row.slug, action[0]); });
+          button.addEventListener("click", function () { return mutate(row.slug, action[0]); });
           actions.appendChild(button);
         });
         item.appendChild(actions);
@@ -92,6 +96,7 @@
         if (token !== generation) return;
         rows = result.links;
         hasMore = result.hasMore;
+        pageDirty = false;
         render();
         await refreshCount();
         if (token === generation) announce(result.total + " itens encontrados.");
@@ -110,10 +115,22 @@
       try {
         await options.request("/api/trash/" + encodeURIComponent(slug) + (action === "restore" ? "/restore" : ""),
           { method: action === "restore" ? "POST" : "DELETE" });
-        await options.onChange();
-        await load();
-        announce(action === "restore" ? "/" + slug + " restaurado. A configuração e as métricas foram preservadas."
-          : "/" + slug + " excluído definitivamente. O slug está disponível para reutilização.");
+        rows = rows.filter(function (row) { return row.slug !== slug; });
+        // Offset pages shift after removal. Refill this page on demand before
+        // advancing, so the first items of the following page are never skipped.
+        pageDirty = true;
+        render();
+        var message = action === "restore" ? "/" + slug + " restaurado. A configuração e as métricas foram preservadas."
+          : "/" + slug + " excluído definitivamente. O slug está disponível para reutilização.";
+        try {
+          await refreshCount();
+          if (action === "restore") await options.onRestore();
+          announce(message);
+        } catch (refreshError) {
+          count.textContent = "Links excluídos: indisponível";
+          eligible.textContent = "Itens elegíveis: indisponível";
+          announce(message + " Não foi possível atualizar o painel. " + (refreshError.message || "Reabra a Lixeira."), true);
+        }
       } catch (error) {
         announce(error.message || "Não foi possível concluir a operação.", true);
       } finally { busy = false; controls(); }
@@ -145,7 +162,6 @@
         var result = await options.request("/api/trash/purge", { method: "POST" });
         invalidatePreview();
         page = 1;
-        await options.onChange();
         await load();
         announce(result.removed === 1 ? "1 link excluído definitivamente. O slug foi liberado." : result.removed + " links excluídos definitivamente. Os slugs foram liberados.");
       } catch (error) {
@@ -155,7 +171,7 @@
     }
     document.getElementById("trash-search-form").addEventListener("submit", function (event) { event.preventDefault(); if (!busy) { page = 1; load(); } });
     previous.addEventListener("click", function () { if (!busy && page > 1) { page--; load(); } });
-    next.addEventListener("click", function () { if (!busy && hasMore) { page++; load(); } });
+    next.addEventListener("click", function () { if (!busy && hasMore) { if (!pageDirty) page++; return load(); } });
     purge.addEventListener("click", previewPurge);
     confirmPurge.addEventListener("click", applyPurge);
     document.getElementById("trash-purge-cancel").addEventListener("click", function () { invalidatePreview(); controls(); purge.focus(); });

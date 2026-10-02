@@ -1,19 +1,21 @@
 # Setup na Cloudflare
 
-## Desenvolvimento local — 3.1.0
+## Release publicada — 3.1.0
 
-A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo pertencem à `3.1.0`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
-Este guia cobre as três formas de operar o BoltLink na release atual **`3.0.0`**:
+Este guia cobre as três formas de operar o BoltLink na release atual **`3.1.0`**:
 
 - `Wrangler local`
 - `AI-guided setup`
 - `Deploy to Cloudflare Workers`
 
-## Premissas da release atual (v3.0.0)
+## Premissas da release atual (v3.1.0)
+
+O upgrade **3.0.0 → 3.1.0** atualiza código sem migration nova se a cadeia `0000`–`0006` já estiver aplicada. **MIGRATION_0007 = NOT REQUIRED**. Para instalações anteriores, aplique somente as migrations ainda pendentes conforme [Upgrading](upgrading.md).
 
 - `wrangler.jsonc` continua sendo o template público
 - `wrangler.local.jsonc` continua sendo a configuração privada local
@@ -26,7 +28,7 @@ Este guia cobre as três formas de operar o BoltLink na release atual **`3.0.0`*
 
 | Base | Migrations | Recursos extras |
 | --- | --- | --- |
-| **Release atual publicada** (`3.0.0`, tag `v3.0.0`) | `0000` a `0006` | Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + portabilidade de configuração (exportação e importação) + QR Code com preview e download PNG/SVG no painel |
+| **Release atual publicada** (`3.1.0`, tag `v3.1.0`) | `0000` a `0006` | Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + portabilidade de configuração (exportação e importação) + QR Code com preview e download PNG/SVG no painel |
 | Release anterior (tag `v2.2.1`, `8b3895e`) | `0000` a `0003` | — |
 | Fase 2 (checkpoint histórico, `23353a1`) | `0000` a `0004` | Split Test A/B |
 | Fase 3 (checkpoint congelado, `548f179`) | `0000` a `0005` | Fase 2 + Smart Routing |
@@ -35,7 +37,7 @@ Este guia cobre as três formas de operar o BoltLink na release atual **`3.0.0`*
 
 Os fluxos desta página seguem a release atual. A hierarquia de grupos, a portabilidade de configuração e o QR Code não acrescentam migration sobre a `0006`: a primeira usa `link_groups.parent_id`, criado pela `0002`; a segunda lê colunas existentes e grava links/grupos como qualquer criação pelo painel; o QR usa os endpoints e a coluna `has_qrcode` que existem desde a base publicada.
 
-## Fluxo A: Wrangler local (release atual v3.0.0)
+## Fluxo A: Wrangler local (release atual v3.1.0)
 
 1. `npm install`
 2. `npm run setup`
@@ -76,9 +78,9 @@ npm run dev
 npm test
 ```
 
-### Procedimento histórico: checkout da release anterior (v2.2.1)
+### Procedimento histórico: checkout da release histórica (v2.2.1)
 
-A tag `v2.2.1` é a release anterior, mantida aqui como referência de lineage. Naquele checkout a cadeia de migrations termina na `0003_lgpd_minimization.sql` e o script de preparação local do D1 não existe, então a cadeia é aplicada manualmente:
+A tag `v2.2.1` é a release histórica, mantida aqui como referência de lineage. Naquele checkout a cadeia de migrations termina na `0003_lgpd_minimization.sql` e o script de preparação local do D1 não existe, então a cadeia é aplicada manualmente:
 
 ```bash
 npm install
@@ -88,9 +90,9 @@ npm run dev
 npm test
 ```
 
-## Fluxo local de desenvolvimento (release atual v3.0.0)
+## Fluxo local de desenvolvimento (release atual v3.1.0)
 
-No desenvolvimento local da release `3.0.0`, o script `npm run dev-prepare` aplica a cadeia completa de migrations (`0000` a `0006`) no D1 local do Wrangler (`.wrangler/state/v3/d1`):
+No desenvolvimento local da release `3.1.0`, o script `npm run dev-prepare` aplica a cadeia completa de migrations (`0000` a `0006`) no D1 local do Wrangler (`.wrangler/state/v3/d1`):
 
 ```bash
 npm run dev-prepare
@@ -110,7 +112,7 @@ Pedidos recomendados:
 - `Auditar estado operacional`
 - `Aplicar migrations`
 
-> Escopo: release atual = **`3.0.0`** (migrations `0000` a `0006`). Não instrua operadores de um checkout histórico da tag `v2.2.1` a procurar migrations ou recursos que não existem nela; para aquele checkout, o procedimento é o histórico do Fluxo A.
+> Escopo: release atual = **`3.1.0`** (migrations `0000` a `0006`). Não instrua operadores de um checkout histórico da tag `v2.2.1` a procurar migrations ou recursos que não existem nela; para aquele checkout, o procedimento é o histórico do Fluxo A.
 
 No checkout da release atual, o pedido de atualização deve:
 
@@ -118,10 +120,10 @@ No checkout da release atual, o pedido de atualização deve:
 2. preservar `wrangler.local.jsonc` e overlays do projeto
 3. atualizar dependências
 4. rodar `npm run wrangler:init`
-5. aplicar as migrations pendentes no D1 (local com `npm run dev-prepare`; remoto com `npm run wrangler -- d1 migrations apply ... --remote -c wrangler.local.jsonc`); vindo da release anterior `v2.2.1`, as pendentes são `0004` a `0006` e a `0003_lgpd_minimization.sql` é a última daquela release.
+5. aplicar as migrations pendentes no D1 (local com `npm run dev-prepare`; remoto com `npm run wrangler -- d1 migrations apply ... --remote -c wrangler.local.jsonc`); vindo da release histórica `v2.2.1`, as pendentes são `0004` a `0006` e a `0003_lgpd_minimization.sql` é a última daquela release.
 6. rodar `npm test`
 
-## Recursos da release 3.0.0 e migrations
+## Recursos publicados desde a 3.0.0 e migrations
 
 ### Smart Routing e migration 0005 (origem Fase 3)
 
@@ -199,7 +201,7 @@ Para quem já está em produção e recebe atualização por GitHub/Deploy Butto
 
 - o runtime não executa reconciliação de schema; colunas legadas extras são ignoradas e permanecem até uma migration explícita
 - ordem suportada: migrations remotas → deploy/atualização do Worker → validação
-- para sair da release anterior `v2.2.1` e chegar na atual `3.0.0`, aplique as migrations pendentes no D1 remoto: `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`. As pendentes vindo da `v2.2.1` são `0004` a `0006` (a `0003_lgpd_minimization.sql`, que remove `stats`, `last_clicked_at` e `notes`, é a última daquela release)
+- para sair da release histórica `v2.2.1` e chegar na atual `3.1.0`, aplique as migrations pendentes no D1 remoto: `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`. As pendentes vindo da `v2.2.1` são `0004` a `0006` (a `0003_lgpd_minimization.sql`, que remove `stats`, `last_clicked_at` e `notes`, é a última daquela release)
 - a `0004_ab_testing.sql` habilita o Split Test A/B (origem Fase 2), a `0005_smart_routing.sql` habilita Smart Routing (origem Fase 3) e a `0006_expired_redirect.sql` habilita o destino de expiração (origem Fase 4). Nenhuma das três existe no checkout da tag `v2.2.1`; todas foram publicadas na `3.0.0`.
 - a hierarquia de grupos, a portabilidade de configuração e o QR Code (origem Fase 5, publicados na `3.0.0`) não acrescentam migration sobre a `0006`: nada além do fluxo acima
 - deploy sozinho não deixa a instalação operacional: até aplicar as migrations, API e redirects respondem `503 Database schema is not initialized`
@@ -244,5 +246,5 @@ Se o operador reativar logs, Logpush, source maps ou outra telemetria externa, i
 
 ---
 
-Versão em desenvolvimento: 3.1.0 · Release publicada: 3.0.0
+Release atual publicada: 3.1.0 · Tag: v3.1.0 · Release anterior: 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

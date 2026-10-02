@@ -1,6 +1,11 @@
 # Changelog
 
-## [3.1.0] - Unreleased / development
+## [3.1.0] - 2026-10-02
+
+- Rate limit administrativo ajustado para 120 requests por IP por janela de 60 segundos, local ao isolate; redirect público e tentativas de senha continuam independentes.
+- Amplificação de requests da Lixeira reduzida: exclusão definitiva atualiza estado local e resumo; restore recarrega somente links ativos; purge consulta somente a Lixeira.
+- HTTP 429 administrativo inclui `Retry-After`; o Admin informa o tempo de espera em pt-BR quando disponível.
+- Documentação corrente reconciliada com a identidade publicada 3.1.0, sem SHA corrente literal.
 
 - Admin mais flat, com Lixeira em offcanvas e Importar / Exportar consolidados em um drawer. Criar link integra o fluxo mobile, recolhido a cada abertura/reload e após salvar; desktop mantém o formulário visível. Teclado, ESC, foco e scroll seguem um padrão comum, sem alteração de API, schema ou migrations.
 - Lixeira administrativa com busca e paginação; restore valida configuração e concorrência, preservando métricas, senha, QR, grupo e lifecycle.
@@ -8,7 +13,7 @@
 - Retenção interna de 90 dias com preview read-only e purge manual condicional; sem Cron ou operação remota.
 - Export somente de links ativos; erros com `code` e orientação segura no Admin. Formato v1 e import legado `disabled: true` preservados.
 - URL vazia enviada por PATCH/PUT é recusada em vez de ser tratada como campo ausente. Mesma autoridade de URL em create, update, restore e import.
-- Sem migration 0007: cadeia 0000–0006, sem binding novo. Última release publicada permanece v3.0.0 congelada.
+- Sem migration 0007: cadeia 0000–0006, sem binding novo. Release atual publicada: v3.1.0; v3.0.0 permanece congelada.
 
 ## [3.0.0] - 2026-09-29
 
@@ -209,5 +214,5 @@
 
 ---
 
-Versão 3.0.0
+Release atual publicada: 3.1.0 · Tag: v3.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

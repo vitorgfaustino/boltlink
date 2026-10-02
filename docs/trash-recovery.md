@@ -1,6 +1,6 @@
-# Lixeira e recuperação — 3.1.0 development
+# Lixeira e recuperação — 3.1.0
 
-A versão **3.1.0 está em desenvolvimento local e não foi publicada**. A última release publicada continua **v3.0.0**, congelada. Estas instruções descrevem o novo código; não atualizam nenhuma instalação por si mesmas.
+A versão **3.1.0 está publicada** (tag **v3.1.0**) e é a release atual do repositório. A release anterior **v3.0.0** permanece congelada. Cada instalação executa sua própria atualização; publicar a release não atualiza instalações por si só.
 
 ## Navegação do Admin — Gate 8.6
 
@@ -23,6 +23,14 @@ No Admin, abra **Lixeira** na área de ações de Links ativos. O conteúdo abre
 **Excluir definitivamente** pede confirmação, remove fisicamente apenas uma linha que esteja na Lixeira e libera o slug imediatamente. A operação não pode ser desfeita pelo painel. A reutilização cria uma nova linha, com novos identificadores e defaults; não recupera dados do link apagado. QR codes e materiais antigos que contêm aquele slug passam a apontar para o novo link quando ele for recriado. O operador decide se a reutilização é apropriada.
 
 Excluir definitivamente ou limpar o último link de um grupo não apaga o grupo. A exclusão de grupos continua explícita e condicionada à ausência de qualquer link ou subgrupo.
+
+## Requests e limite administrativo
+
+A exclusão definitiva remove o item do estado local e faz apenas `DELETE` + um `GET /api/trash/purge-preview` para atualizar os contadores; não recarrega links ativos nem grupos. As páginas podem ficar com menos itens durante a sequência. Quando existe página seguinte, Próxima passa a ser Atualizar página: recompõe a página corrente sob demanda antes de avançar, evitando pular itens deslocados pelo offset após remoção. Anterior ou uma nova busca também consultam a listagem sob demanda. Restore remove o item local, consulta o resumo e recarrega somente links ativos. Purge volta à página 1 e consulta somente listagem e resumo da Lixeira.
+
+A API administrativa compartilha 120 requests por IP por janela de 60 segundos em `/api` e `/api/*`. O Admin atual usa leituras de Groups, Trash, Portability e Capabilities; 30/min era insuficiente para esse fluxo. O limite continua protegendo contra rajadas locais e não substitui autenticação ou Cloudflare Access, nem é uma proteção forte contra abuso distribuído: o store é in-memory e local ao isolate. O redirect público permanece com budget independente de 120/min; tentativas de senha têm outro limiter.
+
+HTTP 429 preserva `{ "error": "Rate limit exceeded" }` e inclui `Retry-After` com os segundos restantes até a próxima janela, arredondados para cima. O Admin traduz esse tempo para pt-BR; sem header válido, usa a mensagem de espera existente, sem timer ou bloqueio permanente. Referência de isolamento de memória: [Cloudflare Workers](https://developers.cloudflare.com/workers/reference/how-workers-works/).
 
 ## Retenção e limpeza manual
 
@@ -70,4 +78,4 @@ node --check public/portability-ui.js
 git diff --check
 ```
 
-O único erro TypeScript previamente aceito é `TS7016` de `qrcode`. O cenário legado de destino sem ponto no hostname está coberto em `test/trash.spec.ts`, junto a retenção inclusiva, zero-write de preview, reutilização de slug e corridas de restore/purge. Nenhuma implantação, migration remota, tag ou release faz parte deste ciclo local.
+O único erro TypeScript previamente aceito é `TS7016` de `qrcode`. O cenário legado de destino sem ponto no hostname está coberto em `test/trash.spec.ts`, junto a retenção inclusiva, zero-write de preview, reutilização de slug e corridas de restore/purge. A validação local não implanta Worker nem aplica migrations remotas.

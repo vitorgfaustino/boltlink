@@ -1,13 +1,13 @@
 # AI-START
 
-## Desenvolvimento local — 3.1.0
+## Release publicada — 3.1.0
 
-A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos correntes abaixo pertencem à `3.1.0`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
-Este arquivo é a entrada única para qualquer IA operar o BoltLink (desenvolvimento **3.1.0**; **3.0.0** é a release publicada atual — tag `v3.0.0`, branch `main`; a release anterior imediata é `v2.2.1`, que também é o baseline histórico do upgrade das features) com segurança.
+Este arquivo é a entrada única para qualquer IA operar o BoltLink (**3.1.0** é a release publicada atual — tag `v3.1.0`, branch `main`; `v3.0.0` é a release anterior e `v2.2.1` é o baseline histórico do upgrade das features) com segurança.
 
 O objetivo dele é permitir que a IA:
 
@@ -31,20 +31,21 @@ Leia nesta ordem antes de agir:
 
 ## Bases de código (não confundir)
 
-A release atual publicada é a **`3.0.0`**, identificada pela tag `v3.0.0` na branch `main`. A tag publicada e `main` devem convergir para o mesmo release commit; essa igualdade é um invariante operacional verificado externamente por Git/GitHub API nos gates de publicação e auditoria pós-publicação, sem exigir um SHA corrente literal neste documento. Ela contém as migrations `0004` a `0006` e todos os recursos das Fases 2–5. As Fases 2–5 são **origem histórica** do que ela publica, não estados ativos de desenvolvimento:
+A release atual publicada é a **`3.1.0`**, identificada pela tag `v3.1.0` na branch `main`. A tag publicada e `main` devem convergir para o mesmo release commit; essa igualdade é um invariante operacional verificado externamente por Git/GitHub API nos gates de publicação e auditoria pós-publicação, sem exigir um SHA corrente literal neste documento. Ela mantém as migrations `0000` a `0006` e os recursos publicados desde a `3.0.0`, acrescentando Lixeira e recuperação sem migration nova. As Fases 2–5 são **origem histórica** do que ela publica, não estados ativos de desenvolvimento:
 
 | Base | Como identificar | Migrations | Recursos extras |
 | --- | --- | --- | --- |
-| **Release atual publicada** (`3.0.0`) | tag `v3.0.0`, branch `main` (convergência verificada no gate de publicação/pós-publicação) | `0000` a `0006` | todos abaixo: Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
-| **Release anterior** (`v2.2.1`) | tag real: `git rev-parse v2.2.1` → `8b3895e` | `0000` a `0003` | — |
+| **Release atual publicada** (`3.1.0`) | tag `v3.1.0`, branch `main` (convergência verificada no gate de publicação/pós-publicação) | `0000` a `0006` | Lixeira + recuperação + exclusão definitiva/purge manual + export ativo + Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
+| **Release anterior congelada** (`3.0.0`) | tag `v3.0.0` | `0000` a `0006` | recursos das Fases 2–5; export incluía tombstones; sem Lixeira recuperável no Admin |
+| **Baseline histórico do upgrade** (`v2.2.1`) | tag real: `git rev-parse v2.2.1` → `8b3895e` | `0000` a `0003` | — |
 | Fase 2 (checkpoint histórico) | baseline local `23353a1` | `0000` a `0004` | Split Test A/B |
 | Fase 3 (checkpoint congelado) | HEAD `548f179` | `0000` a `0005` | Fase 2 + Smart Routing |
 | Fase 4 (checkpoint congelado) | HEAD `cdb9f83` | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
 | Fase 5 (checkpoint pre-freeze) | `3670a44` sobre `cdb9f83` | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code — evoluiu para a release `3.0.0` |
 
-Não chame a `v2.2.1` de release atual: ela é a **release anterior imediata** e o **baseline histórico do upgrade** (conceitos distintos que hoje coincidem). A `v2.2.1` não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a integridade de hierarquia de grupos nem a exportação portátil da Fase 5 (a tag tem a tabela `link_groups` desde a `0002`, mas sem validação de ciclo, profundidade, delete ou concorrência, e não existe `GET /api/export`).
+Não chame a `v2.2.1` de release atual: a release anterior imediata é `v3.0.0`; `v2.2.1` é o **baseline histórico do upgrade**. A `v2.2.1` não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a integridade de hierarquia de grupos nem a exportação portátil da Fase 5 (a tag tem a tabela `link_groups` desde a `0002`, mas sem validação de ciclo, profundidade, delete ou concorrência, e não existe `GET /api/export`).
 
-Release atual publicada (`3.0.0`, tag `v3.0.0`):
+Release atual publicada (`3.1.0`, tag `v3.1.0`):
 
 - redirect público por slug
 - painel administrativo estático
@@ -63,15 +64,15 @@ Release atual publicada (`3.0.0`, tag `v3.0.0`):
 - importação administrativa da mesma configuração (`POST /api/import/preview` e `POST /api/import/apply`), sem migration nova: o preview é somente leitura e o apply grava o documento em um único `batch` (tudo ou nada), exige nova senha para cada link protegido, bloqueia com `409` colisão de slug, feature que o banco não suporta e árvore acima de 16 níveis, e não restaura métricas — origem Fase 5
 - QR Code com diálogo de preview e download PNG/SVG no painel: o QR codifica apenas a short URL pública (nunca o destination nem segredos), a geração é cold path administrativo que não conta clique nem persiste imagem, e `has_qrcode` continua sendo memória operacional escrita só quando o operador baixa o QR em PNG ou SVG — preview e copiar link não escrevem nada (origem Fase 5; os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada `0001`)
 
-### Status de desenvolvimento (3.0.0 congelada; Phase 8 — 3.1.0 development)
+### Histórico dos gates 3.0.0 e publicação 3.1.0
 
-- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Essa linha evoluiu para a release `3.0.0` (essa é a versão histórica; o checkout de desenvolvimento está em `3.1.0`).
+- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Essa linha evoluiu para a release `3.0.0` (essa é a versão histórica; o checkout corrente está em `3.1.0`).
 - Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
 - Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fechou o finding BL-54-04 e reconciliou a documentação, sem feature nova, sem migration, sem bump de versão, sem tag e sem deploy.
 - **Phase 6 — Release Readiness: COMPLETE**, terminando em **Gate 6.6 (publicação): PASSED** — na publicação inicial, a tag `v3.0.0` foi criada sobre `60c8575`, com push de `main` e da tag e GitHub Release concluídos. A `v3.0.0` **já possui tag e GitHub Release**; Cloudflare/D1 continuam per-installation.
 - **Phase 7 — Current-State Reconciliation (histórico da 3.0.0 congelada)**: Gate 7.2 concluído (BL-66-01); Gate 7.3 rejeitado; Gate 7.4 concluído (correções BL-73-01..04); Gate 7.5 aprovado; Gate 7.6 produziu o commit de correção; Gate 7.7 concluiu a republicação controlada da mesma `v3.0.0`. Gate 7.8 reconciliou a identificação corrente sem SHA literal (BL-77-01), sem bump, migration ou mudança funcional.
-- **Modelo de distribuição da release do repositório**: source commit + tag `v3.0.0` + push + GitHub Release. Não existe Worker, D1, hostname, Cloudflare Account, deploy ou migration remota oficiais: cada instalação é self-hosted e executa o próprio backup, as próprias migrations e o próprio deploy. Cloudflare login **não** é requisito para publicar o repositório.
-- Ao retomar o trabalho, o estado é: **release `3.0.0` publicada** (tag `v3.0.0`, branch `main`), Phase 6 completa, republicação controlada concluída no Gate 7.7 e linha 3.0.0 congelada; Phase 8 abre o desenvolvimento local da 3.1.0. Publicar a tag não significa que instalações foram atualizadas — deploy e migrations são por instalação.
+- **Modelo de distribuição da release do repositório**: source commit + tag `v3.1.0` + push + GitHub Release. Não existe Worker, D1, hostname, Cloudflare Account, deploy ou migration remota oficiais: cada instalação é self-hosted e executa o próprio backup, as próprias migrations e o próprio deploy. Cloudflare login **não** é requisito para publicar o repositório.
+- Ao retomar o trabalho, o estado é: **release `3.1.0` publicada** (tag `v3.1.0`, branch `main`); a linha 3.0.0 permanece congelada e os gates das Phases 6–7 são históricos. Publicar a tag não significa que instalações foram atualizadas — deploy e migrations são por instalação.
 - A dívida técnica `TS7016` do módulo `qrcode` foi **aceita para a 3.0.0** como **não bloqueante**.
 
 O produto não mantém:
@@ -109,7 +110,7 @@ O produto não mantém:
 - configuração Smart Routing persistida e ilegível é corrupção **preservada**, não "desativada": a API informa `smartRoutingStatus: "invalid"` (sem expor o valor cru), edições não relacionadas não podem apagá-la e só uma ação explícita de limpeza grava `NULL`
 - o lifecycle vence senha, A/B e Smart Routing: link expirado com destino válido responde `302` + `no-store`, sem destino responde `410` + `no-store`, e requests expirados não contam clique nem gravam no banco (Fase 4)
 - `ROOT_REDIRECT_URL` é opcional e não secreta: válida faz `GET /` responder `302` + `no-store` sem tocar D1; ausente/inválida serve a landing; unknown slugs continuam `404` (Fase 4)
-- para desenvolvimento local do Worker na release atual (`3.0.0`), rode `npm run dev-prepare` (aplica as migrations `0000`–`0006` no D1 do Wrangler) antes de `npm run dev`; no checkout histórico da tag `v2.2.1` esse script não existe, use `npm run wrangler -- d1 migrations apply ... --local`
+- para desenvolvimento local do Worker na release atual (`3.1.0`), rode `npm run dev-prepare` (aplica as migrations `0000`–`0006` no D1 do Wrangler) antes de `npm run dev`; no checkout histórico da tag `v2.2.1` esse script não existe, use `npm run wrangler -- d1 migrations apply ... --local`
 
 ## Como interpretar pedidos
 
@@ -170,7 +171,7 @@ Fluxo para `Iniciar o Projeto`:
 4. rodar `npm install`
 5. rodar `npm run setup`
 6. se o usuário quiser banco explícito, criar D1 com `npm run wrangler -- d1 create ... --update-config`
-7. aplicar migrations locais (na release atual `3.0.0`: `npm run dev-prepare`; no checkout histórico da tag `v2.2.1`: `npm run wrangler -- d1 migrations apply ... --local`)
+7. aplicar migrations locais (na release atual `3.1.0`: `npm run dev-prepare`; no checkout histórico da tag `v2.2.1`: `npm run wrangler -- d1 migrations apply ... --local`)
 8. se o destino for remoto, aplicar as migrations no D1 (`--remote -c wrangler.local.jsonc`) antes de publicar/validar; no Deploy Button, o provisionamento inicial **não** substitui esse passo
 9. rodar `npm test`
 10. parar antes da criação final do Access
@@ -178,7 +179,7 @@ Fluxo para `Iniciar o Projeto`:
 Se o pedido for iniciar o projeto apenas localmente para testes manuais, a IA deve preparar o D1 local do Worker **antes** de `npm run dev`:
 
 ```bash
-npm run dev-prepare   # release atual 3.0.0: aplica 0000–0006 no D1 local do Worker
+npm run dev-prepare   # release atual 3.1.0: aplica 0000–0006 no D1 local do Worker
 ```
 
 `npm run dev-prepare` aplica as migrations no D1 local usado pelo `wrangler dev` (`.wrangler/state/v3/d1`). Sem isso o Worker responde `503 Database schema is not initialized`. No checkout histórico da tag `v2.2.1` esse script não existe; use `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
@@ -323,7 +324,7 @@ npm install
 npm run setup
 ```
 
-Setup local com banco SQLite de apoio (release atual `3.0.0`):
+Setup local com banco SQLite de apoio (release atual `3.1.0`):
 
 ```bash
 npm install
@@ -377,5 +378,5 @@ Se a IA seguir este arquivo corretamente, ela deve conseguir:
 
 ---
 
-Versão em desenvolvimento: 3.1.0 · Release publicada: 3.0.0
+Release atual publicada: 3.1.0 · Tag: v3.1.0 · Release anterior: 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

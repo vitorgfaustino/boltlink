@@ -27,7 +27,7 @@ Esta Política de Privacidade descreve como tratamos dados pessoais relacionados
 
 ## 3. Dados tratados pelo sistema
 
-No estado padrão do BoltLink 3.0.0, o produto foi configurado para minimizar coleta e persistência de dados.
+No estado padrão do BoltLink 3.1.0, o produto foi configurado para minimizar coleta e persistência de dados.
 
 O sistema pode persistir:
 
@@ -80,7 +80,7 @@ Liste aqui os subprocessadores e provedores efetivamente utilizados:
 
 ## 7. Retenção
 
-No estado padrão do BoltLink 3.0.0, não existe tabela de eventos de clique.
+No estado padrão do BoltLink 3.1.0, não existe tabela de eventos de clique.
 
 Ainda assim, o operador deve definir e documentar:
 
@@ -116,5 +116,5 @@ Toda responsabilidade pela operação concreta deste ambiente, pela configuraç�
 
 ---
 
-Versão 3.0.0
+Release atual publicada: 3.1.0 · Tag: v3.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

@@ -1,17 +1,17 @@
 # BoltLink
 
-## Desenvolvimento local — 3.1.0
+## Release publicada — 3.1.0
 
-A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos correntes abaixo pertencem à `3.1.0`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
 BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel administrativo estático.
 
-**Desenvolvimento 3.1.0 · Release publicada 3.0.0 · AGPL-3.0**
+**Release publicada 3.1.0 · Tag v3.1.0 · AGPL-3.0**
 
-> A última release publicada é a **3.0.0** do repositório (tag `v3.0.0`). Ela reúne o Smart Routing (Fase 3, migration `0005_smart_routing.sql`), o destino de expiração + `ROOT_REDIRECT_URL` (Fase 4, migration `0006_expired_redirect.sql`) e os recursos da Fase 5 — hierarquia de grupos com integridade, portabilidade de configuração (exportação e importação) e o QR Code com preview e downloads no painel, todos sem migration nova. Um checkout da tag anterior `v2.2.1` não contém nenhum desses recursos nem as migrations `0005`/`0006`. O BoltLink é **self-hosted**: a release do repositório é distribuição de código e cada instalação opera o próprio Worker, D1, Cloudflare Access, secrets, migrations e deploy.
+> A última release publicada é a **3.1.0** do repositório (tag `v3.1.0`). Ela reúne o Smart Routing (Fase 3, migration `0005_smart_routing.sql`), o destino de expiração + `ROOT_REDIRECT_URL` (Fase 4, migration `0006_expired_redirect.sql`) e os recursos da Fase 5 — hierarquia de grupos com integridade, portabilidade de configuração (exportação e importação) e o QR Code com preview e downloads no painel, todos sem migration nova. Um checkout da tag anterior `v2.2.1` não contém nenhum desses recursos nem as migrations `0005`/`0006`. O BoltLink é **self-hosted**: a release do repositório é distribuição de código e cada instalação opera o próprio Worker, D1, Cloudflare Access, secrets, migrations e deploy.
 
 Ele funciona como encurtador de URLs, mas o objetivo real do projeto é maior: manter links públicos estáveis, simples de operar e independentes de plataformas terceiras, com controle do redirect, proteção do painel e uma baseline de privacidade mais rígida do que a maioria das ferramentas desse tipo.
 
@@ -66,9 +66,9 @@ O botão continua funcional com o `wrangler.jsonc` público.
 
 ## Três formas de usar
 
-### 1. Wrangler local (instalação da release 3.0.0)
+### 1. Wrangler local (instalação da release 3.1.0)
 
-Fluxo principal: instalar a release atual (`3.0.0`, tag `v3.0.0`) a partir do repositório.
+Fluxo principal: instalar a release atual (`3.1.0`, tag `v3.1.0`) a partir do repositório.
 
 ```bash
 npm install
@@ -110,7 +110,7 @@ Esse comando cria `.dev-env/db.sqlite3` (migrations + seed) apenas para explora�
 
 Os checkpoints históricos de desenvolvimento aplicavam cadeias mais curtas no mesmo script: o baseline local da Fase 2 (`23353a1`) parava na `0004`, o HEAD congelado da Fase 3 (`548f179`) na `0005` e o HEAD congelado da Fase 4 (`cdb9f83`) na `0006`.
 
-#### Procedimento histórico: ambiente local da release anterior (v2.2.1)
+#### Procedimento histórico: ambiente local da release histórica (v2.2.1)
 
 A tag `v2.2.1` é a **release anterior**, mantida aqui apenas como referência de lineage; este não é o caminho recomendado para instalar a versão atual. Naquele checkout a cadeia termina na migration `0003_lgpd_minimization.sql` e o script de preparação local do D1 não existe, então a cadeia é aplicada manualmente:
 
@@ -186,7 +186,7 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 
 ## Procedimento histórico: upgrade para a v2.2.1
 
-Procedimento histórico da **release anterior (tag `v2.2.1`)**, que termina na migration `0003_lgpd_minimization.sql`. A release atual é a `3.0.0`; para sair da `v2.2.1` e chegar nela, use o fluxo consolidado de `docs/upgrading.md`.
+Procedimento histórico da **release v2.2.1 (tag `v2.2.1`)**, que termina na migration `0003_lgpd_minimization.sql`. A release atual é a `3.1.0`; para sair da `v2.2.1` e chegar nela, use o fluxo consolidado de `docs/upgrading.md`.
 
 ```bash
 git pull --ff-only
@@ -215,7 +215,7 @@ O `schema.sql` é apenas o baseline da `0000` para ferramentas manuais e não é
 
 ## Split Test A/B e migration 0004 (release 3.0.0)
 
-> Escopo: release `3.0.0` (migration `0004`). A release anterior `v2.2.1` não contém a `0004` nem o Split Test A/B; o recurso foi introduzido no checkpoint de desenvolvimento da Fase 2 (`23353a1`).
+> Escopo: release `3.0.0` (migration `0004`). A release histórica `v2.2.1` não contém a `0004` nem o Split Test A/B; o recurso foi introduzido no checkpoint de desenvolvimento da Fase 2 (`23353a1`).
 
 O Split Test A/B adiciona a migration `0004_ab_testing.sql`, que é a fonte autoritativa das colunas A/B. O runtime **não** cria nem altera colunas: uma instalação existente precisa aplicar as migrations pendentes para habilitar A/B, e uma instalação nova precisa aplicar a cadeia completa de migrations.
 
@@ -246,7 +246,7 @@ Sem a `0005`, links normais e o Split Test A/B continuam funcionando; apenas o S
 
 ## Split Test A/B (release 3.0.0)
 
-> Escopo: release `3.0.0`. A release anterior `v2.2.1` não tem Split Test A/B.
+> Escopo: release `3.0.0`. A release histórica `v2.2.1` não tem Split Test A/B.
 
 Um link pode dividir tráfego entre Control A (destino principal) e Variant B (destino alternativo). A escolha é feita por requisição, sem cookie, sem visitor ID e sem fingerprint; qualquer automação reconhecida (bots, crawlers, previews, prefetch/prerender) recebe sempre o Control A.
 
@@ -256,7 +256,7 @@ O produto expõe apenas distribuição de cliques (`Cliques A`, `Cliques B`, `Di
 
 ## Smart Routing (release 3.0.0)
 
-> Escopo: release `3.0.0` (migration `0005`). A release anterior `v2.2.1` não tem Smart Routing.
+> Escopo: release `3.0.0` (migration `0005`). A release histórica `v2.2.1` não tem Smart Routing.
 
 Smart Routing permite escolher o destino de um link por país e/ou tipo de dispositivo, sem criar regras de analytics. O editor fica no painel e usa uma lista ordenada de regras:
 
@@ -273,7 +273,7 @@ Links com Smart Routing configurado usam sempre redirect temporário `302` com `
 
 ## Destino de expiração e redirect da raiz (release 3.0.0)
 
-> Escopo: release `3.0.0` (migration `0006` e `ROOT_REDIRECT_URL`). A release anterior `v2.2.1` não contém a migration `0006` nem nenhum recurso desta seção.
+> Escopo: release `3.0.0` (migration `0006` e `ROOT_REDIRECT_URL`). A release histórica `v2.2.1` não contém a migration `0006` nem nenhum recurso desta seção.
 
 ### Destino após expiração
 
@@ -342,7 +342,7 @@ O template público `wrangler.jsonc` não define `ROOT_REDIRECT_URL`. O config p
 
 ## Hierarquia de grupos (release 3.0.0)
 
-> Escopo: release `3.0.0`, sem migration nova. A release anterior `v2.2.1` **contém** a tabela `link_groups` com `parent_id` (migration `0002`), mas não contém a integridade descrita aqui: a tag não tem prevenção de ciclo, limite de profundidade, delete protegido nem precondição de concorrência.
+> Escopo: release `3.0.0`, sem migration nova. A release histórica `v2.2.1` **contém** a tabela `link_groups` com `parent_id` (migration `0002`), mas não contém a integridade descrita aqui: a tag não tem prevenção de ciclo, limite de profundidade, delete protegido nem precondição de concorrência.
 
 A release `3.0.0` **não adiciona migration** para a hierarquia de grupos: ela usa `link_groups.parent_id`, com a FK auto-referente e o índice que já existem desde a `0002`. Não há closure table, materialized path, nested sets, tabela auxiliar nem coluna `version` em grupos.
 
@@ -360,7 +360,7 @@ Como a árvore se comporta:
 
 ## Portabilidade de configuração (release 3.0.0)
 
-> Escopo: release `3.0.0`, sem migration nova. Nada desta seção existe na release anterior `v2.2.1`.
+> Escopo: release `3.0.0`, sem migration nova. Nada desta seção existe na release histórica `v2.2.1`.
 
 `GET /api/export` devolve um documento **BoltLink Portability JSON v1** com a configuração administrativa da instância, e o Admin oferece a ação `Exportar configuração` para baixá-lo. O mesmo formato pode ser lido de volta em outra instalação pela ação `Importar configuração`.
 
@@ -394,7 +394,7 @@ Como a árvore se comporta:
 - **Sem IDs internos.** Grupos recebem `ref` local ao documento (`g1`, `g2`, …) e links se vinculam por `groupRef` (`null` quando não há grupo). O `id` do D1 não é necessário para reconstruir a árvore, e grupos com nomes repetidos continuam distintos.
 - **Sem senhas.** `password_hash` não é nem selecionado pela consulta: o documento traz apenas `passwordProtected: true/false`. A importação exige uma **nova** senha para cada link protegido, informada no próprio apply e usada apenas para gerar o hash — ela não é registrada em log, não vai para a URL, não volta na resposta e não fica no navegador.
 - **Sem métricas e sem estado interno.** `clicks_total`, contadores A/B, `ab_started_at`, `metric_epoch`, `ab_generation`, `has_qrcode` e `version` não são exportados. A configuração A/B e as regras de Smart Routing viajam sem seus resultados.
-- **Configuração ativa na 3.1.0 development.** Apenas links com `disabled_at IS NULL` entram no export. A Lixeira não integra o documento nem o limite de links. Na release publicada 3.0.0, tombstones eram incluídos com `disabled: true`; o import mantém compatibilidade com esses documentos v1 legados.
+- **Configuração ativa na 3.1.0.** Apenas links com `disabled_at IS NULL` entram no export. A Lixeira não integra o documento nem o limite de links. Na release anterior 3.0.0, tombstones eram incluídos com `disabled: true`; o import mantém compatibilidade com esses documentos v1 legados.
 - **Ordem preservada.** Tags mantêm a ordem do operador e as regras de Smart Routing mantêm a ordem original, já que first-match-wins é semântico.
 - **Falha fechado.** Qualquer linha inválida (Smart Routing corrompido, destino de expiração sem expiração, URL inválida, slug reservado, nome de grupo não canônico — com espaços nas pontas, só espaços ou acima de 120 caracteres, nunca normalizado no export —, ciclo ou pai órfão em grupos, A/B inválido, linha híbrida A/B + Smart Routing) recusa o export inteiro com `409`. Acima de 50 grupos, 100 links ou 256 KiB (bytes UTF-8) a resposta é `413`. O documento nunca é truncado nem parcial.
 - **Determinístico.** A mesma configuração produz o mesmo documento funcional; só `exportedAt` varia.
@@ -424,7 +424,7 @@ BoltLink não mantém eventos individuais de clique.
 
 - `clicks_total` é apenas um número agregado na linha do link
 - zerar estatísticas redefine esse número para `0`
-- excluir um link move para a Lixeira (`disabled_at`), preservando o slug até exclusão definitiva/purge; na 3.1.0 development é possível restaurar ou remover fisicamente pelo Admin
+- excluir um link move para a Lixeira (`disabled_at`), preservando o slug até exclusão definitiva/purge; na 3.1.0 é possível restaurar ou remover fisicamente pelo Admin
 - não há ganho relevante de espaço no D1 ao zerar ou apagar estatística, porque não existe tabela de eventos
 
 Para reduzir tráfego automatizado sem depender de WAF pago, consulte `docs/free-plan-traffic.md`.

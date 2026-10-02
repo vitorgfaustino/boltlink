@@ -21,7 +21,7 @@ function setup(request?: Function) {
   const nodes = Object.fromEntries(ids.map((id) => [id, new Node(id.includes("search") && !id.includes("form") ? "INPUT" : /previous|next|confirm|cancel|open/.test(id) ? "BUTTON" : "DIV")]));
   nodes["trash-panel"].children = Object.entries(nodes).filter(([key]) => key !== "trash-panel").map(([, value]) => value);
   const confirm = vi.fn(() => false);
-  const onChange = vi.fn(async () => {});
+  const onRestore = vi.fn(async () => {});
   const apiRequest = vi.fn(request || (async (path: string) => path.includes("purge-preview")
     ? { total: 1, eligible: 1, cutoff: "2026-07-03T00:00:00.000Z", retentionDays: 90 }
     : path.startsWith("/api/trash?") ? { total: 1, links: [{ slug: "example", target_url: "https://example.com/", disabled_at: "2026-01-01T00:00:00.000Z", group_name: "Campaign" }], hasMore: false }
@@ -29,8 +29,8 @@ function setup(request?: Function) {
   const sandbox = { window: { confirm, BoltLinkTrash: undefined as any }, document: { getElementById: (id: string) => nodes[id], createElement: (tag: string) => new Node(tag.toUpperCase()) } };
   vm.createContext(sandbox);
   vm.runInContext(readFileSync("public/trash-ui.js", "utf8"), sandbox);
-  const controller = sandbox.window.BoltLinkTrash.mount({ request: apiRequest, onChange });
-  return { nodes, confirm, apiRequest, controller, onChange };
+  const controller = sandbox.window.BoltLinkTrash.mount({ request: apiRequest, onRestore });
+  return { nodes, confirm, apiRequest, controller, onRestore };
 }
 async function open(ui: ReturnType<typeof setup>) {
   await ui.controller.open();
@@ -46,7 +46,7 @@ describe("Phase 8: trash admin behavior", () => {
     ui.confirm.mockReturnValue(true);
     await action(ui, 1).fire();
     expect(ui.apiRequest).toHaveBeenCalledWith("/api/trash/example", { method: "DELETE" });
-    expect(ui.onChange).toHaveBeenCalled();
+    expect(ui.onRestore).not.toHaveBeenCalled();
   });
   it("restores through the administrative endpoint and reports preservation", async () => {
     const ui = setup(); await open(ui);
@@ -76,7 +76,7 @@ describe("Phase 8: trash admin behavior", () => {
     });
     await open(ui); await action(ui, 0).fire();
     expect(ui.nodes["trash-status"].textContent).toBe("Operação recusada");
-    expect(ui.onChange).not.toHaveBeenCalled();
+    expect(ui.onRestore).not.toHaveBeenCalled();
     await ui.nodes["trash-purge-open"].fire(); await ui.nodes["trash-purge-confirm"].fire();
     expect(ui.nodes["trash-purge-preview"].hidden).toBe(true);
     expect(ui.nodes["trash-purge-confirm"].disabled).toBe(true);
@@ -112,6 +112,95 @@ describe("Phase 8: trash admin behavior", () => {
     expect(html).toContain('label for="trash-search"');
     expect(html.indexOf('src="/trash-ui.js"')).toBeLessThan(html.indexOf('src="/admin.js"'));
     expect(readFileSync("public/admin.js", "utf8")).toContain('portabilityUi.exportErrorMessage(response.status, apiMessage, apiCode)');
+  });
+});
+
+describe("Gate 8.10: actual Trash request counts", () => {
+  it("hard-delete sends only DELETE plus summary and removes the row locally", async () => {
+    const ui = setup(); await open(ui); ui.confirm.mockReturnValue(true);
+    ui.apiRequest.mockClear();
+    await action(ui, 1).fire();
+    expect(ui.apiRequest.mock.calls).toEqual([
+      ["/api/trash/example", { method: "DELETE" }], ["/api/trash/purge-preview"],
+    ]);
+    expect(ui.onRestore).not.toHaveBeenCalled();
+    expect(ui.nodes["trash-list"].children[0].textContent).toMatch(/Lixeira está vazia/);
+  });
+  it("restore sends POST plus summary and invokes only the active-links callback", async () => {
+    const ui = setup(); await open(ui); ui.apiRequest.mockClear();
+    await action(ui, 0).fire();
+    expect(ui.apiRequest.mock.calls).toEqual([
+      ["/api/trash/example/restore", { method: "POST" }], ["/api/trash/purge-preview"],
+    ]);
+    expect(ui.onRestore).toHaveBeenCalledTimes(1);
+    const source = readFileSync("public/admin.js", "utf8");
+    const mount = source.slice(source.indexOf("const trashController ="), source.indexOf("if (!trashController)"));
+    const loadLinks = vi.fn(async () => {}), loadGroups = vi.fn(async () => {});
+    let options: any;
+    vm.runInNewContext(mount, { window: { BoltLinkTrash: { mount: (value: any) => { options = value; return {}; } } },
+      request: ui.apiRequest, loadLinks, loadGroups, searchTermInput: { value: "campaign" }, searchGroupIdInput: { value: "2" } });
+    await options.onRestore();
+    expect(loadLinks).toHaveBeenCalledWith("campaign", "2");
+    expect(loadGroups).not.toHaveBeenCalled();
+    expect(options.onChange).toBeUndefined();
+  });
+  it("purge refreshes only the Trash listing and summary", async () => {
+    const ui = setup(); await open(ui); await ui.nodes["trash-purge-open"].fire();
+    ui.apiRequest.mockClear();
+    await ui.nodes["trash-purge-confirm"].fire();
+    expect(ui.apiRequest.mock.calls).toEqual([
+      ["/api/trash/purge", { method: "POST" }], ["/api/trash?search=&page=1"], ["/api/trash/purge-preview"],
+    ]);
+    expect(ui.onRestore).not.toHaveBeenCalled();
+  });
+  it("keeps depleted pages navigable without adding hidden mutation refreshes", async () => {
+    const ui = setup(async (path: string) => path.includes("purge-preview")
+      ? { total: 101, eligible: 0, retentionDays: 90 }
+      : { total: 101, links: [{ slug: "example", target_url: "https://example.com/", disabled_at: "date" }], hasMore: true });
+    await open(ui); ui.confirm.mockReturnValue(true); ui.apiRequest.mockClear();
+    await action(ui, 1).fire();
+    expect(ui.apiRequest).toHaveBeenCalledTimes(2);
+    expect(ui.nodes["trash-next"].disabled).toBe(false);
+    expect(ui.nodes["trash-list"].children[0].textContent).toMatch(/página está vazia/);
+    expect(ui.nodes["trash-next"].textContent).toBe("Atualizar página");
+    await ui.nodes["trash-next"].fire();
+    expect(ui.apiRequest).toHaveBeenCalledWith("/api/trash?search=&page=1");
+    expect(ui.nodes["trash-next"].textContent).toBe("Próxima");
+    await ui.nodes["trash-next"].fire();
+    expect(ui.apiRequest).toHaveBeenCalledWith("/api/trash?search=&page=2");
+    expect(ui.nodes["trash-previous"].disabled).toBe(false);
+  });
+  it("reports a committed delete honestly if the summary request fails", async () => {
+    let fail = false;
+    const ui = setup(async (path: string, options?: any) => {
+      if (options) { fail = true; return { ok: true }; }
+      if (path.includes("purge-preview")) {
+        if (fail) throw new Error("Sem conexão");
+        return { total: 1, eligible: 0, retentionDays: 90 };
+      }
+      return { links: [{ slug: "example", target_url: "https://example.com/", disabled_at: "date" }], hasMore: false, total: 1 };
+    });
+    await open(ui); ui.confirm.mockReturnValue(true); await action(ui, 1).fire();
+    expect(ui.nodes["trash-status"].textContent).toMatch(/excluído definitivamente.*Não foi possível atualizar/);
+    expect(ui.nodes["trash-count"].textContent).toMatch(/indisponível/);
+    expect(ui.nodes["trash-search"].disabled).toBe(false);
+    expect(ui.nodes["trash-list"].children[0].textContent).toMatch(/Lixeira está vazia/);
+  });
+});
+
+describe("Gate 8.10: Admin 429 error model", () => {
+  it.each(["17", null, "invalid", "0", "-1"])("translates Retry-After %s with fallback", async (header) => {
+    const sandbox: any = { fetch: vi.fn(async () => new Response(JSON.stringify({ error: "Rate limit exceeded" }),
+      { status: 429, headers: header === null ? {} : { "Retry-After": header } })) };
+    vm.createContext(sandbox);
+    vm.runInContext("async " + bodyOf("request") + "\n" + bodyOf("adminErrorCopy"), sandbox);
+    const error = await sandbox.request("/api/trash/example", { method: "DELETE" }).catch((e: any) => e);
+    expect(error.message).toBe(header === "17"
+      ? "Muitas operações em sequência. Tente novamente em 17 segundos."
+      : "Muitas operações em sequência. Aguarde e tente novamente.");
+    expect(error.status).toBe(429);
+    expect(error.headers.get("Retry-After")).toBe(header);
+    expect(error.payload).toEqual({ error: "Rate limit exceeded" });
   });
 });
 
