@@ -2123,3 +2123,20 @@ button.icon-btn {
     transition-delay: 0s !important;
   }
 }
+
+/* Trash uses the existing controls, with rows that wrap long persisted destinations. */
+.trash-panel { margin-top: 24px; }
+.trash-panel > summary { cursor: pointer; font-weight: 700; justify-content: flex-start; gap: 8px; }
+.trash-panel > summary::after { margin-left: auto; }
+.trash-panel[open] > summary { margin-bottom: 16px; }
+.trash-panel p { max-width: 75ch; }
+.trash-panel [hidden] { display: none; }
+.trash-item { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.trash-item h3 { font-family: var(--font-mono); overflow-wrap: anywhere; }
+.trash-item p { margin: 8px 0; }
+.trash-destination, #trash-purge-copy { overflow-wrap: anywhere; }
+#trash-search-form { margin: 16px 0; }
+#trash-search-form label { flex-basis: 100%; }
+#trash-search { flex: 1; min-width: 0; }
+#trash-purge-preview { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; }
+#trash-list { margin-bottom: 16px; }

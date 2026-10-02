@@ -598,8 +598,8 @@ function buildLink(
 			redirectType,
 			tags: tags.value,
 			groupRef,
-			// `disabled_at` is a tombstone: the slug stays reserved, so the link stays in
-			// the document. Only the logical state travels; the timestamp does not.
+			// Retained for compatibility with legacy v1 imports. Normal exports select
+			// only active links; recovery validation can also inspect a tombstone.
 			disabled: row.disabled_at !== null && row.disabled_at !== undefined,
 			goLiveAt: goLiveAt.value,
 			expiresAt: expiresAt.value,
@@ -610,6 +610,18 @@ function buildLink(
 			...(capabilities.smartRouting ? { smartRouting } : {}),
 		},
 	};
+}
+
+/** Shared persisted configuration validation for recovery, without export size limits. */
+export function validateRecoverableLink(
+	row: PortabilityLinkRow,
+	groups: PortabilityGroupRow[],
+	capabilities: PortabilityCapabilities,
+	policy: PortabilityValidationPolicy,
+) {
+	const builtGroups = buildGroups(groups);
+	if (!builtGroups.ok) return builtGroups;
+	return buildLink(row, builtGroups.refs, capabilities, policy);
 }
 
 function buildLinks(

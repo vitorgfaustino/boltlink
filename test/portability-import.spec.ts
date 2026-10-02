@@ -1586,7 +1586,7 @@ describe("Phase 5, Gate 5.3: round trip", () => {
 	it("reproduces the logical configuration on a clean installation", async () => {
 		const source = await buildSourceConfiguration();
 		expect(source.groups.length).toBe(4);
-		expect(source.links.length).toBe(8);
+		expect(source.links.length).toBe(7);
 
 		// A new installation: the same schema, none of the data.
 		await resetDatabase();
@@ -1596,8 +1596,8 @@ describe("Phase 5, Gate 5.3: round trip", () => {
 		expect(preview.response.status, preview.text).toBe(200);
 		expect(preview.payload?.summary).toEqual({
 			groups: 4,
-			links: 8,
-			disabledLinks: 1,
+			links: 7,
+			disabledLinks: 0,
 			protectedLinks: 1,
 			abTests: 1,
 			smartRouting: 1,
@@ -1606,7 +1606,7 @@ describe("Phase 5, Gate 5.3: round trip", () => {
 
 		const applied = await applyDocument(source, { "protected-link": "senha-nova" });
 		expect(applied.response.status, applied.text).toBe(200);
-		expect(applied.payload).toEqual({ ok: true, groupsCreated: 4, linksCreated: 8 });
+		expect(applied.payload).toEqual({ ok: true, groupsCreated: 4, linksCreated: 7 });
 
 		const destination = await readExport();
 
@@ -1623,13 +1623,13 @@ describe("Phase 5, Gate 5.3: round trip", () => {
 			.first<{ clicks_total: number; metric_epoch: number; version: number }>();
 		expect(imported).toEqual({ clicks_total: 0, metric_epoch: 0, version: 1 });
 
-		// The tombstone travels as a state, not as a timestamp: the disabled link is still
-		// disabled, still in the document, and still reserving its slug.
+		// The active export no longer carries source trash. Legacy disabled:true imports
+		// are covered independently by the Phase 8 recovery suite.
 		const disabled = await env.db_boltlink
 			.prepare("SELECT disabled_at FROM links WHERE slug = ?")
 			.bind("disabled-link")
 			.first<{ disabled_at: string | null }>();
-		expect(disabled?.disabled_at).not.toBeNull();
+		expect(disabled).toBeNull();
 	});
 
 	it("carries no hash, no plaintext and no internal column in the document", async () => {

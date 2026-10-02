@@ -300,6 +300,7 @@
             <div class="panel-action-row">
               <button type="button" class="secondary compact create-link-toggle" id="create-link-toggle" aria-expanded="true" aria-controls="link-form-panel">+ Criar link</button>
               <button type="button" class="secondary compact" id="group-drawer-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="group-drawer">Gerenciar grupos</button>
+              <button type="button" class="secondary compact" id="trash-open" aria-controls="trash-panel">Lixeira</button>
               <button type="button" class="secondary compact" id="export-button">Exportar configuração</button>
               <button type="button" class="secondary compact" id="import-drawer-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="import-drawer">Importar configuração</button>
             </div>
@@ -339,6 +340,34 @@
         <div class="cards" id="links-list"></div>
       </article>
     </section>
+
+    <details class="panel trash-panel" id="trash-panel">
+      <summary>Lixeira · <span id="trash-count">Links excluídos: —</span></summary>
+      <p>Links na Lixeira não redirecionam e seus slugs continuam reservados. Restaure para recuperar a configuração ou exclua definitivamente para liberar o slug.</p>
+      <form id="trash-search-form" class="panel-action-row">
+        <label for="trash-search">Buscar na Lixeira por slug, destino ou tags</label>
+        <input id="trash-search" type="search" />
+        <button class="secondary compact" type="submit">Buscar</button>
+      </form>
+      <div class="panel-action-row">
+        <span id="trash-eligible">Itens antigos: —</span>
+        <button type="button" class="secondary compact" id="trash-purge-open">Limpar itens antigos</button>
+      </div>
+      <div id="trash-purge-preview" hidden>
+        <p id="trash-purge-copy"></p>
+        <div class="panel-action-row">
+          <button type="button" class="danger compact" id="trash-purge-confirm" disabled>Confirmar exclusão definitiva</button>
+          <button type="button" class="secondary compact" id="trash-purge-cancel">Cancelar</button>
+        </div>
+      </div>
+      <div id="trash-status" class="status" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div id="trash-list"></div>
+      <nav class="panel-action-row" aria-label="Páginas da Lixeira">
+        <button type="button" class="secondary compact" id="trash-previous" disabled>Anterior</button>
+        <span id="trash-page">Página 1</span>
+        <button type="button" class="secondary compact" id="trash-next" disabled>Próxima</button>
+      </nav>
+    </details>
 
     <footer class="app-footer" aria-label="Informação da versão">
       <span class="footer-copy">&copy; <span id="footer-year"></span> &bull; <span id="app-version">v?</span> &bull;
@@ -541,6 +570,7 @@
   <script src="/group-hierarchy-ui.js"></script>
   <script src="/portability-ui.js"></script>
   <script src="/portability-import-ui.js"></script>
+  <script src="/trash-ui.js"></script>
   <script src="/admin.js"></script>
 </body>
 </html>

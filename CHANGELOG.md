@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.1.0] - Unreleased / development
+
+- Lixeira administrativa com busca e paginação; restore valida configuração e concorrência, preservando métricas, senha, QR, grupo e lifecycle.
+- Exclusão definitiva somente de tombstones, liberando slug; colisão de create com Lixeira responde `SLUG_IN_TRASH`.
+- Retenção interna de 90 dias com preview read-only e purge manual condicional; sem Cron ou operação remota.
+- Export somente de links ativos; erros com `code` e orientação segura no Admin. Formato v1 e import legado `disabled: true` preservados.
+- URL vazia enviada por PATCH/PUT é recusada em vez de ser tratada como campo ausente. Mesma autoridade de URL em create, update, restore e import.
+- Sem migration 0007: cadeia 0000–0006, sem binding novo. Última release publicada permanece v3.0.0 congelada.
+
 ## [3.0.0] - 2026-09-29
 
 > Este bloco cobre toda a mudança acumulada desde a tag `v2.2.1`, que termina na migration `0003`: o Split Test A/B (**Fase 2**, migration `0004`), o Smart Routing (**Fase 3**, migration `0005`), o destino de expiração + `ROOT_REDIRECT_URL` (**Fase 4**, migration `0006`) e a **Fase 5** (hierarquia de grupos, portabilidade de configuração e QR Code com preview e downloads, sem migration nova). O major se justifica pelo breaking change administrativo em Groups, descrito abaixo. A release do repositório é distribuição de código: cada instalação é self-hosted e executa o próprio backup, as próprias migrations e o próprio deploy — publicar a tag não atualiza nem migra nenhuma instalação automaticamente.

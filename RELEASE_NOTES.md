@@ -1,3 +1,17 @@
+## BoltLink 3.1.0 — development / não publicada
+
+Ciclo local de Lixeira, recuperação e higiene de dados. A última release publicada permanece **v3.0.0**, congelada; estas notas não anunciam uma publicação.
+
+- Lixeira com restauração validada e preservação dos dados existentes.
+- Exclusão definitiva libera o slug; o Admin exige confirmação e explica a irreversibilidade.
+- Limpeza manual de tombstones com pelo menos 90 dias, precedida de preview; sem Cron automático.
+- Export de configuração ativa, sem Lixeira e sem contar tombstones nos limites. Ativos inválidos continuam fail-closed; erro acionável no Admin.
+- Formato Portability v1 mantido e documentos antigos com `disabled: true` ainda importáveis.
+- Sem migration 0007, sem nova variável/binding e sem mudança no redirect público. Cadeia 0000–0006.
+- Regressões de URL em create/PATCH/PUT/import, incluindo recusa de URL vazia no update.
+
+Consulte [Lixeira e recuperação](docs/trash-recovery.md) para API, retenção, reutilização e operação. O portátil não substitui backup D1, incluindo a Lixeira.
+
 ## BoltLink 3.0.0
 
 Notas da release **3.0.0**, cobrindo toda a mudança acumulada desde a release anterior `v2.2.1` (commit `8b3895e`, migrations `0000` a `0003`). **Baseline do upgrade:** `v2.2.1`. **Alvo:** `3.0.0` (tag `v3.0.0`). O major se justifica pelo breaking change administrativo em Groups descrito abaixo.

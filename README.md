@@ -1,10 +1,17 @@
 # BoltLink
 
+## Desenvolvimento local — 3.1.0
+
+A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+
+Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+
+
 BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel administrativo estático.
 
-**Versão 3.0.0 - AGPL-3.0**
+**Desenvolvimento 3.1.0 · Release publicada 3.0.0 · AGPL-3.0**
 
-> Esta é a release **3.0.0** do repositório (tag `v3.0.0`). Ela reúne o Smart Routing (Fase 3, migration `0005_smart_routing.sql`), o destino de expiração + `ROOT_REDIRECT_URL` (Fase 4, migration `0006_expired_redirect.sql`) e os recursos da Fase 5 — hierarquia de grupos com integridade, portabilidade de configuração (exportação e importação) e o QR Code com preview e downloads no painel, todos sem migration nova. Um checkout da tag anterior `v2.2.1` não contém nenhum desses recursos nem as migrations `0005`/`0006`. O BoltLink é **self-hosted**: a release do repositório é distribuição de código e cada instalação opera o próprio Worker, D1, Cloudflare Access, secrets, migrations e deploy.
+> A última release publicada é a **3.0.0** do repositório (tag `v3.0.0`). Ela reúne o Smart Routing (Fase 3, migration `0005_smart_routing.sql`), o destino de expiração + `ROOT_REDIRECT_URL` (Fase 4, migration `0006_expired_redirect.sql`) e os recursos da Fase 5 — hierarquia de grupos com integridade, portabilidade de configuração (exportação e importação) e o QR Code com preview e downloads no painel, todos sem migration nova. Um checkout da tag anterior `v2.2.1` não contém nenhum desses recursos nem as migrations `0005`/`0006`. O BoltLink é **self-hosted**: a release do repositório é distribuição de código e cada instalação opera o próprio Worker, D1, Cloudflare Access, secrets, migrations e deploy.
 
 Ele funciona como encurtador de URLs, mas o objetivo real do projeto é maior: manter links públicos estáveis, simples de operar e independentes de plataformas terceiras, com controle do redirect, proteção do painel e uma baseline de privacidade mais rígida do que a maioria das ferramentas desse tipo.
 
@@ -387,7 +394,7 @@ Como a árvore se comporta:
 - **Sem IDs internos.** Grupos recebem `ref` local ao documento (`g1`, `g2`, …) e links se vinculam por `groupRef` (`null` quando não há grupo). O `id` do D1 não é necessário para reconstruir a árvore, e grupos com nomes repetidos continuam distintos.
 - **Sem senhas.** `password_hash` não é nem selecionado pela consulta: o documento traz apenas `passwordProtected: true/false`. A importação exige uma **nova** senha para cada link protegido, informada no próprio apply e usada apenas para gerar o hash — ela não é registrada em log, não vai para a URL, não volta na resposta e não fica no navegador.
 - **Sem métricas e sem estado interno.** `clicks_total`, contadores A/B, `ab_started_at`, `metric_epoch`, `ab_generation`, `has_qrcode` e `version` não são exportados. A configuração A/B e as regras de Smart Routing viajam sem seus resultados.
-- **Tombstones incluídos.** Links desabilitados continuam no documento com `disabled: true`, porque o slug permanece reservado.
+- **Configuração ativa na 3.1.0 development.** Apenas links com `disabled_at IS NULL` entram no export. A Lixeira não integra o documento nem o limite de links. Na release publicada 3.0.0, tombstones eram incluídos com `disabled: true`; o import mantém compatibilidade com esses documentos v1 legados.
 - **Ordem preservada.** Tags mantêm a ordem do operador e as regras de Smart Routing mantêm a ordem original, já que first-match-wins é semântico.
 - **Falha fechado.** Qualquer linha inválida (Smart Routing corrompido, destino de expiração sem expiração, URL inválida, slug reservado, nome de grupo não canônico — com espaços nas pontas, só espaços ou acima de 120 caracteres, nunca normalizado no export —, ciclo ou pai órfão em grupos, A/B inválido, linha híbrida A/B + Smart Routing) recusa o export inteiro com `409`. Acima de 50 grupos, 100 links ou 256 KiB (bytes UTF-8) a resposta é `413`. O documento nunca é truncado nem parcial.
 - **Determinístico.** A mesma configuração produz o mesmo documento funcional; só `exportedAt` varia.
@@ -417,7 +424,7 @@ BoltLink não mantém eventos individuais de clique.
 
 - `clicks_total` é apenas um número agregado na linha do link
 - zerar estatísticas redefine esse número para `0`
-- excluir um link faz exclusão lógica com `disabled_at`, preservando o slug como já usado
+- excluir um link move para a Lixeira (`disabled_at`), preservando o slug até exclusão definitiva/purge; na 3.1.0 development é possível restaurar ou remover fisicamente pelo Admin
 - não há ganho relevante de espaço no D1 ao zerar ou apagar estatística, porque não existe tabela de eventos
 
 Para reduzir tráfego automatizado sem depender de WAF pago, consulte `docs/free-plan-traffic.md`.

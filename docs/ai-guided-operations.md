@@ -1,5 +1,12 @@
 # Operação Guiada por IA
 
+## Desenvolvimento local — 3.1.0
+
+A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+
+
 > Escopo: release atual = **`3.0.0`** (tag `v3.0.0`, migrations `0000` a `0006`). A `0004` e o Split Test A/B (origem Fase 2), a `0005` e o Smart Routing (origem Fase 3), a `0006`, o destino de expiração e o `ROOT_REDIRECT_URL` (origem Fase 4) e a hierarquia de grupos de `link_groups`, a portabilidade de configuração (`GET /api/export`, `POST /api/import/preview`, `POST /api/import/apply`) e o QR Code com preview e downloads no painel (origem Fase 5, sem migration nova) estão **publicados na `3.0.0`** — não são experimentais nem local-only. A release anterior `v2.2.1` termina na `0003` e não contém nenhum deles; um checkout dessa tag tem procedimento histórico próprio.
 
 ## Objetivo
@@ -68,5 +75,5 @@ Se o usuário opera por one-click ou GitHub:
 
 ---
 
-Versão 3.0.0
+Versão em desenvolvimento: 3.1.0 · Release publicada: 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

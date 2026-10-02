@@ -1,6 +1,13 @@
 # AI-START
 
-Este arquivo é a entrada única para qualquer IA operar o BoltLink (versão **3.0.0**, release publicada atual — tag `v3.0.0`, branch `main`; a release anterior imediata é `v2.2.1`, que também é o baseline histórico do upgrade das features) com segurança.
+## Desenvolvimento local — 3.1.0
+
+A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+
+Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+
+
+Este arquivo é a entrada única para qualquer IA operar o BoltLink (desenvolvimento **3.1.0**; **3.0.0** é a release publicada atual — tag `v3.0.0`, branch `main`; a release anterior imediata é `v2.2.1`, que também é o baseline histórico do upgrade das features) com segurança.
 
 O objetivo dele é permitir que a IA:
 
@@ -56,15 +63,15 @@ Release atual publicada (`3.0.0`, tag `v3.0.0`):
 - importação administrativa da mesma configuração (`POST /api/import/preview` e `POST /api/import/apply`), sem migration nova: o preview é somente leitura e o apply grava o documento em um único `batch` (tudo ou nada), exige nova senha para cada link protegido, bloqueia com `409` colisão de slug, feature que o banco não suporta e árvore acima de 16 níveis, e não restaura métricas — origem Fase 5
 - QR Code com diálogo de preview e download PNG/SVG no painel: o QR codifica apenas a short URL pública (nunca o destination nem segredos), a geração é cold path administrativo que não conta clique nem persiste imagem, e `has_qrcode` continua sendo memória operacional escrita só quando o operador baixa o QR em PNG ou SVG — preview e copiar link não escrevem nada (origem Fase 5; os endpoints `GET/POST /api/links/:slug/qrcode` e a coluna `has_qrcode` existem desde a base publicada `0001`)
 
-### Status de desenvolvimento (Fases 2–5 congeladas; Phase 6 completa; Phase 7 em andamento)
+### Status de desenvolvimento (3.0.0 congelada; Phase 8 — 3.1.0 development)
 
-- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Essa linha evoluiu para a release `3.0.0` (o `package.json` está em `3.0.0`).
+- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Essa linha evoluiu para a release `3.0.0` (essa é a versão histórica; o checkout de desenvolvimento está em `3.1.0`).
 - Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
 - Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fechou o finding BL-54-04 e reconciliou a documentação, sem feature nova, sem migration, sem bump de versão, sem tag e sem deploy.
 - **Phase 6 — Release Readiness: COMPLETE**, terminando em **Gate 6.6 (publicação): PASSED** — na publicação inicial, a tag `v3.0.0` foi criada sobre `60c8575`, com push de `main` e da tag e GitHub Release concluídos. A `v3.0.0` **já possui tag e GitHub Release**; Cloudflare/D1 continuam per-installation.
-- **Phase 7 — Current-State Reconciliation (Gate 7.8 em andamento)**: Gate 7.2 concluído (BL-66-01); Gate 7.3 rejeitado; Gate 7.4 concluído (correções BL-73-01..04); Gate 7.5 aprovado; Gate 7.6 produziu o commit de correção; Gate 7.7 concluiu a republicação controlada da mesma `v3.0.0`. Gate 7.8 reconcilia a identificação corrente sem SHA literal (BL-77-01), sem bump, migration ou mudança funcional.
+- **Phase 7 — Current-State Reconciliation (histórico da 3.0.0 congelada)**: Gate 7.2 concluído (BL-66-01); Gate 7.3 rejeitado; Gate 7.4 concluído (correções BL-73-01..04); Gate 7.5 aprovado; Gate 7.6 produziu o commit de correção; Gate 7.7 concluiu a republicação controlada da mesma `v3.0.0`. Gate 7.8 reconciliou a identificação corrente sem SHA literal (BL-77-01), sem bump, migration ou mudança funcional.
 - **Modelo de distribuição da release do repositório**: source commit + tag `v3.0.0` + push + GitHub Release. Não existe Worker, D1, hostname, Cloudflare Account, deploy ou migration remota oficiais: cada instalação é self-hosted e executa o próprio backup, as próprias migrations e o próprio deploy. Cloudflare login **não** é requisito para publicar o repositório.
-- Ao retomar o trabalho, o estado é: **release `3.0.0` publicada** (tag `v3.0.0`, branch `main`), Phase 6 completa, republicação controlada concluída no Gate 7.7 e Phase 7 no Gate 7.8 (reconciliação BL-77-01). Publicar a tag não significa que instalações foram atualizadas — deploy e migrations são por instalação.
+- Ao retomar o trabalho, o estado é: **release `3.0.0` publicada** (tag `v3.0.0`, branch `main`), Phase 6 completa, republicação controlada concluída no Gate 7.7 e linha 3.0.0 congelada; Phase 8 abre o desenvolvimento local da 3.1.0. Publicar a tag não significa que instalações foram atualizadas — deploy e migrations são por instalação.
 - A dívida técnica `TS7016` do módulo `qrcode` foi **aceita para a 3.0.0** como **não bloqueante**.
 
 O produto não mantém:
@@ -370,5 +377,5 @@ Se a IA seguir este arquivo corretamente, ela deve conseguir:
 
 ---
 
-Versão 3.0.0
+Versão em desenvolvimento: 3.1.0 · Release publicada: 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

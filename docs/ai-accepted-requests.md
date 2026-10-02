@@ -1,5 +1,12 @@
 # Catálogo de Pedidos Aceitos pela IA
 
+## Desenvolvimento local — 3.1.0
+
+A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+
+
 ## Regras de uso
 
 - leia `AI-START.md` primeiro
@@ -16,6 +23,8 @@
 | `continuar_configuracao` | `Continuar configuração do projeto`, `retomar setup` | retomar próximo passo e corrigir config | em qualquer checkpoint manual |
 | `atualizar_projeto` | `Atualizar o Projeto`, `pull latest version` | atualizar código, dependências, `wrangler.local.jsonc`, migrations e testes | antes de sobrescrever mudanças locais |
 | `aplicar_migrations` | `Aplicar migrations`, `rodar migrations` | aplicar migrations local e/ou remoto | se o banco alvo estiver indefinido |
+| `gerenciar_lixeira` | `Restaurar link`, `Excluir definitivamente`, `Limpar itens antigos` | inspecionar Lixeira, validar restore, preparar preview | exclusão definitiva/purge exige intenção explícita; mostrar preview antes da limpeza |
+| `desenvolver_3_1_0_local` | `Phase 8`, `Trash, Recovery & Data Hygiene` | implementar e testar localmente o contrato 3.1.0 | antes de push, deploy, D1 remoto, tag ou release |
 | `auditar_estado_operacional` | `Auditar estado operacional`, `check status` | revisar config, docs e pendências | não há parada especial |
 | `publicar_workers_dev` | `Publicar no workers.dev`, `deploy inicial` | deploy padrão e validação pública | antes de Access |
 | `publicar_com_deploy_button` | `Deploy to Cloudflare Workers`, `usar o botão de deploy` | revisar template público e preparar pós-deploy | antes da criação final do Access |
@@ -37,5 +46,5 @@
 
 ---
 
-Versão 3.0.0
+Versão em desenvolvimento: 3.1.0 · Release publicada: 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

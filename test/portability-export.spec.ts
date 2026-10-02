@@ -602,16 +602,14 @@ describe("Phase 5, Gate 5.2: link configuration", () => {
 		expect(Object.prototype.hasOwnProperty.call(document.links[0], "groupRef")).toBe(true);
 	});
 
-	it("exports a disabled link as an explicit tombstone", async () => {
+	it("exports only active links while tombstones remain reserved", async () => {
 		await insertLink({ slug: "reservado", disabled_at: PAST(), target_url: "https://example.com/antigo" });
 		await insertLink({ slug: "ativo" });
 
 		const { document } = await readSuccessfulExport();
 
 		const disabled = document.links.find((link) => link.slug === "reservado");
-		expect(disabled?.disabled).toBe(true);
-		// The slug stays reserved, so the tombstone travels instead of disappearing.
-		expect(disabled?.targetUrl).toBe("https://example.com/antigo");
+		expect(disabled).toBeUndefined();
 		expect(document.links.find((link) => link.slug === "ativo")?.disabled).toBe(false);
 	});
 
@@ -1179,18 +1177,17 @@ describe("Phase 5, Gate 5.2: limits and determinism", () => {
 		expect(document).toBeNull();
 	});
 
-	it("counts tombstones towards the limit, unlike the administrative listing", async () => {
+	it("excludes tombstones from export limits and the active listing", async () => {
 		for (let index = 0; index < PORTABILITY_MAX_LINKS; index += 1) {
 			await insertLink({
 				slug: `link-${String(index).padStart(3, "0")}`,
-				// The listing filters these out; the export must not, or a reserved slug
-				// would silently vanish from the artifact.
+				// Trash remains stored, but active portability excludes it.
 				disabled_at: index % 2 === 0 ? PAST() : null,
 			});
 		}
 
 		const { document } = await readSuccessfulExport();
-		expect(document.links).toHaveLength(PORTABILITY_MAX_LINKS);
+		expect(document.links).toHaveLength(PORTABILITY_MAX_LINKS / 2);
 
 		const listing = await fetchWorker("http://localhost/api/links");
 		const listed = (await listing.json()) as { links: unknown[] };

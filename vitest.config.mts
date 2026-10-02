@@ -32,6 +32,7 @@ export default defineConfig({
 					include: ["test/**/*.spec.ts"],
 					exclude: [
 						"test/ab-display.spec.ts",
+						"test/trash-admin.spec.ts",
 						"test/smart-routing-admin.spec.ts",
 						"test/expired-redirect-admin.spec.ts",
 						"test/group-hierarchy-admin.spec.ts",
@@ -47,6 +48,7 @@ export default defineConfig({
 					environment: "node",
 					include: [
 						"test/ab-display.spec.ts",
+						"test/trash-admin.spec.ts",
 						"test/smart-routing-admin.spec.ts",
 						"test/expired-redirect-admin.spec.ts",
 						"test/group-hierarchy-admin.spec.ts",

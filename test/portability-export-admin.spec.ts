@@ -22,7 +22,7 @@ type PortabilityApi = {
 	FALLBACK_FILENAME: string;
 	safeFilename: (candidate: unknown) => string;
 	filenameFromDisposition: (header: unknown) => string;
-	exportErrorMessage: (status: number, rawMessage?: unknown) => string;
+	exportErrorMessage: (status: number, rawMessage?: unknown, code?: unknown) => string;
 };
 
 function readPublic(file: string) {
@@ -148,8 +148,22 @@ describe("Phase 5, Gate 5.2: export error mapping", () => {
 		const api = loadPortabilityApi();
 
 		expect(api.exportErrorMessage(500, "")).toMatch(/Não foi possível exportar/);
-		expect(api.exportErrorMessage(418, "I am a teapot")).toBe("I am a teapot");
+		expect(api.exportErrorMessage(418, "I am a teapot")).toMatch(/Não foi possível exportar/);
 		expect(api.exportErrorMessage(500, null)).toMatch(/Não foi possível exportar/);
+	});
+
+	it("names an invalid active URL using a known code and a safe slug", () => {
+		const api = loadPortabilityApi();
+		const message = api.exportErrorMessage(409, 'Portability export refused: invalid destination URL: link "abc"', "INVALID_TARGET_URL");
+		expect(message).toContain("o link 'abc' possui uma URL de destino inválida");
+		expect(message).toContain("Corrija ou remova");
+	});
+	it("never echoes SQL, stack, unknown errors or hostile subjects", () => {
+		const api = loadPortabilityApi();
+		for (const raw of ['SQLITE: SELECT password_hash FROM links', 'stack: secret', 'link "<script>"']) {
+			expect(api.exportErrorMessage(409, raw, "INVALID_TARGET_URL")).not.toContain(raw);
+			expect(api.exportErrorMessage(500, raw)).not.toContain(raw);
+		}
 	});
 
 	it("keeps the helper module free of DOM access and dynamic code", () => {
@@ -204,7 +218,7 @@ describe("Phase 5, Gate 5.2: admin wiring", () => {
 		const admin = readPublic("admin.js");
 		const body = functionBody(admin, "exportConfiguration");
 
-		expect(body).toContain("setStatus(exportStatus, portabilityUi.exportErrorMessage(response.status, apiMessage), \"error\")");
+		expect(body).toContain("setStatus(exportStatus, portabilityUi.exportErrorMessage(response.status, apiMessage, apiCode), \"error\")");
 		expect(body).toContain("setBusy(exportButton, true)");
 		expect(body).toContain("setBusy(exportButton, false)");
 		expect(body).toContain("anchor.download = filename");

@@ -75,7 +75,7 @@
    * the raw text is a controlled English string, but showing a pt-BR equivalent keeps
    * the panel consistent with the rest of the Admin.
    */
-  function exportErrorMessage(status, rawMessage) {
+  function exportErrorMessage(status, rawMessage, code) {
     var message = typeof rawMessage === "string" ? rawMessage : "";
 
     if (status === 401 || status === 403) {
@@ -102,10 +102,26 @@
     }
 
     if (status === 409) {
+      var reasons = {
+        INVALID_TARGET_URL: "uma URL de destino inválida",
+        INVALID_LIFECYCLE: "datas de ativação ou expiração inválidas",
+        INVALID_EXPIRED_REDIRECT: "um destino após expiração inválido ou sem data de expiração",
+        INVALID_AB_CONFIG: "uma configuração de Teste A/B inválida",
+        INVALID_SMART_ROUTING: "uma configuração de Smart Routing inválida",
+        CONFLICTING_ROUTING_CONFIG: "Teste A/B e Smart Routing incompatíveis",
+        DANGLING_GROUP_REFERENCE: "um grupo que não existe mais",
+        INVALID_TAGS: "tags inválidas",
+        INVALID_REDIRECT_TYPE: "um tipo de redirecionamento inválido",
+      };
+      // Only a validated slug and a known code can be presented. Never echo raw errors.
+      var subject = message.match(/: link "([A-Za-z0-9_-]{3,64})"$/);
+      if (Object.prototype.hasOwnProperty.call(reasons, code) && subject) {
+        return "Não foi possível exportar: o link '" + subject[1] + "' possui " + reasons[code] + ". Corrija ou remova o link e tente novamente. Nada foi alterado no banco.";
+      }
       return "A exportação foi recusada porque há uma configuração salva que esta versão do BoltLink não aceita. Corrija ou remova o registro inválido e tente novamente. Nada foi alterado no banco.";
     }
 
-    return message || "Não foi possível exportar a configuração. Tente novamente.";
+    return "Não foi possível exportar a configuração. Tente novamente.";
   }
 
   var api = {

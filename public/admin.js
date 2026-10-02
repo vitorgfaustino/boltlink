@@ -1612,14 +1612,16 @@ async function exportConfiguration() {
 
     if (!response.ok) {
       let apiMessage = "";
+      let apiCode = "";
       try {
         const payload = await response.json();
         apiMessage = typeof payload?.error === "string" ? payload.error : "";
+        apiCode = typeof payload?.code === "string" ? payload.code : "";
       } catch {
         apiMessage = "";
       }
 
-      setStatus(exportStatus, portabilityUi.exportErrorMessage(response.status, apiMessage), "error");
+      setStatus(exportStatus, portabilityUi.exportErrorMessage(response.status, apiMessage, apiCode), "error");
       return;
     }
 
@@ -2147,6 +2149,7 @@ function renderImportSuccess(payload) {
     .finally(() => {
       loadLinks().catch(() => {});
       loadGroups().catch(() => {});
+      if (trashController) trashController.refresh().catch(() => {});
     });
 }
 
@@ -3091,7 +3094,7 @@ function scheduleDelete(link) {
   }
   
   renderLinks();
-  setStatus(listStatus, `/${link.slug} será excluído em 5 segundos. O slug não poderá ser reutilizado. Use Desfazer para cancelar.`);
+  setStatus(listStatus, `/${link.slug} será excluído em 5 segundos. O link irá para a Lixeira e poderá ser restaurado. Use Desfazer para cancelar.`);
 }
 
 function undoDelete(slug) {
@@ -3131,7 +3134,8 @@ async function commitDelete(slug) {
       resetForm();
     }
     await loadLinks(searchTermInput.value, searchGroupIdInput.value);
-    setStatus(listStatus, `/${slug} excluído. O slug não pode ser reutilizado.`, "success");
+    if (trashController) await trashController.refresh();
+    setStatus(listStatus, `/${slug} movido para a Lixeira. Restaure ou exclua definitivamente para liberar o slug.`, "success");
   } catch (error) {
     setStatus(listStatus, error.message, "error");
     await loadLinks(searchTermInput.value, searchGroupIdInput.value);
@@ -3569,6 +3573,18 @@ async function copyToClipboard(text) {
   if (!copied) {
     throw new Error("Falha ao copiar link");
   }
+}
+
+const trashController = window.BoltLinkTrash ? window.BoltLinkTrash.mount({
+  request,
+  onChange: async () => {
+    await loadLinks(searchTermInput.value, searchGroupIdInput.value);
+    await loadGroups();
+  },
+}) : null;
+if (!trashController) {
+  document.getElementById("trash-open").disabled = true;
+  document.getElementById("trash-status").textContent = "O módulo da Lixeira não foi carregado. Recarregue o painel.";
 }
 
 resetForm();

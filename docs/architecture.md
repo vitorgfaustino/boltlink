@@ -1,5 +1,12 @@
 # Arquitetura do Projeto
 
+## Desenvolvimento local — 3.1.0
+
+A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+
+
 ## Visão geral
 
 BoltLink é um gerenciador de links orientado a edge:
@@ -285,5 +292,5 @@ Na release `3.0.0`, a instalação limpa e o upgrade aplicam também a `0006_exp
 
 ---
 
-Versão 3.0.0
+Versão em desenvolvimento: 3.1.0 · Release publicada: 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

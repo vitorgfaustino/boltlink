@@ -54,7 +54,7 @@ import {
 	isWithinSubtree,
 } from "./group-hierarchy";
 import type { GroupHierarchyRow } from "./group-hierarchy";
-import { PORTABILITY_EXPORT_FILENAME, PORTABILITY_MAX_BYTES, buildPortabilityExport } from "./portability";
+import { PORTABILITY_EXPORT_FILENAME, PORTABILITY_MAX_BYTES, buildPortabilityExport, validateRecoverableLink } from "./portability";
 import type { PortabilityGroupRow, PortabilityLinkRow } from "./portability";
 import {
 	PORTABILITY_IMPORT_ENVELOPE_KEYS,
@@ -75,6 +75,8 @@ import type {
 	PortabilityImportRefusal,
 	PortabilityImportWarningCode,
 } from "./portability-import";
+
+import { TRASH_RETENTION_DAYS, TRASH_PAGE_SIZE, TRASH_ELIGIBLE_SQL, trashCutoff } from "./trash";
 
 /** Persisted-state classification exposed to the Admin: disabled ≠ corrupt. */
 type SmartRoutingStatus = SmartRoutingPersistedResult["status"];
@@ -377,7 +379,7 @@ const NON_BOOTSTRAPPING_DATABASE_PATHS = new Set(["/api/export", "/api/import/pr
 const READ_ONLY_QRCODE_GET_PATH = /^\/api\/links\/[^/]+\/qrcode$/;
 
 function usesReadOnlyDatabaseReadiness(c: Context<AppContext>) {
-	if (NON_BOOTSTRAPPING_DATABASE_PATHS.has(c.req.path)) {
+	if (c.req.path === "/api/trash" || c.req.path.startsWith("/api/trash/") || NON_BOOTSTRAPPING_DATABASE_PATHS.has(c.req.path)) {
 		return true;
 	}
 	return c.req.method === "GET" && READ_ONLY_QRCODE_GET_PATH.test(c.req.path);
@@ -641,8 +643,10 @@ app.post("/api/links", async (c) => {
 			return c.json({ error: slugError }, 400);
 		}
 
-		if (await slugExists(c.env.db_boltlink, requestedSlug)) {
-			return c.json({ error: "Slug already exists" }, 409);
+		const existing = await c.env.db_boltlink.prepare("SELECT disabled_at FROM links WHERE slug = ?")
+			.bind(requestedSlug).first<{ disabled_at: string | null }>();
+		if (existing) {
+			return slugCollisionResponse(c, existing.disabled_at !== null);
 		}
 
 		slug = requestedSlug;
@@ -659,114 +663,127 @@ app.post("/api/links", async (c) => {
 	const expiredPlaceholders = expiredReady ? ", ?" : "";
 	const expiredReturning = expiredReady ? ", expired_redirect_url" : "";
 
-	const createdLink = schema.abReady
-		? await c.env.db_boltlink
-			.prepare(
-				`INSERT INTO links (
-					slug,
-					target_url,
-					expires_at,
-					go_live_at,
-					redirect_type,
-					tags,
-					group_id,
-					password_hash,
-					ab_enabled,
-					ab_target_url,
-					ab_weight_b,
-					ab_generation,
-					ab_started_at${smartColumns}${expiredColumns}
+	try {
+		const createdLink = schema.abReady
+			? await c.env.db_boltlink
+				.prepare(
+					`INSERT INTO links (
+						slug,
+						target_url,
+						expires_at,
+						go_live_at,
+						redirect_type,
+						tags,
+						group_id,
+						password_hash,
+						ab_enabled,
+						ab_target_url,
+						ab_weight_b,
+						ab_generation,
+						ab_started_at${smartColumns}${expiredColumns}
+					)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${smartPlaceholders}${expiredPlaceholders})
+					RETURNING
+						id,
+						slug,
+						target_url,
+						clicks_total,
+						created_at,
+						updated_at,
+						disabled_at,
+						expires_at,
+						go_live_at,
+						redirect_type,
+						tags,
+						has_qrcode,
+						group_id,
+						CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
+						ab_enabled,
+						ab_target_url,
+						ab_weight_b,
+						ab_generation,
+						metric_epoch,
+						ab_clicks_a,
+						ab_clicks_b,
+						ab_started_at${smartReturning}${expiredReturning},
+						version`,
 				)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${smartPlaceholders}${expiredPlaceholders})
-				RETURNING
-					id,
+				.bind(
 					slug,
-					target_url,
-					clicks_total,
-					created_at,
-					updated_at,
-					disabled_at,
-					expires_at,
-					go_live_at,
-					redirect_type,
+					targetUrl,
+					expiresAt,
+					goLiveAt,
+					redirectType,
 					tags,
-					has_qrcode,
-					group_id,
-					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password,
-					ab_enabled,
-					ab_target_url,
-					ab_weight_b,
-					ab_generation,
-					metric_epoch,
-					ab_clicks_a,
-					ab_clicks_b,
-					ab_started_at${smartReturning}${expiredReturning},
-					version`,
-			)
-			.bind(
-				slug,
-				targetUrl,
-				expiresAt,
-				goLiveAt,
-				redirectType,
-				tags,
-				groupId ?? null,
-				passwordHash,
-				abConfig.enabled ? 1 : 0,
-				abConfig.targetUrl,
-				abConfig.weightB,
-				abConfig.enabled ? 1 : 0,
-				abStartedAt,
-				...(smartReady ? [smartValue] : []),
-				...(expiredReady ? [expiredRedirect.value] : []),
-			)
-			.first<LinkRow>()
-		: await c.env.db_boltlink
-			.prepare(
-				`INSERT INTO links (
-					slug,
-					target_url,
-					expires_at,
-					go_live_at,
-					redirect_type,
-					tags,
-					group_id,
-					password_hash${smartColumns}${expiredColumns}
+					groupId ?? null,
+					passwordHash,
+					abConfig.enabled ? 1 : 0,
+					abConfig.targetUrl,
+					abConfig.weightB,
+					abConfig.enabled ? 1 : 0,
+					abStartedAt,
+					...(smartReady ? [smartValue] : []),
+					...(expiredReady ? [expiredRedirect.value] : []),
 				)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?${smartPlaceholders}${expiredPlaceholders})
-				RETURNING
-					id,
+				.first<LinkRow>()
+			: await c.env.db_boltlink
+				.prepare(
+					`INSERT INTO links (
+						slug,
+						target_url,
+						expires_at,
+						go_live_at,
+						redirect_type,
+						tags,
+						group_id,
+						password_hash${smartColumns}${expiredColumns}
+					)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?${smartPlaceholders}${expiredPlaceholders})
+					RETURNING
+						id,
+						slug,
+						target_url,
+						clicks_total,
+						created_at,
+						updated_at,
+						disabled_at,
+						expires_at,
+						go_live_at,
+						redirect_type,
+						tags,
+						has_qrcode,
+						group_id,
+						CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${smartReturning}${expiredReturning},
+						version`,
+				)
+				.bind(
 					slug,
-					target_url,
-					clicks_total,
-					created_at,
-					updated_at,
-					disabled_at,
-					expires_at,
-					go_live_at,
-					redirect_type,
+					targetUrl,
+					expiresAt,
+					goLiveAt,
+					redirectType,
 					tags,
-					has_qrcode,
-					group_id,
-					CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${smartReturning}${expiredReturning},
-					version`,
-			)
-			.bind(
-				slug,
-				targetUrl,
-				expiresAt,
-				goLiveAt,
-				redirectType,
-				tags,
-				groupId ?? null,
-				passwordHash,
-				...(smartReady ? [smartValue] : []),
-				...(expiredReady ? [expiredRedirect.value] : []),
-			)
-			.first<LinkRow>();
+					groupId ?? null,
+					passwordHash,
+					...(smartReady ? [smartValue] : []),
+					...(expiredReady ? [expiredRedirect.value] : []),
+				)
+				.first<LinkRow>();
 
-	return c.json({ link: createdLink ? exposeLinkRow(createdLink) : createdLink }, 201);
+		return c.json({ link: createdLink ? exposeLinkRow(createdLink) : createdLink }, 201);
+	} catch (error) {
+		if (!isPortabilityImportSlugCollisionError(error)) throw error;
+		const existing = await c.env.db_boltlink.prepare("SELECT disabled_at FROM links WHERE slug = ?")
+			.bind(slug).first<{ disabled_at: string | null }>();
+		return slugCollisionResponse(c, !!existing && existing.disabled_at !== null);
+	}
 });
+
+function slugCollisionResponse(c: Context<AppContext>, inTrash: boolean) {
+	return inTrash
+		? c.json({ code: "SLUG_IN_TRASH", error: "Este slug está na Lixeira. Restaure o link ou exclua-o definitivamente para reutilizar o slug." }, 409)
+		: c.json({ error: "Slug already exists" }, 409);
+}
 
 app.patch("/api/links/:slug", updateLink);
 app.put("/api/links/:slug", updateLink);
@@ -796,6 +813,103 @@ app.delete("/api/links/:slug", async (c) => {
 	// group: it may still hold child groups or disabled links, and only the
 	// operator, through a deliberate DELETE, decides that a group is gone.
 	return c.json({ ok: true, slug: deletedLink.slug });
+});
+
+/** Trash shares the existing administrative boundary and never bootstraps schema. */
+app.get("/api/trash", async (c) => {
+	const search = c.req.query("search")?.trim() ?? "";
+	const pageRaw = c.req.query("page") ?? "1";
+	if (!/^[1-9]\d{0,6}$/.test(pageRaw)) return c.json({ error: "Invalid trash page" }, 400);
+	const page = Number(pageRaw);
+	const pattern = `%${escapeLikePattern(search)}%`;
+	const filter = "links.disabled_at IS NOT NULL" + (search ? " AND (links.slug LIKE ? OR links.target_url LIKE ? OR links.tags LIKE ?)" : "");
+	const bindings = search ? [pattern, pattern, pattern] : [];
+	const schema = await inspectDatabaseSchema(c.env.db_boltlink);
+	const smart = await resolveSmartRoutingCapability(c.env.db_boltlink, schema);
+	const expired = await resolveExpiredRedirectCapability(c.env.db_boltlink, schema);
+	const extra = (schema.abReady ? ", links.ab_enabled, links.ab_target_url, links.ab_weight_b" : "")
+		+ (smart ? ", links.smart_routing_rules" : "") + (expired ? ", links.expired_redirect_url" : "");
+	const [count, rows] = await c.env.db_boltlink.batch([
+		c.env.db_boltlink.prepare(`SELECT COUNT(*) AS total FROM links WHERE ${filter}`).bind(...bindings),
+		c.env.db_boltlink.prepare(`SELECT links.slug, links.target_url, links.disabled_at, links.created_at,
+			links.updated_at, links.redirect_type, links.tags, links.group_id, links.go_live_at, links.expires_at,
+			links.version, link_groups.name AS group_name,
+			CASE WHEN links.password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${extra}
+			FROM links LEFT JOIN link_groups ON link_groups.id = links.group_id
+			WHERE ${filter} ORDER BY links.id DESC LIMIT ? OFFSET ?`)
+			.bind(...bindings, TRASH_PAGE_SIZE + 1, (page - 1) * TRASH_PAGE_SIZE),
+	]);
+	const links = (rows.results as LinkRow[]).slice(0, TRASH_PAGE_SIZE).map(exposeLinkRow);
+	return c.json({ links, total: (count.results[0] as { total: number }).total, search, page,
+		hasMore: rows.results.length > TRASH_PAGE_SIZE });
+});
+
+app.get("/api/trash/purge-preview", async (c) => {
+	const cutoff = trashCutoff(new Date());
+	const summary = await c.env.db_boltlink.prepare(`SELECT COUNT(*) AS total,
+		COALESCE(SUM(CASE WHEN ${TRASH_ELIGIBLE_SQL} THEN 1 ELSE 0 END), 0) AS eligible
+		FROM links WHERE disabled_at IS NOT NULL`).bind(cutoff).first<{ total: number; eligible: number }>();
+	return c.json({ ...summary, cutoff, retentionDays: TRASH_RETENTION_DAYS });
+});
+
+app.post("/api/trash/purge", async (c) => {
+	// The condition is decided inside the DELETE, using a freshly computed cutoff.
+	// A restore that runs first makes its row ineligible; active rows can never match.
+	const cutoff = trashCutoff(new Date());
+	const result = await c.env.db_boltlink.prepare(`DELETE FROM links WHERE ${TRASH_ELIGIBLE_SQL}`)
+		.bind(cutoff).run();
+	return c.json({ ok: true, removed: result.meta.changes, cutoff, retentionDays: TRASH_RETENTION_DAYS });
+});
+
+app.post("/api/trash/:slug/restore", async (c) => {
+	const schema = await inspectDatabaseSchema(c.env.db_boltlink);
+	const smart = await resolveSmartRoutingCapability(c.env.db_boltlink, schema);
+	const expired = await resolveExpiredRedirectCapability(c.env.db_boltlink, schema);
+	// Explicit projection: no hash or metric is returned or rewritten.
+	const columns = ["id", "version", "slug", "target_url", "redirect_type", "tags", "group_id",
+		"disabled_at", "go_live_at", "expires_at",
+		...(schema.abReady ? ["ab_enabled", "ab_target_url", "ab_weight_b"] : []),
+		...(smart ? ["smart_routing_rules"] : []), ...(expired ? ["expired_redirect_url"] : [])];
+	const row = await c.env.db_boltlink.prepare(`SELECT ${columns.join(", ")},
+		CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password
+		FROM links WHERE slug = ? AND disabled_at IS NOT NULL`)
+		.bind(c.req.param("slug")).first<PortabilityLinkRow & { id: number; version: number }>();
+	if (!row) return c.json({ error: "Trash link not found" }, 404);
+	if (!Number.isSafeInteger(row.version) || row.version < 1 || row.version >= Number.MAX_SAFE_INTEGER) {
+		return c.json({ code: "INVALID_LINK_ROW", error: "Não foi possível restaurar: a versão salva do link é inválida. Exclua definitivamente o item e crie um link válido." }, 409);
+	}
+	const groups = await c.env.db_boltlink.prepare("SELECT id, name, parent_id FROM link_groups ORDER BY id").all<PortabilityGroupRow>();
+	const validation = validateRecoverableLink(row, groups.results,
+		{ abTesting: schema.abReady, smartRouting: smart, expiredRedirect: expired },
+		{ isValidSlug: (slug) => validateSlug(slug) === null, normalizeUrl: normalizeTargetUrl });
+	if (!validation.ok) return c.json({ code: validation.code,
+		error: "Não foi possível restaurar: a configuração salva é inválida. Exclua definitivamente este item e crie um link válido.",
+	}, 409);
+	if (row.has_password === 1 && !hasConfiguredPasswordSessionSecret(c.env)) {
+		return c.json({ code: "PASSWORD_SECRET_REQUIRED", error: "Configure PASSWORD_SESSION_SECRET antes de restaurar este link protegido." }, 409);
+	}
+	// Fence the entire configuration we validated, as well as row identity/version.
+	// Even external SQL that forgets to advance version cannot replace that snapshot.
+	const guards = columns.map((column) => `${column} IS ?`).join(" AND ");
+	const values = columns.map((column) => (row as unknown as Record<string, string | number | null>)[column]);
+	const restored = await c.env.db_boltlink.prepare(`UPDATE links
+		SET disabled_at = NULL, updated_at = ?, version = version + 1
+		WHERE ${guards} AND disabled_at IS NOT NULL
+		AND (CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END) = ?
+		AND (group_id IS NULL OR EXISTS (SELECT 1 FROM link_groups WHERE id = links.group_id))
+		AND (SELECT json_group_array(json_object('id', id, 'name', name, 'parent_id', parent_id))
+			FROM (SELECT id, name, parent_id FROM link_groups ORDER BY id)) IS ?
+		RETURNING slug, version`).bind(isoNow(), ...values, row.has_password as number, JSON.stringify(groups.results))
+		.first<{ slug: string; version: number }>();
+	if (!restored) return c.json({ error: "O item mudou durante a restauração. Recarregue a Lixeira e tente novamente." }, 409);
+	return c.json({ ok: true, ...restored });
+});
+
+app.delete("/api/trash/:slug", async (c) => {
+	const deleted = await c.env.db_boltlink.prepare("DELETE FROM links WHERE slug = ? AND disabled_at IS NOT NULL RETURNING slug")
+		.bind(c.req.param("slug")).first<{ slug: string }>();
+	if (!deleted) return c.json({ error: "Trash link not found" }, 404);
+	return c.json({ ok: true, slug: deleted.slug, slugAvailable: true });
 });
 
 app.post("/api/links/:slug/reset-clicks", async (c) => {
@@ -1210,7 +1324,7 @@ app.get("/api/export", async (c) => {
 
 	// Cheap pre-count so an oversized instance is refused before its rows are loaded.
 	const counts = await c.env.db_boltlink
-		.prepare("SELECT (SELECT COUNT(1) FROM link_groups) AS groups, (SELECT COUNT(1) FROM links) AS links")
+		.prepare("SELECT (SELECT COUNT(1) FROM link_groups) AS groups, (SELECT COUNT(1) FROM links WHERE disabled_at IS NULL) AS links")
 		.first<{ groups: number; links: number }>();
 
 	const abColumns = schema.abReady ? ", ab_enabled, ab_target_url, ab_weight_b" : "";
@@ -1218,9 +1332,8 @@ app.get("/api/export", async (c) => {
 	const expiredColumn = expiredRedirect ? ", expired_redirect_url" : "";
 
 	// Both statements are explicit projections: `GET /api/links` is not reused as the
-	// read model, because that listing filters tombstones out and caps itself at 100
-	// rows. GROUP BY nothing and no LIMIT here — the export either carries everything
-	// or refuses.
+	// read model, because it caps itself at 100 rows. Trash is outside the active
+	// configuration in 3.1.0 development. No LIMIT: active rows export whole or refuse.
 	const [groupResult, linkResult] = await c.env.db_boltlink.batch<unknown>([
 		c.env.db_boltlink.prepare(
 			"SELECT id, name, parent_id FROM link_groups ORDER BY name COLLATE NOCASE ASC, id ASC",
@@ -1236,6 +1349,7 @@ app.get("/api/export", async (c) => {
 				expires_at,
 				CASE WHEN password_hash IS NOT NULL THEN 1 ELSE 0 END AS has_password${abColumns}${smartColumn}${expiredColumn}
 			FROM links
+			WHERE disabled_at IS NULL
 			ORDER BY slug ASC`),
 	]);
 
@@ -1252,7 +1366,7 @@ app.get("/api/export", async (c) => {
 
 	if (!exported.ok) {
 		// Controlled message: no raw SQL, no SQLite error, no stack and no stored value.
-		return c.json({ error: exported.error }, exported.status);
+		return c.json({ error: exported.error, code: exported.code }, exported.status);
 	}
 
 	return new Response(exported.body, {
@@ -1628,8 +1742,9 @@ async function updateLink(c: Context<AppContext>) {
 	}
 
 	const targetUrlInput = payload.targetUrl ?? payload.url;
-	const targetUrl = targetUrlInput ? normalizeTargetUrl(targetUrlInput) : undefined;
-	if (targetUrlInput && !targetUrl) {
+	const hasTargetUrl = payload.targetUrl !== undefined || payload.url !== undefined;
+	const targetUrl = hasTargetUrl ? normalizeTargetUrl(targetUrlInput) : undefined;
+	if (hasTargetUrl && !targetUrl) {
 		return c.json({ error: "Invalid target URL" }, 400);
 	}
 
@@ -3625,7 +3740,7 @@ function isPublicSlugCandidate(slug: string) {
 }
 
 function normalizeTargetUrl(candidate?: string) {
-	if (!candidate) {
+	if (typeof candidate !== "string" || !candidate) {
 		return null;
 	}
 

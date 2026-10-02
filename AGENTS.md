@@ -1,5 +1,12 @@
 # AGENTS.md
 
+## Desenvolvimento local — 3.1.0
+
+A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+
+Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+
+
 Este arquivo define regras para agentes de IA e assistentes automatizados que trabalhem neste repositório.
 
 ## Escopo do projeto
@@ -33,14 +40,14 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 
 A release atual publicada é a **`3.0.0`**, identificada pela tag `v3.0.0` na branch `main`. A tag publicada e `main` devem convergir para o mesmo release commit; essa igualdade é um invariante operacional verificado externamente por Git/GitHub API nos gates de publicação e auditoria pós-publicação, sem exigir um SHA corrente literal neste documento. Ela contém as migrations `0004` a `0006` e todos os recursos das Fases 2–5. A `v2.2.1` é a **release anterior** e o **baseline histórico do upgrade** das features — conceitos que hoje coincidem, mas são distintos: a release anterior imediata muda a cada publicação, o baseline histórico do upgrade muda apenas em novos upgrades major. A `v2.2.1` não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura nem a portabilidade da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência, e não existem `GET /api/export`, `POST /api/import/preview` nem `POST /api/import/apply`). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
 
-### Status de desenvolvimento (Fases 2–5 congeladas; Phase 6 completa; Phase 7 em andamento)
+### Status de desenvolvimento (3.0.0 congelada; Phase 8 — 3.1.0 development)
 
-- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. A versão da release originada dessa linha é **`3.0.0`** (o `package.json` está em `3.0.0`).
+- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. A versão da release originada dessa linha é **`3.0.0`** (essa é a versão histórica; o checkout de desenvolvimento está em `3.1.0`).
 - Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
 - Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fechou o finding BL-54-04 e reconciliou a documentação; não adicionou feature, migration, bump de versão, tag nem deploy.
 - Com o freeze do Gate 5.5, a Fase 5 ficou **FEATURE FROZEN**: nenhuma feature adicional deve ser iniciada, e a Phase 6 não pode ser iniciada dentro de um gate da Fase 5.
 - **Phase 6 — Release Readiness: COMPLETE.** Gate 6.1 (auditoria global final) concluído com P0 = 0, P1 = 0 e P2 = 0; Gate 6.2 (correção dos blockers) concluído, fechando BL-61-01 e BL-61-02; Gate 6.3 (version finalization) concluído — versão `3.0.0` finalizada e os P3 BL-61-03, BL-61-04 e o wording "nullable" de `docs/upgrading.md` fechados; Gate 6.4 (local release commit) concluído — commit de preparação `6847e47` (`release: prepare 3.0.0`) sobre o pre-release baseline `04a6873`; Gate 6.5A (publication preflight): **RECLASSIFIED** — BL-65A-01 é **NOT APPLICABLE** (o finding assumia uma instalação canônica Cloudflare/D1 vinculada ao repositório-base, e ela não existe; Cloudflare login, D1/Worker remotos e production smoke não são requisito da release do repositório), e BL-65A-02 (wording de release não publicada no commit de preparação) foi fechado no Gate 6.5B; Gate 6.5B (final publication metadata) concluído — historicamente, finalizou a metadata no commit `60c8575` (`release: finalize 3.0.0`); **Gate 6.6 (publicação da release): PASSED** — na publicação inicial, a tag `v3.0.0` foi criada sobre `60c8575`, com push de `main` e da tag e GitHub Release concluídos. Modelo de distribuição: a release do repositório é **source distribution** (source commit + tag `v3.0.0` + push de `main` + push da tag + GitHub Release); Cloudflare deploy, migrations e D1 são **por instalação** e não fazem parte da release do repositório. Estado da release: **PUBLICADA**.
-- **Phase 7 — Current-State Reconciliation (Gate 7.8 em andamento)**: Gate 7.2 concluído (BL-66-01); Gate 7.3 rejeitado; Gate 7.4 concluído (correções BL-73-01..04); Gate 7.5 aprovado; Gate 7.6 produziu o commit de correção; Gate 7.7 concluiu a republicação controlada da mesma `v3.0.0`. Gate 7.8 reconcilia a identificação corrente sem SHA literal (BL-77-01), sem bump, migration ou mudança funcional.
+- **Phase 7 — Current-State Reconciliation (histórico da 3.0.0 congelada)**: Gate 7.2 concluído (BL-66-01); Gate 7.3 rejeitado; Gate 7.4 concluído (correções BL-73-01..04); Gate 7.5 aprovado; Gate 7.6 produziu o commit de correção; Gate 7.7 concluiu a republicação controlada da mesma `v3.0.0`. Gate 7.8 reconciliou a identificação corrente sem SHA literal (BL-77-01), sem bump, migration ou mudança funcional.
 - A dívida técnica `TS7016` do módulo `qrcode` foi **aceita para a 3.0.0** como **não bloqueante** (runtime, bundle do Wrangler e suíte passam; o CI atual não usa `tsc` como gate de release).
 - A release atual publicada é a **`3.0.0`** (tag `v3.0.0`, publicada no GitHub; republicação controlada concluída no Gate 7.7); nenhum documento pode afirmar que instalações foram atualizadas, que migrations remotas foram aplicadas por quem publica a tag, ou que existe Worker/D1/hostname/Cloudflare Account oficial — cada instalação é self-hosted e executa o próprio upgrade (`docs/upgrading.md`).
 
@@ -74,7 +81,7 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - IPs não devem ser persistidos
 - hashes estáveis de IP não devem existir no produto
 - país, `User-Agent`, dispositivo derivado e regra selecionada não devem ser persistidos
-- slugs reservados não devem ser reutilizados
+- slugs de linhas existentes (ativos ou na Lixeira) e slugs de sistema continuam reservados; a 3.1.0 development permite reutilização após exclusão definitiva/purge físico
 - Smart Routing e Split Test A/B são mutuamente exclusivos
 - links com Smart Routing configurado usam sempre `302` + `Cache-Control: no-store`
 - Smart Routing não deve adicionar SELECT adicional, tabela auxiliar, JOIN, API externa nem contador por regra
@@ -93,7 +100,7 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - o redirect público nunca consulta `link_groups` nem adiciona `JOIN`, CTE ou `PRAGMA` ao hot path (Fase 5)
 - `GET /api/export` é `format: "boltlink-portability"` / `schemaVersion: 1`, com identidade de formato independente da versão do produto; o artefato é configuração lógica e **não** substitui backup do D1 (Fase 5)
 - o export nunca inclui `password_hash`, métricas, `has_qrcode`, `version` nem IDs internos do D1: grupos viajam com `ref` local e links se vinculam por `groupRef` (Fase 5)
-- linha persistida que o BoltLink não aceitaria hoje falha o export inteiro com `409` controlado (Smart Routing corrompido, destino de expiração sem expiração, URL inválida, slug reservado, nome de grupo em forma não canônica — espaços nas pontas, só espaços ou acima de 120 caracteres, nunca normalizado —, ciclo/pai órfão em grupos, A/B inválido, linha híbrida A/B + Smart), sem skip, reparo ou documento parcial (Fase 5)
+- na 3.1.0 development, o export seleciona apenas ativos (`disabled_at IS NULL`); tombstones ficam fora dos limites e não são validados. Linha ativa persistida que o BoltLink não aceitaria hoje falha o export inteiro com `409` controlado (Smart Routing corrompido, destino de expiração sem expiração, URL inválida, slug reservado, nome de grupo em forma não canônica — espaços nas pontas, só espaços ou acima de 120 caracteres, nunca normalizado —, ciclo/pai órfão em grupos, A/B inválido, linha híbrida A/B + Smart), sem skip, reparo ou documento parcial (Fase 5)
 - limites do formato são 50 grupos, 100 links e 256 KiB em bytes UTF-8, medidos após a serialização; acima deles a resposta é `413` explícito e o documento nunca é truncado (Fase 5)
 - o export é somente leitura no **request inteiro** (zero escritas e zero DDL no D1, inclusive no middleware: usa a readiness de schema somente leitura, então não cria `boltlink_metric_fence`; as demais rotas `/api` mantêm o bootstrap), usa o boundary administrativo de `/api` e responde com `Content-Disposition` de nome constante e `Cache-Control: no-store` (Fase 5)
 - o import consome exatamente o documento que o export gera: `POST /api/import/preview` é somente leitura no request inteiro (zero `INSERT`/`UPDATE`/`DELETE`/DDL, inclusive no middleware) e `POST /api/import/apply` grava o documento inteiro em um único `batch` do D1, ou seja, em uma transação: o resultado é tudo ou nada, nunca partial import (Fase 5)
@@ -197,5 +204,5 @@ Para mudanças de banco:
 
 ---
 
-Versão 3.0.0
+Versão em desenvolvimento: 3.1.0 · Release publicada: 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br

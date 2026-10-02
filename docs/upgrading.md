@@ -1,5 +1,12 @@
 # Upgrading
 
+## Desenvolvimento local — 3.1.0
+
+A **3.1.0 está em desenvolvimento, não publicada**. A última release publicada continua **v3.0.0**, congelada em `main`/tag `v3.0.0`. O novo ciclo adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos da release publicada abaixo continuam pertencendo à `3.0.0`; este ciclo não autoriza push, deploy, D1 remoto, tag ou GitHub Release.
+
+
 ## Escopo das bases de código (release 3.0.0)
 
 Os documentos abaixo descrevem estados de código diferentes. Confirme em qual você está antes de seguir um procedimento:
@@ -12,7 +19,7 @@ Os documentos abaixo descrevem estados de código diferentes. Confirme em qual v
 | Checkpoint histórico da Fase 3 | HEAD `548f179` | `0000` a `0005` | Fase 2 + Smart Routing |
 | Checkpoint histórico da Fase 4 | HEAD `cdb9f83` | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
 
-A release `3.0.0` é o estado atual deste repositório (tag `v3.0.0`); a release anterior publicada é `v2.2.1`, que termina na `0003`. O fluxo de upgrade consolidado está na seção seguinte e é executado **por cada instalação**: publicar a release no repositório não aplica migrations nem faz deploy em nenhuma instalação.
+A release `3.0.0` é a última versão publicada deste repositório (tag `v3.0.0`); a release anterior publicada é `v2.2.1`, que termina na `0003`. O fluxo de upgrade consolidado está na seção seguinte e é executado **por cada instalação**: publicar a release no repositório não aplica migrations nem faz deploy em nenhuma instalação.
 
 ## Upgrade para a versão 3.0.0
 
@@ -263,5 +270,5 @@ Se você atualiza pelo GitHub ou pelo botão:
 
 ---
 
-Versão 3.0.0
+Versão em desenvolvimento: 3.1.0 · Release publicada: 3.0.0
 Criado por Vitor Faustino - vitorfaustino.com.br
