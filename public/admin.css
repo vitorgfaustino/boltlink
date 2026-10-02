@@ -189,12 +189,10 @@ p {
 
 .panel {
   min-width: 0;
-  padding: 0;
-}
-
-.link-form-panel {
-  padding-right: 28px;
-  border-right: 1px solid var(--line);
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.018);
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: var(--radius);
 }
 
 .panel-header {
@@ -208,7 +206,7 @@ p {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-top: 12px;
+  margin-top: 32px;
   color: var(--muted);
   font-size: 0.76rem;
   letter-spacing: 0.02em;
@@ -859,7 +857,7 @@ button.icon-btn {
 
 .cards {
   display: grid;
-  gap: 0;
+  gap: 12px;
 }
 
 .card {
@@ -868,11 +866,10 @@ button.icon-btn {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 20px 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.035);
   overflow: visible;
 }
 
@@ -895,6 +892,7 @@ button.icon-btn {
 }
 
 .slug-info {
+  flex: 1;
   display: grid;
   gap: 4px;
   min-width: 0;
@@ -933,7 +931,9 @@ button.icon-btn {
 }
 
 .card-actions {
+  flex-shrink: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   width: auto;
@@ -1206,11 +1206,10 @@ button.icon-btn {
     gap: 24px;
   }
 
-  .panel { padding: 0; }
-  .link-form-panel { padding-right: 0; border-right: 0; border-bottom: 1px solid var(--line); }
+  .panel { padding: 20px; }
   .link-form-panel .panel-header { margin-bottom: 0; }
   .link-form-panel #form-title { display: none; }
-  .link-form-panel #link-form { padding: 0 0 24px; }
+  .link-form-panel #link-form { padding: 16px 0 0; }
   .link-form-panel:has(.create-link-toggle[aria-expanded="false"]) #link-form { display: none; }
 
 
@@ -1230,7 +1229,7 @@ button.icon-btn {
     padding: 16px;
   }
 
-  .panel { padding: 0; border-radius: 0; }
+  .panel { padding: 16px; }
 
   .layout {
     grid-template-columns: 1fr;
@@ -1591,7 +1590,7 @@ button.icon-btn {
     display: inline-flex;
     justify-content: space-between;
     width: 100%;
-    min-height: 64px;
+    min-height: 44px;
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -2079,7 +2078,7 @@ button.icon-btn {
 #trash-purge-preview { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; }
 #trash-list { margin-bottom: 16px; }
 
-/* Primary page rhythm; spacing and dividers replace nested panel borders. */
+/* Primary page rhythm; two subtle surface levels with lightweight internal sections. */
 .links-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .panel-action-row { align-items: center; }
 .export-actions > .panel-action-row { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -2100,4 +2099,71 @@ input, select, textarea { min-width: 0; max-width: 100%; }
   #import-drawer-open { grid-column: 1 / -1; }
   .export-actions button { min-height: 44px; }
   .hero { gap: 20px; }
+}
+
+/* Long identifiers retain their complete text; expansion only changes the clamp. */
+.link-content { min-width: 0; }
+.content-text { overflow-wrap: anywhere; }
+.content-text:not(.is-expanded) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+}
+.content-text.is-expanded { display: block; overflow: visible; }
+.content-toggle, .content-copy {
+  padding: 0 4px;
+  margin-left: -4px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: #7dd3fc;
+  font-size: 0.78rem;
+  justify-content: flex-start;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  box-shadow: none;
+}
+.content-toggle:hover, .content-copy:hover { background: transparent; color: #bae6fd; }
+.content-actions { display: flex; flex-wrap: wrap; gap: 0 12px; }
+.content-actions:has(> .content-toggle[hidden]:only-child) { display: none; }
+@media (min-width: 901px) {
+  .content-toggle, .content-copy { min-height: 32px; }
+}
+.content-toggle[hidden] { display: none; }
+.link-states { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.link-states:not(:has(> *)) { display: none; }
+.state-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px 8px;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.035);
+  color: var(--text-secondary);
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+.group-badge { margin-top: 0; }
+.metrics { gap: 6px 10px; }
+.metric { min-width: 0; overflow-wrap: anywhere; font-weight: 400; }
+.metric:not(.state-chip) + .metric:not(.state-chip)::before { content: "·"; margin-right: 10px; }
+.link-tags { font-size: 0.74rem; color: var(--muted); overflow-wrap: anywhere; }
+.links-panel .panel-header { gap: 24px; }
+.export-actions > .panel-action-row { gap: 8px; }
+.export-actions button { min-height: 44px; border-radius: var(--radius-sm); }
+.search-form { padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+@media (max-width: 900px) {
+  .content-text:not(.is-expanded) { -webkit-line-clamp: 2; }
+  .create-mobile-heading { margin: 0; }
+}
+@media (max-width: 480px) {
+  main { padding: 16px 12px; }
+  .card { padding: 12px; }
+  .card-actions { gap: 6px; }
+  .card-actions button { padding: 8px; gap: 6px; font-size: 0.78rem; }
+  .card-actions button svg { width: 14px; height: 14px; }
+  .links-panel .panel-header { gap: 20px; }
 }

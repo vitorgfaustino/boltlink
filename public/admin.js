@@ -2744,7 +2744,7 @@ function renderAbMetrics(link) {
   }
 
   const metrics = [
-    `<span class="metric">Teste A/B <strong>${display.title}</strong></span>`,
+    `<span class="metric state-chip">Teste A/B <strong>${display.title}</strong></span>`,
   ];
 
   if (display.showHistoricalLabel) {
@@ -2773,14 +2773,14 @@ function renderSmartBadge(link) {
   }
   if (badge.corrupt) {
     return badge.conflict
-      ? '<span class="metric">Smart Routing <strong>configuração inválida preservada</strong> · Teste A/B ativo</span>'
-      : '<span class="metric">Smart Routing <strong>configuração inválida preservada</strong></span>';
+      ? '<span class="state-chip">Smart Routing <strong>configuração inválida preservada</strong> · Teste A/B ativo</span>'
+      : '<span class="state-chip">Smart Routing <strong>configuração inválida preservada</strong></span>';
   }
   if (badge.conflict) {
-    return '<span class="metric">Smart Routing <strong>configuração ambígua</strong></span>';
+    return '<span class="state-chip">Smart Routing <strong>configuração ambígua</strong></span>';
   }
   const suffix = badge.count === 1 ? "regra" : "regras";
-  return `<span class="metric">Smart Routing <strong>${badge.count} ${suffix}</strong></span>`;
+  return `<span class="state-chip">Smart Routing <strong>${badge.count} ${suffix}</strong></span>`;
 }
 
 function formatDate(value) {
@@ -2798,6 +2798,57 @@ function formatDate(value) {
   }
 }
 
+/** Full text stays in the DOM; only its presentation is clamped. */
+function linkContentMarkup(value, label, id, isSlug = false, copyValue = null) {
+  const tag = isSlug ? "p" : "div";
+  const className = isSlug ? "slug" : "slug-url";
+  return `<div class="link-content">
+    <${tag} class="${className} content-text" id="${id}">${escapeHtml(value)}</${tag}>
+    <div class="content-actions">
+    ${copyValue === null ? "" : `<button type="button" class="content-copy" data-copy-value="${escapeHtml(copyValue)}" aria-label="Copiar destino: ${escapeHtml(label)}">Copiar destino</button>`}
+    <button type="button" class="content-toggle" data-content-label="${escapeHtml(label)}" aria-controls="${id}" aria-expanded="false" aria-label="Ver mais: ${escapeHtml(label)}" hidden>Ver mais</button>
+    </div>
+  </div>`;
+}
+
+/** Measure the collapsed layout, including after fonts or viewport widths change. */
+function refreshLinkContent() {
+  linksList.querySelectorAll(".content-toggle").forEach((button) => {
+    const text = document.getElementById(button.getAttribute("aria-controls"));
+    const expanded = button.getAttribute("aria-expanded") === "true";
+    const focused = document.activeElement === button;
+    text.classList.remove("is-expanded");
+    const truncated = text.scrollHeight > text.clientHeight + 1 || text.scrollWidth > text.clientWidth + 1;
+    const keepExpanded = expanded && truncated;
+    text.classList.toggle("is-expanded", keepExpanded);
+    button.hidden = !truncated;
+    button.setAttribute("aria-expanded", String(keepExpanded));
+    button.textContent = keepExpanded ? "Ver menos" : "Ver mais";
+    button.setAttribute("aria-label", `${button.textContent}: ${button.dataset.contentLabel}`);
+    if (button.hidden && focused) {
+      button.closest(".card").querySelector('button[data-action="copy"], button[data-action="undo-delete"]')?.focus();
+    }
+  });
+}
+
+function toggleLinkContent(button) {
+  const text = document.getElementById(button.getAttribute("aria-controls"));
+  const expanded = button.getAttribute("aria-expanded") !== "true";
+  text.classList.toggle("is-expanded", expanded);
+  button.setAttribute("aria-expanded", String(expanded));
+  button.textContent = expanded ? "Ver menos" : "Ver mais";
+  button.setAttribute("aria-label", `${button.textContent}: ${button.dataset.contentLabel}`);
+}
+
+let contentMeasureFrame = null;
+function scheduleLinkContentMeasure() {
+  if (contentMeasureFrame !== null) return;
+  contentMeasureFrame = window.requestAnimationFrame(() => {
+    contentMeasureFrame = null;
+    refreshLinkContent();
+  });
+}
+
 function renderLinks() {
   linksCount.textContent = String(state.links.length);
 
@@ -2807,9 +2858,7 @@ function renderLinks() {
   }
 
   linksList.innerHTML = state.links
-    .map((link) => {
-      const safeSlug = escapeHtml(link.slug);
-      const safeTargetUrl = escapeHtml(link.target_url);
+    .map((link, index) => {
       const isPendingDelete = state.pendingDeletes.has(link.slug);
       const cardClass = isPendingDelete ? "card is-pending" : "card";
       const actionMarkup = isPendingDelete
@@ -2844,14 +2893,19 @@ function renderLinks() {
         <article class="${cardClass}">
           <div class="card-top">
             <div class="slug-info">
-              <p class="slug">/${safeSlug}</p>
-              <div class="slug-url">${safeTargetUrl}</div>
-              ${link.ab_enabled === 1 && link.ab_target_url ? `<div class="slug-url">Variante B: ${escapeHtml(link.ab_target_url)}</div>` : ""}
-              ${link.group_name ? `<span class="group-badge">Grupo: ${escapeHtml(link.group_name)}</span>` : ""}
+              ${linkContentMarkup(`/${link.slug}`, "slug", `link-content-${index}-slug`, true)}
+              ${linkContentMarkup(link.target_url, "URL de destino", `link-content-${index}-url`, false, link.target_url)}
+              ${link.ab_enabled === 1 && link.ab_target_url ? linkContentMarkup(`Variante B: ${link.ab_target_url}`, "URL da variante B", `link-content-${index}-variant`, false, link.ab_target_url) : ""}
             </div>
             <div class="card-actions">
               ${actionMarkup}
             </div>
+          </div>
+          <div class="link-states">
+            ${link.group_name ? `<span class="group-badge">Grupo: ${escapeHtml(link.group_name)}</span>` : ""}
+            ${link.has_qrcode ? '<span class="state-chip">QR Code baixado</span>' : ""}
+            ${link.has_password ? '<span class="state-chip">Senha definida</span>' : ""}
+            ${renderSmartBadge(link)}
           </div>
           <div class="metrics">
             <span class="metric">Cliques <strong>${link.clicks_total}</strong></span>
@@ -2859,17 +2913,15 @@ function renderLinks() {
             <span class="metric">Redirecionamento <strong>${link.redirect_type || "302"}</strong></span>
             ${link.expires_at ? `<span class="metric">Expira <strong>${formatDate(link.expires_at)}</strong></span>` : ""}
             ${link.go_live_at ? `<span class="metric">Ativa <strong>${formatDate(link.go_live_at)}</strong></span>` : ""}
-            ${link.has_qrcode ? '<span class="metric">QR Code <strong>Baixado</strong></span>' : ""}
-            ${link.has_password ? '<span class="metric">Senha <strong>Definida</strong></span>' : ""}
             ${renderAbMetrics(link)}
-            ${renderSmartBadge(link)}
-            ${parsedTags.length ? `<span class="metric">Tags <strong>${escapeHtml(parsedTags.join(", "))}</strong></span>` : ""}
             ${isPendingDelete ? `<span class="metric pending-note">Exclusão em <strong>${Math.ceil((state.pendingDeletes.get(link.slug)?.remaining || 0) / 1000)}s</strong></span>` : ""}
           </div>
+          ${parsedTags.length ? `<div class="link-tags">Tags: ${escapeHtml(parsedTags.join(", "))}</div>` : ""}
         </article>
       `;
     })
     .join("");
+  scheduleLinkContentMeasure();
 }
 
 async function loadLinks(searchTerm = searchTermInput.value, groupFilter = searchGroupIdInput.value) {
@@ -3496,6 +3548,23 @@ searchTermInput.addEventListener("input", () => {
 
 searchGroupIdInput.addEventListener("change", () => {
   loadLinks(searchTermInput.value, searchGroupIdInput.value);
+});
+
+window.addEventListener("resize", scheduleLinkContentMeasure);
+if (document.fonts) document.fonts.ready.then(scheduleLinkContentMeasure);
+linksList.addEventListener("click", async (event) => {
+  const button = event.target.closest("button.content-toggle, button.content-copy");
+  if (!button) return;
+  if (button.classList.contains("content-toggle")) {
+    toggleLinkContent(button);
+    return;
+  }
+  try {
+    await copyToClipboard(button.dataset.copyValue);
+    setStatus(listStatus, "Destino copiado integralmente.", "success");
+  } catch {
+    setStatus(listStatus, `Copie manualmente: ${button.dataset.copyValue}`);
+  }
 });
 
 linksList.addEventListener("click", async (event) => {

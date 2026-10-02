@@ -369,3 +369,161 @@ it("Gate 8.6: export downloads the exact API document with the safe name and rep
   expect(sandbox.setStatus).toHaveBeenLastCalledWith(exportStatus, "Exportação concluída: boltlink-export.json", "success");
   expect(sandbox.setBusy).toHaveBeenLastCalledWith(sandbox.exportButton, false);
 });
+
+/** The presentation code runs unchanged against measured element dimensions. */
+function contentSetup() {
+  const controls: any[] = [];
+  const texts = new Map<string, any>();
+  const listeners: Function[] = [];
+  const frames: Function[] = [];
+  const resize = new Map<string, Function>();
+  const shortCopy = { focus: vi.fn() };
+  const list: any = { innerHTML: "", querySelectorAll: () => controls, addEventListener: (_name: string, fn: Function) => listeners.push(fn) };
+  const doc: any = { activeElement: null, getElementById: (id: string) => texts.get(id) };
+  const sandbox: any = { document: doc, linksList: list, window: { addEventListener: (name: string, fn: Function) => resize.set(name, fn),
+    requestAnimationFrame: (fn: Function) => { frames.push(fn); return frames.length; } },
+    copyToClipboard: vi.fn(async () => {}), setStatus: vi.fn(), listStatus: {}, linksCount: {}, ICONS: { more: "" },
+    buildShortLink: (slug: string) => `https://links.example.com/${slug}`,
+    state: { links: [], pendingDeletes: new Map() }, cardActionMarkup: () => "", formatDate: () => "01/10/2026 09:00",
+    renderAbMetrics: () => "", renderSmartBadge: () => "" };
+  vm.createContext(sandbox);
+  const actual = readFileSync("public/admin.js", "utf8");
+  const functions = ["escapeHtml", "linkContentMarkup", "refreshLinkContent", "toggleLinkContent", "scheduleLinkContentMeasure", "renderLinks"]
+    .map((name) => actual.match(new RegExp(`function ${name}\\([\\s\\S]*?\\n\\}`))![0]).join("\n");
+  vm.runInContext("let contentMeasureFrame = null;\n" + functions, sandbox);
+  const source = readFileSync("public/admin.js", "utf8");
+  const start = source.indexOf('window.addEventListener("resize", scheduleLinkContentMeasure)');
+  const first = source.indexOf('linksList.addEventListener("click", async (event) => {', start);
+  const second = source.indexOf('linksList.addEventListener("click", async (event) => {', first + 1);
+  vm.runInContext(source.slice(start, source.indexOf("\nfunction escapeHtml", second)), sandbox);
+  function add(width: number, scrollWidth: number, height = 20, scrollHeight = height) {
+    const id = `content-${controls.length}`;
+    const classes = new Set<string>();
+    const text: any = { clientWidth: width, scrollWidth, clientHeight: height, scrollHeight, textContent: "full original content",
+      classList: { remove: (key: string) => classes.delete(key), contains: (key: string) => classes.has(key),
+        toggle: (key: string, force: boolean) => force ? classes.add(key) : classes.delete(key) } };
+    const attributes: Record<string, string> = { "aria-controls": id, "aria-expanded": "false" };
+    let hidden = true;
+    const button: any = { get hidden() { return hidden; }, set hidden(value: boolean) { hidden = value; if (value && doc.activeElement === button) doc.activeElement = null; },
+      textContent: "Ver mais", dataset: { contentLabel: "URL de destino" },
+      getAttribute: (key: string) => attributes[key], setAttribute: (key: string, value: string) => { attributes[key] = value; },
+      classList: { contains: (key: string) => key === "content-toggle" }, closest: () => ({ querySelector: () => shortCopy }) };
+    texts.set(id, text); controls.push(button);
+    return { text, button, attributes };
+  }
+  return { sandbox, doc, list, add, controls, texts, listeners, frames, resize, shortCopy };
+}
+
+describe("Phase 8 Gate 8.6.1: measured long content", () => {
+  it("does not infer truncation from character count: a short text can clip and a long text can fit", () => {
+    const ui = contentSetup(); const clipped = ui.add(30, 80); const fits = ui.add(800, 800);
+    clipped.text.textContent = "abc"; fits.text.textContent = "a".repeat(300);
+    ui.sandbox.refreshLinkContent();
+    expect(clipped.button.hidden).toBe(false); expect(fits.button.hidden).toBe(true);
+  });
+  it("hides Ver mais for a fully visible URL", () => {
+    const ui = contentSetup(); const row = ui.add(200, 160);
+    ui.sandbox.refreshLinkContent(); expect(row.button.hidden).toBe(true); expect(row.attributes["aria-expanded"]).toBe("false");
+  });
+  it("detects line-clamp overflow by height even when widths match", () => {
+    const ui = contentSetup(); const row = ui.add(200, 200, 40, 120);
+    ui.sandbox.refreshLinkContent(); expect(row.button.hidden).toBe(false);
+  });
+  it("ignores a one pixel measurement rounding difference", () => {
+    const ui = contentSetup(); const row = ui.add(200, 201, 40, 41);
+    ui.sandbox.refreshLinkContent(); expect(row.button.hidden).toBe(true);
+  });
+  it("expands and collapses with aria and the full original text intact", async () => {
+    const ui = contentSetup(); const row = ui.add(200, 200, 40, 120);
+    const original = row.text.textContent; ui.sandbox.refreshLinkContent();
+    const event = { target: { closest: () => row.button } };
+    await ui.listeners[0](event);
+    expect(row.text.classList.contains("is-expanded")).toBe(true);
+    expect(row.attributes["aria-expanded"]).toBe("true"); expect(row.button.textContent).toBe("Ver menos");
+    expect(row.attributes["aria-label"]).toBe("Ver menos: URL de destino");
+    await ui.listeners[0](event);
+    expect(row.text.classList.contains("is-expanded")).toBe(false);
+    expect(row.attributes["aria-expanded"]).toBe("false"); expect(row.button.textContent).toBe("Ver mais");
+    expect(row.text.textContent).toBe(original);
+  });
+  it("preserves an expanded state when a resized collapsed layout still clips", () => {
+    const ui = contentSetup(); const row = ui.add(200, 200, 40, 120);
+    ui.sandbox.toggleLinkContent(row.button); ui.sandbox.refreshLinkContent();
+    expect(row.attributes["aria-expanded"]).toBe("true"); expect(row.button.hidden).toBe(false);
+  });
+  it("removes an unnecessary expansion control when the new layout fits", () => {
+    const ui = contentSetup(); const row = ui.add(200, 200, 40, 120);
+    ui.sandbox.toggleLinkContent(row.button); row.text.scrollHeight = 40; ui.sandbox.refreshLinkContent();
+    expect(row.button.hidden).toBe(true); expect(row.attributes["aria-expanded"]).toBe("false");
+    row.text.scrollHeight = 120; ui.sandbox.refreshLinkContent();
+    expect(row.button.hidden).toBe(false); expect(row.text.classList.contains("is-expanded")).toBe(false);
+  });
+  it("moves focus to the original Copy action if resize hides the focused expansion control", () => {
+    const ui = contentSetup(); const row = ui.add(200, 160); ui.doc.activeElement = row.button;
+    ui.sandbox.refreshLinkContent(); expect(ui.shortCopy.focus).toHaveBeenCalledOnce();
+  });
+  it("coalesces resize notifications into one frame and measures content after render", () => {
+    const ui = contentSetup(); const row = ui.add(200, 250);
+    ui.resize.get("resize")!(); ui.resize.get("resize")!();
+    expect(ui.frames).toHaveLength(1); ui.frames.shift()!(); expect(row.button.hidden).toBe(false);
+    ui.resize.get("resize")!(); expect(ui.frames).toHaveLength(1);
+  });
+  it("copies the complete original destination while it is collapsed", async () => {
+    const ui = contentSetup(); const url = "https://example.com/" + "a".repeat(320) + "?utm_source=newsletter";
+    const button = { classList: { contains: () => false }, dataset: { copyValue: url } };
+    await ui.listeners[0]({ target: { closest: () => button } });
+    expect(ui.sandbox.copyToClipboard).toHaveBeenCalledWith(url);
+    expect(ui.sandbox.setStatus).toHaveBeenCalledWith(ui.sandbox.listStatus, "Destino copiado integralmente.", "success");
+  });
+  it("offers the full destination if clipboard access fails", async () => {
+    const ui = contentSetup(); const url = "https://example.com/?x=" + "a".repeat(300);
+    ui.sandbox.copyToClipboard.mockRejectedValue(new Error("clipboard denied"));
+    await ui.listeners[0]({ target: { closest: () => ({ classList: { contains: () => false }, dataset: { copyValue: url } }) } });
+    expect(ui.sandbox.setStatus).toHaveBeenCalledWith(ui.sandbox.listStatus, `Copie manualmente: ${url}`);
+  });
+  it("escapes URL, slug and copy attributes without shortening their original content", () => {
+    const ui = contentSetup(); const unsafe = 'https://example.com/?x="<img src=x onerror=alert(1)>&test=\'a\'';
+    const markup = ui.sandbox.linkContentMarkup(unsafe, "URL de destino", "safe-id", false, unsafe);
+    expect(markup).toContain("&lt;img"); expect(markup).toContain("&quot;"); expect(markup).not.toContain("<img");
+    expect(markup).toContain('aria-controls="safe-id"'); expect(markup).toContain('aria-expanded="false"');
+    expect(markup).not.toContain("aria-hidden"); expect(markup).not.toContain("title=");
+    expect(ui.sandbox.linkContentMarkup("/" + "a".repeat(64), "slug", "slug-id", true)).toContain("/" + "a".repeat(64));
+  });
+  it("uses native keyboard buttons and labels destination and Variant B copying explicitly", () => {
+    const ui = contentSetup(); const markup = ui.sandbox.linkContentMarkup("Variante B: https://example.com/b", "URL da variante B", "b", false, "https://example.com/b");
+    expect(markup).toContain('<button type="button" class="content-toggle"');
+    expect(markup).toContain('aria-label="Copiar destino: URL da variante B"');
+    expect(markup).toContain('data-copy-value="https://example.com/b"');
+  });
+  it("renders adversarial persisted values without mutating records or using truncated data in actions", () => {
+    const ui = contentSetup(); const original = { slug: "a".repeat(64), target_url: "https://example.com/" + "a".repeat(320), tags: JSON.stringify(["a".repeat(30)]), group_name: "a".repeat(120), ab_enabled: 1, ab_target_url: "https://example.com/b?x=" + "b".repeat(300), clicks_total: 12, redirect_type: "302" };
+    ui.sandbox.state.links = [original]; const saved = JSON.stringify(original);
+    ui.sandbox.renderLinks();
+    expect(ui.list.innerHTML).toContain(original.target_url); expect(ui.list.innerHTML).toContain(original.ab_target_url);
+    expect(ui.list.innerHTML).toContain('class="card"'); expect(ui.list.innerHTML).toContain('class="link-states"');
+    expect(ui.list.innerHTML).toContain(original.group_name); expect(ui.frames).toHaveLength(1);
+    expect(JSON.stringify(original)).toBe(saved);
+  });
+  it("copies the complete short link for a clamped 64-character slug through the original handler", async () => {
+    const ui = contentSetup(); const slug = "a".repeat(64); ui.sandbox.state.links = [{ slug }];
+    const button = { dataset: { slug, action: "copy" }, closest: () => null };
+    await ui.listeners[1]({ target: { closest: () => button } });
+    expect(ui.sandbox.copyToClipboard).toHaveBeenCalledWith(`https://links.example.com/${slug}`);
+  });
+  it("preserves the existing Copy action as the complete short link", () => {
+    const admin = readFileSync("public/admin.js", "utf8");
+    const start = admin.indexOf('if (action === "copy")');
+    const copy = admin.slice(start, admin.indexOf('if (action === "delete")', start));
+    expect(copy).toContain("buildShortLink(link.slug)"); expect(copy).toContain("copyToClipboard(shortLink)");
+    expect(copy).not.toContain("target_url");
+  });
+  it("uses compact surfaces, unclipped menus and one desktop/two mobile text lines", () => {
+    const css = readFileSync("public/admin.css", "utf8");
+    expect(css).toMatch(/\.card\s*\{[^}]*padding: 16px;[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--radius-sm\);/);
+    expect(css).toMatch(/\.cards\s*\{[^}]*gap: 12px;/);
+    expect(css).toMatch(/\.content-text:not\(\.is-expanded\)\s*\{[^}]*-webkit-line-clamp: 1;[^}]*overflow: hidden;/);
+    expect(css).toMatch(/@media \(max-width: 900px\)\s*\{\s*\.content-text:not\(\.is-expanded\) \{ -webkit-line-clamp: 2; \}/);
+    expect(css).toMatch(/\.card\s*\{[^}]*overflow: visible;/);
+    expect(css).toMatch(/\.metric:not\(\.state-chip\) \+ \.metric:not\(\.state-chip\)::before \{ content: "·"/);
+  });
+});
