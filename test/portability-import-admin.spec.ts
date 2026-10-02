@@ -890,7 +890,7 @@ describe("Phase 5, Gate 5.3: import drawer markup and wiring", () => {
 		const html = readPublic("admin.html");
 
 		expect(html).toMatch(/>Exportar configuração<\/button>/);
-		expect(html).toMatch(/<button type="button"[^>]*id="import-drawer-open"[^>]*aria-haspopup="dialog"[^>]*aria-expanded="false"[^>]*aria-controls="import-drawer"[^>]*>Importar configuração<\/button>/);
+		expect(html).toMatch(/<button type="button"[^>]*id="import-drawer-open"[^>]*aria-haspopup="dialog"[^>]*aria-expanded="false"[^>]*aria-controls="import-drawer"[^>]*>Importar \/ Exportar<\/button>/);
 		expect(html).not.toMatch(/>Exportar dados<\/button>/);
 	});
 
@@ -903,7 +903,7 @@ describe("Phase 5, Gate 5.3: import drawer markup and wiring", () => {
 		expect(drawer).toMatch(/aria-labelledby="import-drawer-title"/);
 		expect(drawer).toMatch(/aria-hidden="true"/);
 		expect(drawer).toMatch(/\binert\b/);
-		expect(drawer).toContain('<h2 id="import-drawer-title">Importar configuração</h2>');
+		expect(drawer).toContain('<h2 id="import-drawer-title">Importar / Exportar configuração</h2>');
 		expect(drawer).toContain("Importe links e grupos de uma exportação do BoltLink.");
 		expect(drawer).toMatch(/id="import-drawer-close"[^>]*aria-label="[^"]+"/);
 	});
@@ -1141,7 +1141,8 @@ describe("Phase 5, Gate 5.3: the two drawers coexist", () => {
 		expect(functionBody(admin, "onImportDrawerKeydown")).toContain("closeImportDrawer()");
 		expect(functionBody(admin, "onImportDrawerKeydown")).toContain("keepImportDrawerFocus(event)");
 
-		const trap = functionBody(admin, "keepImportDrawerFocus");
+		expect(functionBody(admin, "keepImportDrawerFocus")).toContain("keepDrawerFocus(event, importDrawer)");
+		const trap = functionBody(admin, "keepDrawerFocus");
 		expect(trap).toContain('event.key !== "Tab"');
 		expect(trap).toContain("event.preventDefault()");
 		expect(trap).toContain("first.focus()");
@@ -1172,10 +1173,10 @@ describe("Phase 5, Gate 5.3: the two drawers coexist", () => {
 	it("stacks the drawers the same way and reports the same accessibility contract", () => {
 		const css = readPublic("admin.css");
 
-		expect(css).toMatch(/\.import-drawer-backdrop\s*\{[^}]*position: fixed;/);
-		expect(css).toMatch(/\.import-drawer\s*\{[^}]*width: min\(520px, 100%\);/);
-		expect(css).toMatch(/\.import-drawer-body\s*\{[^}]*overflow-y: auto;/);
+		expect(css).toMatch(/\.trash-drawer-backdrop\s*\{[^}]*position: fixed;/);
+		expect(css).toMatch(/\.trash-drawer\s*\{[^}]*width: min\(30rem, 100%\);/);
+		expect(css).toMatch(/\.trash-drawer-body\s*\{[^}]*overflow-y: auto;/);
 		// The reduced-motion rule the group drawer needs applies to this drawer too.
-		expect(css).toMatch(/\.import-drawer,\s*\n\s*\.import-drawer-backdrop\s*\{/);
+		expect(css).toMatch(/\.group-drawer, \.import-drawer, \.trash-drawer,[\s\S]*?transition: none;/);
 	});
 });

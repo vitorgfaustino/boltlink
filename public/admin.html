@@ -34,6 +34,7 @@
         <div class="panel-header">
           <div class="panel-heading-copy">
             <h2 id="form-title">Criar link</h2>
+            <h2 class="create-mobile-heading"><button type="button" class="create-link-toggle" id="create-link-toggle" aria-expanded="false" aria-controls="link-form"><span id="create-link-label">Criar link</span><span class="create-chevron" aria-hidden="true"></span></button></h2>
           </div>
         </div>
         <form id="link-form">
@@ -289,22 +290,16 @@
 
       <article class="panel links-panel">
         <div class="panel-header">
-          <div class="panel-heading-copy">
+          <div class="links-heading">
             <h2>Links ativos</h2>
-            <p class="search-help">Busque por slug, URL de destino ou tags.</p>
-          </div>
-          <div class="counter-pill" aria-live="polite">
-            Links ativos exibidos: <strong id="links-count">0</strong>
+            <div class="counter-pill" aria-live="polite"><strong id="links-count">0</strong> ativos</div>
           </div>
           <div class="export-actions">
             <div class="panel-action-row">
-              <button type="button" class="secondary compact create-link-toggle" id="create-link-toggle" aria-expanded="true" aria-controls="link-form-panel">+ Criar link</button>
               <button type="button" class="secondary compact" id="group-drawer-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="group-drawer">Gerenciar grupos</button>
-              <button type="button" class="secondary compact" id="trash-open" aria-controls="trash-panel">Lixeira</button>
-              <button type="button" class="secondary compact" id="export-button">Exportar configuração</button>
-              <button type="button" class="secondary compact" id="import-drawer-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="import-drawer">Importar configuração</button>
+              <button type="button" class="secondary compact" id="trash-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="trash-drawer">Lixeira</button>
+              <button type="button" class="secondary compact" id="import-drawer-open" aria-haspopup="dialog" aria-expanded="false" aria-controls="import-drawer">Importar / Exportar</button>
             </div>
-            <div class="status" id="export-status" role="status" aria-live="polite" aria-atomic="true"></div>
           </div>
           <form id="search-form" class="search-form">
             <div class="search-main-row">
@@ -341,8 +336,27 @@
       </article>
     </section>
 
-    <details class="panel trash-panel" id="trash-panel">
-      <summary>Lixeira · <span id="trash-count">Links excluídos: —</span></summary>
+    <footer class="app-footer" aria-label="Informação da versão">
+      <span class="footer-copy">&copy; <span id="footer-year"></span> &bull; <span id="app-version">v?</span> &bull;
+        <a href="/privacidade" rel="noopener">Privacidade</a> &bull;
+        Criado por: <a href="https://github.com/vitorgfaustino/boltlink" target="_blank" rel="noopener">Vitor Faustino</a>
+      </span>
+      <span class="footer-timezone" id="footer-timezone">Fuso: America/Sao_Paulo</span>
+    </footer>
+  </main>
+
+  <!-- Secondary tools stay outside the main page flow. -->
+  <div class="trash-drawer-backdrop" id="trash-drawer-backdrop"></div>
+  <aside class="trash-drawer" id="trash-drawer" role="dialog" aria-modal="true" aria-labelledby="trash-drawer-title" aria-hidden="true" inert>
+    <header class="trash-drawer-header">
+      <div class="panel-heading-copy">
+        <h2 id="trash-drawer-title">Lixeira</h2>
+        <p class="trash-drawer-subtitle">Links excluídos permanecem recuperáveis enquanto estiverem na Lixeira.</p>
+      </div>
+      <button type="button" class="secondary compact trash-drawer-close" id="trash-drawer-close" aria-label="Fechar Lixeira">×</button>
+    </header>
+    <div class="trash-drawer-body" id="trash-panel">
+      <p id="trash-count">Links excluídos: —</p>
       <p>Links na Lixeira não redirecionam e seus slugs continuam reservados. Restaure para recuperar a configuração ou exclua definitivamente para liberar o slug.</p>
       <form id="trash-search-form" class="panel-action-row">
         <label for="trash-search">Buscar na Lixeira por slug, destino ou tags</label>
@@ -367,16 +381,8 @@
         <span id="trash-page">Página 1</span>
         <button type="button" class="secondary compact" id="trash-next" disabled>Próxima</button>
       </nav>
-    </details>
-
-    <footer class="app-footer" aria-label="Informação da versão">
-      <span class="footer-copy">&copy; <span id="footer-year"></span> &bull; <span id="app-version">v?</span> &bull;
-        <a href="/privacidade" rel="noopener">Privacidade</a> &bull;
-        Criado por: <a href="https://github.com/vitorgfaustino/boltlink" target="_blank" rel="noopener">Vitor Faustino</a>
-      </span>
-      <span class="footer-timezone" id="footer-timezone">Fuso: America/Sao_Paulo</span>
-    </footer>
-  </main>
+    </div>
+  </aside>
 
   <!-- Group management lives in an on-demand off-canvas drawer, outside <main>: the
        editor stays reachable from the top of the interface however long the links
@@ -456,10 +462,7 @@
     </div>
   </aside>
 
-  <!-- Configuration import lives in its own off-canvas drawer, next to the group one and
-       under the same rules: modal, focus trapped, and never open at the same time as the
-       other drawer. The two are separate surfaces on purpose — importing is a one-shot
-       operation with its own review step, not another view of the group tree. -->
+  <!-- Portability shares one drawer; export status stays with its action. -->
   <div class="import-drawer-backdrop" id="import-drawer-backdrop"></div>
   <aside
     class="import-drawer"
@@ -472,10 +475,10 @@
   >
     <header class="import-drawer-header">
       <div class="panel-heading-copy">
-        <h2 id="import-drawer-title">Importar configuração</h2>
+        <h2 id="import-drawer-title">Importar / Exportar configuração</h2>
         <p class="import-drawer-subtitle">Importe links e grupos de uma exportação do BoltLink.</p>
       </div>
-      <button type="button" class="secondary compact import-drawer-close" id="import-drawer-close" aria-label="Fechar painel de importação">
+      <button type="button" class="secondary compact import-drawer-close" id="import-drawer-close" aria-label="Fechar painel de configuração">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
           <path d="m6 6 12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
@@ -484,8 +487,14 @@
     </header>
 
     <div class="import-drawer-body">
-      <section class="import-step">
-        <h3 class="import-step-title">Arquivo</h3>
+      <section class="import-step" aria-labelledby="export-section-title">
+        <h3 class="import-step-title" id="export-section-title">Exportar configuração</h3>
+        <p>Baixe a configuração ativa desta instalação para um arquivo portátil.</p>
+        <button type="button" class="secondary compact" id="export-button">Exportar configuração</button>
+        <div class="status" id="export-status" role="status" aria-live="polite" aria-atomic="true"></div>
+      </section>
+      <section class="import-step" aria-labelledby="import-section-title">
+        <h3 class="import-step-title" id="import-section-title">Importar configuração</h3>
         <label for="import-file">Selecionar arquivo</label>
         <input id="import-file" type="file" accept="application/json,.json" />
         <p class="field-help">Use um arquivo gerado por "Exportar configuração". Limite: 256 KiB.</p>

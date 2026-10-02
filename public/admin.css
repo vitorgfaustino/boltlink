@@ -188,21 +188,13 @@ p {
 }
 
 .panel {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 28px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    var(--shadow);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  transition: border-color var(--motion-medium), background-color var(--motion-medium), box-shadow var(--motion-medium);
+  min-width: 0;
+  padding: 0;
 }
 
-.panel:focus-within {
-  border-color: rgba(0, 161, 245, 0.2);
-  background: rgba(255, 255, 255, 0.045);
+.link-form-panel {
+  padding-right: 28px;
+  border-right: 1px solid var(--line);
 }
 
 .panel-header {
@@ -509,7 +501,7 @@ input, select, textarea {
 }
 
 input::placeholder {
-  color: #71717a;
+  color: var(--muted);
 }
 
 input:focus, select:focus, textarea:focus {
@@ -524,16 +516,15 @@ textarea {
 }
 
 details:not(.more-actions-dropdown) {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.01);
-  transition: background-color var(--motion-medium), border-color var(--motion-medium);
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 14px 0;
 }
 
 details:not(.more-actions-dropdown)[open] {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(0, 161, 245, 0.2);
+  background: transparent;
 }
 
 details:not(.more-actions-dropdown) summary {
@@ -763,6 +754,8 @@ button.icon-btn {
   align-items: center;
 }
 
+.search-filter-row > .field-help { grid-column: 1 / -1; }
+
 .search-filter-row label {
   font-size: 0.78rem;
   color: var(--muted);
@@ -866,21 +859,20 @@ button.icon-btn {
 
 .cards {
   display: grid;
-  gap: 16px;
+  gap: 0;
 }
 
 .card {
   position: relative;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  animation: card-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  transition: border-color var(--motion-medium), transform var(--motion-medium), box-shadow var(--motion-medium), background-color var(--motion-medium), opacity var(--motion-medium);
+  gap: 12px;
+  padding: 20px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
   overflow: visible;
 }
 
@@ -888,10 +880,6 @@ button.icon-btn {
 .card:focus-within,
 .card:hover {
   z-index: 20;
-  transform: translateY(-2px);
-  border-color: var(--line-hover);
-  background: var(--surface-hover);
-  box-shadow: var(--shadow-glow);
 }
 
 .card.is-pending {
@@ -913,6 +901,7 @@ button.icon-btn {
 }
 
 .slug {
+  overflow-wrap: anywhere;
   margin: 0;
   font-size: 1.06rem;
   font-weight: 700;
@@ -928,6 +917,8 @@ button.icon-btn {
 }
 
 .group-badge {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   display: inline-flex;
   width: fit-content;
   margin-top: 4px;
@@ -1157,13 +1148,6 @@ button.icon-btn {
     scroll-behavior: auto;
   }
 
-  /* The drawer reveals through a delayed `visibility`, which the shared duration reset
-     below does not cover. */
-  .group-drawer,
-  .group-drawer-backdrop {
-    transition-delay: 0s !important;
-  }
-
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
@@ -1222,9 +1206,13 @@ button.icon-btn {
     gap: 24px;
   }
 
-  .panel {
-    padding: 24px;
-  }
+  .panel { padding: 0; }
+  .link-form-panel { padding-right: 0; border-right: 0; border-bottom: 1px solid var(--line); }
+  .link-form-panel .panel-header { margin-bottom: 0; }
+  .link-form-panel #form-title { display: none; }
+  .link-form-panel #link-form { padding: 0 0 24px; }
+  .link-form-panel:has(.create-link-toggle[aria-expanded="false"]) #link-form { display: none; }
+
 
   .hero {
     padding-bottom: 24px;
@@ -1232,14 +1220,17 @@ button.icon-btn {
 }
 
 @media (max-width: 640px) {
+  /* Anchor help to the field label so hidden tips cannot widen a narrow page. */
+  .field-label { position: relative; }
+  .help-tip { position: static; }
+  .help-tip-text { left: 0; transform: none; width: min(250px, calc(100vw - 48px)); }
+  .help-tip-text::before { display: none; }
+
   main {
     padding: 16px;
   }
 
-  .panel {
-    padding: 20px;
-    border-radius: var(--radius);
-  }
+  .panel { padding: 0; border-radius: 0; }
 
   .layout {
     grid-template-columns: 1fr;
@@ -1369,85 +1360,6 @@ button.icon-btn {
   }
 }
 
-/* Configuration import drawer (published in 3.0.0; origin Phase 5, Gate 5.3).
-
-   The same off-canvas surface as the group drawer, kept as its own block rather than
-   folded into the group rules: the group drawer is a frozen, reviewed layout, and the
-   only thing the two share is the vocabulary of the drawer itself. Opening one closes
-   the other, so the two are never visible at the same time. */
-
-.import-drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  background: rgba(3, 4, 6, 0.62);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--motion-medium), visibility 0s linear var(--motion-medium);
-}
-
-.import-drawer-backdrop.is-open {
-  opacity: 1;
-  visibility: visible;
-  transition: opacity var(--motion-medium), visibility 0s;
-}
-
-.import-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 60;
-  /* Full width below the desktop size, and slightly wider than the group drawer above
-     it: a review with counts, blockers and password fields needs the room. */
-  width: min(520px, 100%);
-  padding: 24px;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 16px;
-  background: #0b0d10;
-  border-left: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  overflow: hidden;
-  transform: translateX(100%);
-  visibility: hidden;
-  transition: transform var(--motion-medium), visibility 0s linear var(--motion-medium);
-}
-
-.import-drawer.is-open {
-  transform: translateX(0);
-  visibility: visible;
-  transition: transform var(--motion-medium), visibility 0s;
-}
-
-.import-drawer-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.import-drawer-subtitle {
-  color: var(--muted);
-  font-size: 0.88rem;
-  line-height: 1.5;
-}
-
-.import-drawer-close {
-  min-width: 40px;
-  min-height: 40px;
-  padding: 0 10px;
-  flex-shrink: 0;
-}
-
-/* Only the body scrolls, so the title and the close control stay where they were. */
-.import-drawer-body {
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: 4px;
-}
-
 .import-step {
   display: grid;
   gap: 8px;
@@ -1565,92 +1477,98 @@ button.icon-btn {
   display: none !important;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  /* The drawer reveals through a delayed `visibility`, which the shared duration reset
-     in the global block does not cover. */
-  .import-drawer,
-  .import-drawer-backdrop {
-    transition-delay: 0s !important;
-  }
-}
-
-/* Group hierarchy panel (published in 3.0.0; origin Phase 5, Gate 5.1).
-
-   Group management is an on-demand off-canvas drawer rather than a card in the page:
-   it sits outside `main`, so the editor is reachable from the top of the interface no
-   matter how long the links list is, and it leaves the document flow entirely instead of
-   contending with the cards above it. */
-
-.group-drawer-backdrop {
+/* Unified offcanvas shell: overlay → drawer → fixed header and scrolling body. */
+.group-drawer-backdrop,
+.import-drawer-backdrop,
+.trash-drawer-backdrop {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(3, 4, 6, 0.62);
+  background: rgba(3, 4, 6, 0.72);
   opacity: 0;
   visibility: hidden;
   transition: opacity var(--motion-medium), visibility 0s linear var(--motion-medium);
 }
 
-.group-drawer-backdrop.is-open {
+.group-drawer-backdrop.is-open,
+.import-drawer-backdrop.is-open,
+.trash-drawer-backdrop.is-open {
   opacity: 1;
   visibility: visible;
   transition: opacity var(--motion-medium), visibility 0s;
 }
 
-.group-drawer {
+.group-drawer,
+.import-drawer,
+.trash-drawer {
   position: fixed;
   top: 0;
   right: 0;
   bottom: 0;
   z-index: 60;
-  /* Full width below the desktop size, so the mobile drawer needs no edge-to-edge math. */
-  width: min(460px, 100%);
-  padding: 24px;
+  width: min(30rem, 100%);
+  padding: clamp(16px, 4vw, 24px);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  /* One rhythm for the whole drawer: header → tabs, and then each block inside the body. */
-  gap: 16px;
+  gap: 20px;
   background: #0b0d10;
   border-left: 1px solid var(--line);
-  box-shadow: var(--shadow);
   overflow: hidden;
   transform: translateX(100%);
   visibility: hidden;
   transition: transform var(--motion-medium), visibility 0s linear var(--motion-medium);
 }
 
-.group-drawer.is-open {
+.group-drawer.is-open,
+.import-drawer.is-open,
+.trash-drawer.is-open {
   transform: translateX(0);
   visibility: visible;
   transition: transform var(--motion-medium), visibility 0s;
 }
 
-.group-drawer-header {
+.group-drawer-header,
+.import-drawer-header,
+.trash-drawer-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
 }
 
-.group-drawer-subtitle {
+.group-drawer-subtitle,
+.import-drawer-subtitle,
+.trash-drawer-subtitle {
   color: var(--muted);
   font-size: 0.88rem;
   line-height: 1.5;
+  margin-top: 8px;
 }
 
-.group-drawer-close {
-  min-width: 40px;
-  min-height: 40px;
+.group-drawer-close,
+.import-drawer-close,
+.trash-drawer-close {
+  min-width: 44px;
+  min-height: 44px;
   padding: 0 10px;
   flex-shrink: 0;
 }
 
-/* The drawer header never scrolls away: only the body does. */
-.group-drawer-body {
+.group-drawer-body,
+.import-drawer-body,
+.trash-drawer-body {
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .group-drawer, .import-drawer, .trash-drawer,
+  .group-drawer-backdrop, .import-drawer-backdrop, .trash-drawer-backdrop {
+    transition: none;
+  }
 }
 
 /* Actions next to the links counter (create, group management, export). */
@@ -1662,14 +1580,39 @@ button.icon-btn {
 
 /* The create-link collapse is a narrow-viewport affordance: on desktop the form is always
    open and there is nothing to toggle, so the control is not rendered there. */
+.create-mobile-heading { display: none; }
 .create-link-toggle {
   display: none;
 }
 
 @media (max-width: 900px) {
+  .create-mobile-heading { display: block; }
   .create-link-toggle {
     display: inline-flex;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 64px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text);
+    font-size: 1.125rem;
+    text-align: left;
+    white-space: normal;
   }
+  #create-link-label { min-width: 0; overflow-wrap: anywhere; }
+  .create-chevron {
+    width: 8px; height: 8px; flex-shrink: 0;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg);
+    margin-right: 4px;
+    transition: transform var(--motion-fast);
+  }
+  .create-link-toggle[aria-expanded="true"] .create-chevron { transform: rotate(-135deg); }
+
 }
 
 /* The tablist closes the header and opens the content: its margin is what separates the
@@ -1819,8 +1762,7 @@ button.icon-btn {
   gap: 10px;
 }
 
-/* Export action: the button sits next to the links counter and its status line is
-   scoped to the action, so an export refusal never overwrites the list status. */
+/* Three secondary tools share one coherent toolbar. */
 .export-actions {
   display: grid;
   gap: 4px;
@@ -2125,10 +2067,6 @@ button.icon-btn {
 }
 
 /* Trash uses the existing controls, with rows that wrap long persisted destinations. */
-.trash-panel { margin-top: 24px; }
-.trash-panel > summary { cursor: pointer; font-weight: 700; justify-content: flex-start; gap: 8px; }
-.trash-panel > summary::after { margin-left: auto; }
-.trash-panel[open] > summary { margin-bottom: 16px; }
 .trash-panel p { max-width: 75ch; }
 .trash-panel [hidden] { display: none; }
 .trash-item { padding: 16px 0; border-bottom: 1px solid var(--line); }
@@ -2140,3 +2078,26 @@ button.icon-btn {
 #trash-search { flex: 1; min-width: 0; }
 #trash-purge-preview { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; }
 #trash-list { margin-bottom: 16px; }
+
+/* Primary page rhythm; spacing and dividers replace nested panel borders. */
+.links-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.panel-action-row { align-items: center; }
+.export-actions > .panel-action-row { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.export-actions button { width: 100%; padding: 8px; }
+.counter-pill { justify-self: start; border: 0; background: transparent; padding: 0; }
+.status:empty { min-height: 0; margin: 0; }
+input, select, textarea { min-width: 0; max-width: 100%; }
+.panel-heading-copy { min-width: 0; }
+#form-title { overflow-wrap: anywhere; }
+.card-title, .card-url, .card-meta, .pill, .status { overflow-wrap: anywhere; }
+.metric { background: transparent; border: 0; border-radius: 0; padding: 0; }
+.metrics { border-top: 0; padding-top: 0; gap: 8px 16px; }
+#trash-search-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+#trash-search-form label { grid-column: 1 / -1; }
+#trash-purge-preview { border-radius: 0; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 16px 0; }
+@media (max-width: 480px) {
+  .export-actions > .panel-action-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #import-drawer-open { grid-column: 1 / -1; }
+  .export-actions button { min-height: 44px; }
+  .hero { gap: 20px; }
+}

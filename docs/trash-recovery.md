@@ -2,11 +2,21 @@
 
 A versão **3.1.0 está em desenvolvimento local e não foi publicada**. A última release publicada continua **v3.0.0**, congelada. Estas instruções descrevem o novo código; não atualizam nenhuma instalação por si mesmas.
 
+## Navegação do Admin — Gate 8.6
+
+A página principal concentra cabeçalho, Criar link e Links ativos. As ferramentas **Gerenciar grupos**, **Lixeira** e **Importar / Exportar** ficam em offcanvas, com overlay, botão fechar, ESC, focus trap, retorno ao botão de abertura e bloqueio de interação/scroll no fundo. Apenas uma superfície modal pode ficar aberta por vez. No desktop, a largura é limitada a 30rem; em telas menores, usa toda a largura disponível.
+
+**Importar / Exportar** abre um drawer único: exportação primeiro, com status junto ao botão, e importação abaixo, com seleção, preview, avisos, blockers, senhas e apply existentes. O export continua contendo somente configuração ativa; a Lixeira permanece fora do documento.
+
+Até 900px, **Criar link** é uma seção expansível no fluxo da página. Começa recolhida em cada abertura/reload, sem persistência de abertura; salvar ou cancelar recolhe novamente. Editar revela o formulário. Acima desse breakpoint, o formulário permanece visível em uma coluna ao lado de Links ativos. Gerador de UTMs, Opções avançadas, Teste A/B e Smart Routing continuam disponíveis conforme as capabilities da instalação.
+
+Seções do formulário e itens de links usam espaçamento e divisores, reduzindo cards e bordas aninhadas. O tema escuro, azul e identidade BoltLink permanecem. A mudança é de apresentação e navegação: nenhuma API, regra de retenção, formato de portabilidade, schema ou migration nova.
+
 ## Ciclo do link
 
 `DELETE /api/links/:slug` move o link para a Lixeira usando `links.disabled_at`. A lista ativa continua filtrando `disabled_at IS NULL`; o redirect público continua respondendo `404` para itens na Lixeira. A configuração, os hashes de senha, as métricas, o QR, o grupo e o lifecycle ficam armazenados. Enquanto a linha existir, o slug está reservado. Tentar criá-lo novamente responde `409` com `SLUG_IN_TRASH` e orientação para restaurar ou excluir definitivamente.
 
-No Admin, abra **Lixeira**. O contador mostra o total de links excluídos; a busca aceita slug, destino ou tags. A lista tem páginas de até 100 itens, com Anterior/Próxima. Cada item mostra slug, destino, exclusão em UTC e grupo quando disponível.
+No Admin, abra **Lixeira** na área de ações de Links ativos. O conteúdo abre somente em um offcanvas lateral, com scroll interno; não aparece abaixo da lista ativa. O contador mostra o total de links excluídos; a busca aceita slug, destino ou tags. A lista tem páginas de até 100 itens, com Anterior/Próxima. Cada item mostra slug, destino, exclusão em UTC e grupo quando disponível.
 
 **Restaurar** revalida a configuração persistida segundo as regras atuais de URL, slug, tags, lifecycle, A/B, Smart Routing e grupos. Estado inválido responde `409`, sem reparar nem reativar o registro. Links protegidos exigem o `PASSWORD_SESSION_SECRET` já usado pelo produto. A gravação confere identidade, versão, configuração e grafo de grupos observado; se algo mudar durante a operação, responde `409` para recarregar e tentar de novo. Restauração limpa `disabled_at`, renova `updated_at` e incrementa `version`; não reseta dados. Um link expirado permanece expirado depois de restaurado e segue seu lifecycle normal.
 

@@ -74,6 +74,12 @@ components:
 
 # Design System: BoltLink
 
+## Admin — 3.1.0 development (Gate 8.6)
+
+No Admin em desenvolvimento, esta seção prevalece sobre os exemplos visuais da base 3.0.0 abaixo. Tema, branding, fontes e acento são preservados; superfícies principais ficam planas, sem borda externa, blur ou sombra. Links são linhas com divisor e padding vertical de 20px; métricas usam texto, mantendo badges que comunicam estado. Accordions usam divisor superior, sem card interno.
+
+Até 900px, Criar link aparece como heading com botão expansível, inicialmente recolhido e sem estado persistido. Desktop mantém duas colunas. Grupos, Lixeira e Importar / Exportar compartilham um offcanvas de até 30rem, largura total no mobile, overlay, ESC, trap de foco, fundo inert e scroll interno. Importar / Exportar contém duas seções verticais, com status de export junto à ação. Placeholders usam `--muted` para legibilidade.
+
 ## 1. Overview
 
 **Creative North Star: "O Farol Discreto"**

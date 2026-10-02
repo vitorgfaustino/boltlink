@@ -461,7 +461,7 @@ function cssRules(source: string) {
 }
 
 function rulesMatching(css: string, selectorPattern: RegExp) {
-	return cssRules(css).filter((rule) => selectorPattern.test(rule.selector));
+	return cssRules(css).filter((rule) => rule.selector.split(",").some((selector) => selectorPattern.test(selector.trim())));
 }
 
 describe("Phase 5: groups drawer layout", () => {
@@ -497,7 +497,7 @@ describe("Phase 5: groups drawer layout", () => {
 
 		const linksPanel = html.slice(html.indexOf('<article class="panel links-panel">'), html.indexOf("</main>"));
 		expect(linksPanel).toContain('id="group-drawer-open"');
-		expect(linksPanel).toContain('id="export-button"');
+		expect(linksPanel).toContain('id="import-drawer-open"');
 		// Above the cards, so it does not depend on how many links are loaded.
 		expect(linksPanel.slice(0, linksPanel.indexOf('<div class="cards"'))).toContain('id="group-drawer-open"');
 	});
@@ -505,7 +505,7 @@ describe("Phase 5: groups drawer layout", () => {
 	it("starts closed, off-screen and unreachable", () => {
 		const html = readPublic("admin.html");
 		const css = readPublic("admin.css");
-		const asideStart = html.indexOf("<aside");
+		const asideStart = html.indexOf('<aside\n    class="group-drawer"');
 		const openTag = html.slice(asideStart, html.indexOf(">", asideStart) + 1);
 
 		expect(openTag).toContain('role="dialog"');
@@ -536,7 +536,7 @@ describe("Phase 5: groups drawer layout", () => {
 		const drawer = rulesMatching(css, /^\.group-drawer\s*$/)[0];
 
 		// Desktop width cap, full width on a narrower viewport.
-		expect(drawer.body).toMatch(/width:\s*min\(460px,\s*100%\)/);
+		expect(drawer.body).toMatch(/width:\s*min\(30rem,\s*100%\)/);
 		// Anchored to the right edge, never reserving application width.
 		expect(drawer.body).toMatch(/right:\s*0/);
 		expect(drawer.body).toMatch(/transition:\s*transform/);
@@ -604,13 +604,14 @@ describe("Phase 5: groups drawer layout", () => {
 		expect(functionBody(admin, "openGroupDrawer")).toContain('document.addEventListener("keydown", onGroupDrawerKeydown)');
 		expect(functionBody(admin, "closeGroupDrawer")).toContain('document.removeEventListener("keydown", onGroupDrawerKeydown)');
 
-		const trap = functionBody(admin, "keepGroupDrawerFocus");
+		expect(functionBody(admin, "keepGroupDrawerFocus")).toContain("keepDrawerFocus(event, groupDrawer)");
+		const trap = functionBody(admin, "keepDrawerFocus");
 		expect(trap).toContain('event.key !== "Tab"');
-		expect(trap).toContain("!groupDrawer.contains(active)");
+		expect(trap).toContain("!drawer.contains(active)");
 		expect(trap).toContain("first.focus()");
 		expect(trap).toContain("last.focus()");
 		// Hidden controls are skipped instead of being focusable off-screen.
-		expect(functionBody(admin, "groupDrawerFocusables")).toContain("!element.hidden");
+		expect(functionBody(admin, "drawerFocusables")).toContain("!element.hidden");
 	});
 
 	it("labels the drawer, its trigger and its close control", () => {
@@ -893,7 +894,7 @@ describe("Phase 5: narrow viewport links-first", () => {
 		expect(admin).toContain('const createFormMedia = window.matchMedia("(max-width: 900px)")');
 		const collapse = functionBody(admin, "setCreateFormCollapsed");
 		expect(collapse).toContain("state.createFormCollapsed = collapsed");
-		expect(collapse).toContain("linkFormPanel.hidden = collapsed");
+		expect(collapse).toContain("linkForm.hidden = collapsed");
 		expect(collapse).toContain('createLinkToggleButton.setAttribute("aria-expanded", String(!collapsed))');
 
 		// One source of truth: the initial state and a rotation both follow the query.
@@ -912,17 +913,18 @@ describe("Phase 5: narrow viewport links-first", () => {
 		expect(css).toMatch(/@media \(max-width: 900px\)/);
 	});
 
-	it("puts the create action where the list starts", () => {
+	it("keeps creation in its section and secondary tools before search", () => {
 		const html = readPublic("admin.html");
-		const linksPanel = html.slice(html.indexOf('<article class="panel links-panel">'), html.indexOf("</main>"));
-		const actions = linksPanel.slice(0, linksPanel.indexOf('<div class="cards"'));
-
-		expect(actions).toContain('id="create-link-toggle"');
-		expect(actions).toContain('id="group-drawer-open"');
-		expect(actions).toContain('id="export-button"');
-		// The three actions precede search and filter, so nothing has to be crossed first.
-		expect(actions.indexOf('id="create-link-toggle"')).toBeLessThan(actions.indexOf('id="search-form"'));
-		expect(actions.indexOf('id="group-drawer-open"')).toBeLessThan(actions.indexOf('id="search-form"'));
+		const formPanel = html.slice(html.indexOf('id="link-form-panel"'), html.indexOf('<article class="panel links-panel">'));
+		expect(formPanel).toContain('id="create-link-toggle"');
+		expect(formPanel).toContain('aria-controls="link-form"');
+		const linksPanel = html.slice(html.indexOf('<article class="panel links-panel">'), html.indexOf('</main>'));
+		expect(linksPanel).not.toContain('id="create-link-toggle"');
+		expect(linksPanel).not.toContain('id="export-button"');
+		for (const id of ["group-drawer-open", "trash-open", "import-drawer-open"]) {
+			expect(linksPanel.indexOf(`id="${id}"`)).toBeGreaterThan(-1);
+			expect(linksPanel.indexOf(`id="${id}"`)).toBeLessThan(linksPanel.indexOf('id="search-form"'));
+		}
 	});
 
 	it("folds the form back after saving or cancelling", () => {

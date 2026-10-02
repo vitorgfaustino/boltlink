@@ -44,6 +44,7 @@ const state = {
   // Import drawer. `importDocument` is the exact parsed document the current preview
   // describes, so the apply can never send a file the operator did not review: choosing
   // another file clears it, and the passwords live only in the fields.
+  trashDrawerOpen: false,
   importDrawerOpen: false,
   importApplying: false,
   importDocument: null,
@@ -220,6 +221,11 @@ const groupDrawerCloseButton = document.getElementById("group-drawer-close");
 const groupDrawerBackdrop = document.getElementById("group-drawer-backdrop");
 const linkFormPanel = document.getElementById("link-form-panel");
 const createLinkToggleButton = document.getElementById("create-link-toggle");
+const createLinkLabel = document.getElementById("create-link-label");
+const trashDrawer = document.getElementById("trash-drawer");
+const trashDrawerOpenButton = document.getElementById("trash-open");
+const trashDrawerCloseButton = document.getElementById("trash-drawer-close");
+const trashDrawerBackdrop = document.getElementById("trash-drawer-backdrop");
 const formTitle = document.getElementById("form-title");
 const formStatus = document.getElementById("form-status");
 const listStatus = document.getElementById("list-status");
@@ -989,7 +995,8 @@ function lockBodyScroll() {
     return;
   }
   const scrollbar = window.innerWidth - document.documentElement.clientWidth;
-  bodyScrollLock = { overflow: document.body.style.overflow, paddingRight: document.body.style.paddingRight };
+  bodyScrollLock = { overflow: document.body.style.overflow, paddingRight: document.body.style.paddingRight, mainInert: document.querySelector("main").inert };
+  document.querySelector("main").inert = true;
   document.body.style.overflow = "hidden";
   if (scrollbar > 0) {
     document.body.style.paddingRight = `${scrollbar}px`;
@@ -1002,47 +1009,46 @@ function unlockBodyScroll() {
   }
   document.body.style.overflow = bodyScrollLock.overflow;
   document.body.style.paddingRight = bodyScrollLock.paddingRight;
+  document.querySelector("main").inert = bodyScrollLock.mainInert;
   bodyScrollLock = null;
 }
 
-/** Controls the drawer owns, in document order. A hidden or inert one is skipped. */
-function groupDrawerFocusables() {
-  const selector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]';
-  return Array.from(groupDrawer.querySelectorAll(selector)).filter((element) => {
+/** Shared modal focus policy, including controls inside hidden ancestor sections. */
+function drawerFocusables(drawer) {
+  const selector = 'summary, button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"]';
+  return Array.from(drawer.querySelectorAll(selector)).filter((element) => {
+    // Closed native details can still report layout boxes for positioned menus.
+    for (let ancestor = element.parentElement; ancestor && ancestor !== drawer; ancestor = ancestor.parentElement) {
+      if (ancestor.tagName === "DETAILS" && !ancestor.open && element !== ancestor.querySelector(":scope > summary")) return false;
+    }
     const style = getComputedStyle(element);
-    return !element.hidden && style.display !== "none" && style.visibility !== "hidden";
+    return !element.hidden && !element.disabled && !element.closest("[hidden], [inert]") && element.tabIndex >= 0
+      && element.getClientRects().length > 0 && style.display !== "none" && style.visibility !== "hidden";
   });
 }
 
-/**
- * The drawer is modal, so Tab stays inside it while it is open. Wrapping at both ends is
- * enough: every control in it is a plain tab stop, with no shadow root to cross.
- */
-function keepGroupDrawerFocus(event) {
-  if (event.key !== "Tab") {
-    return;
-  }
-  const focusables = groupDrawerFocusables();
-  if (!focusables.length) {
-    return;
-  }
+function keepDrawerFocus(event, drawer) {
+  if (event.key !== "Tab") return;
+  const focusables = drawerFocusables(drawer);
+  if (!focusables.length) return;
   const first = focusables[0];
   const last = focusables[focusables.length - 1];
   const active = document.activeElement;
-  if (!groupDrawer.contains(active)) {
+  if (!drawer.contains(active) || (!event.shiftKey && active === last)) {
     event.preventDefault();
     first.focus();
-    return;
-  }
-  if (event.shiftKey && active === first) {
+  } else if (event.shiftKey && active === first) {
     event.preventDefault();
     last.focus();
-    return;
   }
-  if (!event.shiftKey && active === last) {
-    event.preventDefault();
-    first.focus();
-  }
+}
+
+function groupDrawerFocusables() {
+  return drawerFocusables(groupDrawer);
+}
+
+function keepGroupDrawerFocus(event) {
+  keepDrawerFocus(event, groupDrawer);
 }
 
 function onGroupDrawerKeydown(event) {
@@ -1058,9 +1064,10 @@ function openGroupDrawer() {
   if (state.groupDrawerOpen) {
     return;
   }
-  state.groupDrawerOpen = true;
-  // The import drawer is modal too, and the two are never open together.
   closeImportDrawer();
+  closeTrashDrawer();
+  closeQrDialog();
+  state.groupDrawerOpen = true;
   // Every session starts from the same place: the tree, with no outcome left over from the
   // previous one greeting the operator as if it had just happened.
   selectGroupTab("tree");
@@ -1360,6 +1367,9 @@ function onQrDialogKeydown(event) {
 }
 
 async function openQrDialog(link) {
+  closeGroupDrawer();
+  closeImportDrawer();
+  closeTrashDrawer();
   const slug = link.slug;
   // The `…` menu that hosts the action would otherwise stay open behind the modal.
   document.querySelectorAll("details.more-actions-dropdown[open]").forEach((dropdown) => {
@@ -2153,40 +2163,12 @@ function renderImportSuccess(payload) {
     });
 }
 
-/** Controls the drawer owns, in document order. A hidden or disabled one is skipped. */
 function importDrawerFocusables() {
-  const selector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]';
-  return Array.from(importDrawer.querySelectorAll(selector)).filter((element) => {
-    const style = getComputedStyle(element);
-    return !element.hidden && style.display !== "none" && style.visibility !== "hidden";
-  });
+  return drawerFocusables(importDrawer);
 }
 
 function keepImportDrawerFocus(event) {
-  if (event.key !== "Tab") {
-    return;
-  }
-  const focusables = importDrawerFocusables();
-  if (!focusables.length) {
-    return;
-  }
-  const first = focusables[0];
-  const last = focusables[focusables.length - 1];
-  const active = document.activeElement;
-  if (!importDrawer.contains(active)) {
-    event.preventDefault();
-    first.focus();
-    return;
-  }
-  if (event.shiftKey && active === first) {
-    event.preventDefault();
-    last.focus();
-    return;
-  }
-  if (!event.shiftKey && active === last) {
-    event.preventDefault();
-    first.focus();
-  }
+  keepDrawerFocus(event, importDrawer);
 }
 
 function onImportDrawerKeydown(event) {
@@ -2208,9 +2190,12 @@ function openImportDrawer() {
     return;
   }
   closeGroupDrawer();
+  closeTrashDrawer();
+  closeQrDialog();
   state.importDrawerOpen = true;
   // A fresh session never inherits the previous one's file, summary or passwords.
   resetImportDrawer();
+  setStatus(exportStatus, "");
   lockBodyScroll();
   importDrawerOpenButton.setAttribute("aria-expanded", "true");
   importDrawer.removeAttribute("inert");
@@ -2237,6 +2222,46 @@ function closeImportDrawer() {
   resetImportDrawer();
   unlockBodyScroll();
   importDrawerOpenButton.focus();
+}
+
+function onTrashDrawerKeydown(event) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeTrashDrawer();
+    return;
+  }
+  keepDrawerFocus(event, trashDrawer);
+}
+
+function openTrashDrawer() {
+  if (state.trashDrawerOpen) return;
+  closeGroupDrawer();
+  closeImportDrawer();
+  closeQrDialog();
+  state.trashDrawerOpen = true;
+  lockBodyScroll();
+  trashDrawerOpenButton.setAttribute("aria-expanded", "true");
+  trashDrawer.removeAttribute("inert");
+  trashDrawer.setAttribute("aria-hidden", "false");
+  trashDrawer.classList.add("is-open");
+  trashDrawerBackdrop.classList.add("is-open");
+  document.addEventListener("keydown", onTrashDrawerKeydown);
+  trashDrawerCloseButton.focus();
+  if (trashController) trashController.open();
+}
+
+function closeTrashDrawer() {
+  if (!state.trashDrawerOpen) return;
+  state.trashDrawerOpen = false;
+  document.removeEventListener("keydown", onTrashDrawerKeydown);
+  trashDrawer.classList.remove("is-open");
+  trashDrawerBackdrop.classList.remove("is-open");
+  trashDrawer.setAttribute("inert", "");
+  trashDrawer.setAttribute("aria-hidden", "true");
+  trashDrawerOpenButton.setAttribute("aria-expanded", "false");
+  if (trashController) trashController.close();
+  unlockBodyScroll();
+  trashDrawerOpenButton.focus();
 }
 
 function setAbWeightBValue(rawWeight) {
@@ -2596,15 +2621,11 @@ smartRoutingRulesContainer.addEventListener("click", (event) => {
 // below this width the form would otherwise own the first screen.
 const createFormMedia = window.matchMedia("(max-width: 900px)");
 
-/**
- * Collapses or shows the whole creation card. On a narrow viewport the card starts hidden
- * behind the "+ Criar link" action in the links panel, so the list is reachable without
- * scrolling past a full form; on desktop `createFormMedia` never matches and the card stays
- * exactly where it always was.
- */
+/** The section heading remains in the page when the mobile form folds. */
 function setCreateFormCollapsed(collapsed) {
   state.createFormCollapsed = collapsed;
-  linkFormPanel.hidden = collapsed;
+  linkForm.hidden = collapsed;
+  if (collapsed && linkForm.contains(document.activeElement)) createLinkToggleButton.focus();
   createLinkToggleButton.setAttribute("aria-expanded", String(!collapsed));
 }
 
@@ -2639,6 +2660,7 @@ function resetForm() {
   renderSmartRules();
   slugInput.readOnly = false;
   formTitle.textContent = "Criar link";
+  createLinkLabel.textContent = "Criar link";
   submitButton.innerHTML = buttonMarkup("save", "Salvar link");
   cancelButton.innerHTML = buttonMarkup("cancel", "Cancelar");
   cancelButton.hidden = true;
@@ -2697,6 +2719,7 @@ function beginEdit(link) {
   renderSmartRules();
   slugInput.readOnly = true;
   formTitle.textContent = `Editar /${link.slug}`;
+  createLinkLabel.textContent = `Editar /${link.slug}`;
   submitButton.innerHTML = buttonMarkup("update", "Atualizar");
   cancelButton.innerHTML = buttonMarkup("cancel", "Cancelar");
   cancelButton.hidden = false;
@@ -3237,6 +3260,7 @@ linkForm.addEventListener("submit", async (event) => {
     resetForm();
     await loadLinks();
     setStatus(formStatus, successMessage, "success");
+    if (state.createFormCollapsed) setStatus(listStatus, successMessage, "success");
   } catch (error) {
     setStatus(formStatus, error.message, "error");
   } finally {
@@ -3294,6 +3318,10 @@ groupRefreshButton.addEventListener("click", async () => {
   await loadGroups();
   setStatus(groupStatus, "Grupos recarregados.");
 });
+
+trashDrawerOpenButton.addEventListener("click", openTrashDrawer);
+trashDrawerCloseButton.addEventListener("click", closeTrashDrawer);
+trashDrawerBackdrop.addEventListener("click", closeTrashDrawer);
 
 createLinkToggleButton.addEventListener("click", () => {
   setCreateFormCollapsed(!state.createFormCollapsed);
@@ -3637,6 +3665,7 @@ linkForm.querySelectorAll(":scope > details:not(.more-actions-dropdown)").forEac
 
 // Keyboard shortcuts
 document.addEventListener("keydown", (event) => {
+  if (event.defaultPrevented || state.groupDrawerOpen || state.importDrawerOpen || state.trashDrawerOpen || state.qrDialogOpen) return;
   const target = event.target;
   const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable;
 

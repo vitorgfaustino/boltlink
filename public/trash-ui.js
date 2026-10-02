@@ -18,8 +18,10 @@
     var page = 1;
     var generation = 0;
     var busy = false;
+    var isOpen = false;
     var hasMore = false;
     var purgePreview = null;
+    var previewGeneration = 0;
     var rows = [];
 
     function announce(message, error) {
@@ -27,6 +29,7 @@
       status.className = error ? "status error" : "status";
     }
     function invalidatePreview() {
+      previewGeneration++;
       purgePreview = null;
       preview.hidden = true;
     }
@@ -120,8 +123,11 @@
       busy = true;
       invalidatePreview();
       controls();
+      var token = previewGeneration;
       try {
-        purgePreview = await refreshCount();
+        var result = await refreshCount();
+        if (!isOpen || token !== previewGeneration) return;
+        purgePreview = result;
         previewCopy.textContent = (purgePreview.eligible === 1
           ? "1 link será excluído definitivamente e seu slug voltará a ficar disponível. "
           : purgePreview.eligible + " links serão excluídos definitivamente e seus slugs voltarão a ficar disponíveis. ")
@@ -147,17 +153,19 @@
         announce((error.message || "Não foi possível confirmar a limpeza.") + " Atualize a Lixeira antes de tentar novamente.", true);
       } finally { busy = false; controls(); }
     }
-    root.addEventListener("toggle", function () { if (root.open && !busy) load(); });
     document.getElementById("trash-search-form").addEventListener("submit", function (event) { event.preventDefault(); if (!busy) { page = 1; load(); } });
     previous.addEventListener("click", function () { if (!busy && page > 1) { page--; load(); } });
     next.addEventListener("click", function () { if (!busy && hasMore) { page++; load(); } });
     purge.addEventListener("click", previewPurge);
     confirmPurge.addEventListener("click", applyPurge);
     document.getElementById("trash-purge-cancel").addEventListener("click", function () { invalidatePreview(); controls(); purge.focus(); });
-    document.getElementById("trash-open").addEventListener("click", function () { root.open = true; root.scrollIntoView({ block: "start" }); search.focus(); });
     refreshCount().catch(function () { count.textContent = "Links excluídos: indisponível"; });
     controls();
-    return { refresh: function () { invalidatePreview(); return root.open ? load() : refreshCount(); } };
+    return {
+      open: function () { isOpen = true; if (!busy) return load(); },
+      close: function () { isOpen = false; invalidatePreview(); controls(); },
+      refresh: function () { invalidatePreview(); return isOpen ? load() : refreshCount(); }
+    };
   }
   var api = { mount: mount };
   if (typeof window !== "undefined") window.BoltLinkTrash = api;

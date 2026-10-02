@@ -2,6 +2,7 @@
 
 Ciclo local de Lixeira, recuperação e higiene de dados. A última release publicada permanece **v3.0.0**, congelada; estas notas não anunciam uma publicação.
 
+- Admin mais flat, com Lixeira em offcanvas e Importar / Exportar consolidados em um drawer. Criar link integra o fluxo mobile, recolhido a cada abertura/reload e após salvar; desktop mantém o formulário visível. Teclado, ESC, foco e scroll seguem um padrão comum, sem alteração de API, schema ou migrations.
 - Lixeira com restauração validada e preservação dos dados existentes.
 - Exclusão definitiva libera o slug; o Admin exige confirmação e explica a irreversibilidade.
 - Limpeza manual de tombstones com pelo menos 90 dias, precedida de preview; sem Cron automático.

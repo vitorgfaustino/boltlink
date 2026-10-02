@@ -2,6 +2,7 @@
 
 ## [3.1.0] - Unreleased / development
 
+- Admin mais flat, com Lixeira em offcanvas e Importar / Exportar consolidados em um drawer. Criar link integra o fluxo mobile, recolhido a cada abertura/reload e após salvar; desktop mantém o formulário visível. Teclado, ESC, foco e scroll seguem um padrão comum, sem alteração de API, schema ou migrations.
 - Lixeira administrativa com busca e paginação; restore valida configuração e concorrência, preservando métricas, senha, QR, grupo e lifecycle.
 - Exclusão definitiva somente de tombstones, liberando slug; colisão de create com Lixeira responde `SLUG_IN_TRASH`.
 - Retenção interna de 90 dias com preview read-only e purge manual condicional; sem Cron ou operação remota.
