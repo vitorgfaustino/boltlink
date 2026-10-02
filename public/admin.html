@@ -1,11 +1,47 @@
 <!doctype html>
 <!-- Copyright (c) 2026 Vitor Faustino -->
 <!-- AGPL-3.0 License - https://github.com/vitorgfaustino/boltlink -->
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#0a0a0a" />
+  <meta name="theme-color" content="#09090b" />
+  <script id="theme-bootstrap">
+    // Resolve before CSS/body paint; blocked storage must never stop the Admin.
+    (() => {
+      const key = "boltlink-theme";
+      const valid = value => value === "light" || value === "dark";
+      let preference = null;
+      let system = null;
+      try {
+        const saved = localStorage.getItem(key);
+        if (valid(saved)) preference = saved;
+      } catch {}
+      try { system = window.matchMedia("(prefers-color-scheme: light)"); } catch {}
+      const apply = theme => {
+        document.documentElement.dataset.theme = theme;
+        document.querySelector('meta[name="theme-color"]').content = theme === "light" ? "#f3f5f8" : "#09090b";
+        document.querySelectorAll("[data-theme-choice]").forEach(button => {
+          button.setAttribute("aria-pressed", String(button.dataset.themeChoice === theme));
+        });
+      };
+      const resolve = () => preference || (system?.matches ? "light" : "dark");
+      apply(resolve());
+      document.addEventListener("DOMContentLoaded", () => {
+        apply(resolve());
+        document.querySelectorAll("[data-theme-choice]").forEach(button => {
+          button.addEventListener("click", () => {
+            const theme = button.dataset.themeChoice;
+            if (!valid(theme)) return;
+            preference = theme;
+            try { localStorage.setItem(key, theme); } catch {}
+            apply(theme);
+          });
+        });
+      }, { once: true });
+      system?.addEventListener("change", () => { if (!preference) apply(resolve()); });
+    })();
+  </script>
   <title>BoltLink | Gerenciador de Links</title>
   <link rel="stylesheet" href="/admin.css">
 </head>
@@ -17,10 +53,16 @@
 
   <main>
     <section class="hero">
-      <div class="logo">
-        <!-- BoltLink name, logo and favicon are part of the original public project identity created by Vitor Faustino. Preserve this attribution when redistributing these bundled assets. -->
-        <img src="/logo.png" alt="BoltLink" />
-      </div>
+      <header class="hero-header">
+        <div class="logo">
+          <!-- BoltLink name, logo and favicon are part of the original public project identity created by Vitor Faustino. Preserve this attribution when redistributing these bundled assets. -->
+          <img src="/logo.png" alt="BoltLink" />
+        </div>
+        <div class="theme-selector" role="group" aria-label="Tema do painel">
+          <button type="button" data-theme-choice="light" aria-label="Tema claro" aria-pressed="false"><span aria-hidden="true">☀</span> Light</button>
+          <button type="button" data-theme-choice="dark" aria-label="Tema escuro" aria-pressed="true"><span aria-hidden="true">☾</span> Dark</button>
+        </div>
+      </header>
       <h1 class="text-glow">
         Gerenciador de Links<span class="terminal-cursor">_</span>
       </h1>
@@ -204,7 +246,7 @@
                 <input id="password" type="password" placeholder="Deixe em branco para link público" />
               </label>
 
-              <small id="domain-warning" style="display:none;color:#facc15;">O domínio de destino é diferente do domínio do link curto. Confira as regras da plataforma de anúncios sobre divergência de destino.</small>
+              <small id="domain-warning" style="display:none;color:var(--domain-warning);">O domínio de destino é diferente do domínio do link curto. Confira as regras da plataforma de anúncios sobre divergência de destino.</small>
             </div>
           </details>
 

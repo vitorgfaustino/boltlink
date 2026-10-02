@@ -74,9 +74,9 @@ components:
 
 # Design System: BoltLink
 
-## Admin — 3.1.0 development (Gates 8.6, 8.6.1, 8.6.2 e 8.6.3)
+## Admin — 3.1.0 development (Gates 8.6–8.6.4)
 
-Esta seção prevalece sobre os exemplos da base 3.0.0 abaixo. Tema, branding, fontes e acento permanecem. Criar link e Links ativos usam superfície principal discreta (fundo branco a 1.8%, borda a 6.5%, radius 12px), sem sombra/blur. Registros têm fundo ligeiramente mais claro (3.5%), borda suave, radius 8px, padding 16px (12px em mobile estreito) e gap 12px (16px até 900px). Não há terceiro nível de cards: accordions continuam leves, com divisores, e métricas são itens independentes com flex-wrap e gap, sem pontuação separadora órfã; chips comunicam estado. Grupos usam badge de contexto com raio 6px, padding 4px 8px, fundo/borda discretos e só o nome visível (o rótulo acessível mantém “Grupo:”).
+Esta seção prevalece sobre os exemplos históricos da base 3.0.0 abaixo. Branding e identidade azul permanecem; o Gate 8.6.4 adota mono leve e temas Light/Dark. No Dark, Criar link e Links ativos usam superfície principal discreta (fundo branco a 1.8%, borda a 6.5%, radius 12px), sem sombra/blur. Registros têm fundo ligeiramente mais claro (3.5%), borda suave, radius 8px, padding 16px (12px em mobile estreito) e gap 12px (16px até 900px). Não há terceiro nível de cards: accordions continuam leves, com divisores, e métricas são itens independentes com flex-wrap e gap, sem pontuação separadora órfã; chips comunicam estado. Grupos usam badge de contexto com raio 6px, padding 4px 8px, fundo/borda discretos e só o nome visível (o rótulo acessível mantém “Grupo:”).
 
 Toolbar agrupa três ferramentas com alturas/raios coerentes. Busca e filtro formam uma seção separada dos resultados por espaço e divisor. Footer tem distância própria da lista.
 
@@ -87,6 +87,35 @@ Tags reutilizam a mesma medição e expansão do conteúdo: uma linha desktop, a
 Até 900px, Criar link é heading expansível, inicialmente recolhido e sem estado persistido. Fechado, o mesmo painel mede 62px (padding vertical 8px + controle 44px + bordas), sem underline ou margem inferior no heading; aberto, recupera o formulário no próprio container. Desktop mantém duas colunas. Grupos, Lixeira e Importar / Exportar preservam o offcanvas de até 30rem, largura total no mobile, overlay, ESC, trap de foco, fundo inert e scroll interno. Importar / Exportar mantém seções verticais e status junto à exportação. Nenhuma mudança de backend, schema, migration, retenção ou portabilidade neste refinamento.
 
 Cópia tem feedback local por controle: check + “Copiado” no sucesso, “Falhou” no erro, com restauração após 1800ms e timers independentes/renovados por clique. O conteúdo normal reserva a mesma caixa; o feedback sobreposto não altera largura, altura nem a grade de ações. Um status polite exclusivo anuncia link curto, destino ou Variante B sem expor URLs em falhas. Press usa escala 0.98 com transição curta; reduced motion remove transform/transition sem remover confirmação.
+
+### Terminal-light typography — Gate 8.6.4
+
+Mono global leve, inclusive parágrafos, controles e drawers: `ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace`. Não existem IBM Plex Mono/Geist Mono distribuídas no projeto; foi escolhida a stack nativa, sem assets de fonte, CDN, download ou dependência nova. A comparação real com o Gate 8.6.3 em desktop/mobile manteve a leitura confortável, portanto não foi necessária estratégia híbrida.
+
+Body 400, 0.9rem, line-height 1.55, tracking natural; parágrafos 0.9rem/1.6 com até 75ch. Headings, botões e labels usam 500–600; sem pesos 700/800. Título principal 2.2rem/1.2, 1.7rem até 480px, tracking -0.025em/-0.02em. Headings de painel 1.125rem; slug 1.06rem/600; métricas têm números tabulares. Campos herdam a família e mantêm peso 400.
+
+A largura maior da mono exige dois ajustes locais: padding menor nas ferramentas até 360px; toolbar em duas colunas entre 901–1050px, com Importar / Exportar na linha inteira. A grade mobile Copiar / Editar / Mais opções continua com três colunas iguais e altura mínima 44px, inclusive no estado Copiado. URL/slug/tags mantêm clamps e expansão medida, sem alteração dos valores copiados.
+
+### Light/Dark — Gate 8.6.4
+
+Uma autoridade: `data-theme` no elemento `html`. `public/admin.css` centraliza todas as cores em custom properties; componentes não contêm literais de cor. Os dois temas definem os mesmos papéis cromáticos: fundo/mesh, superfície principal, card, input, readonly, bordas, textos, acento/on-accent, seleção, badges, links, perigo/sucesso/aviso, menus, popovers, drawers, overlays e sombras. Raio, espaçamento, tipografia e geometria são compartilhados. O branco fixo no canvas de QR em `admin.js` é a quiet zone do artefato escaneável, independente do tema.
+
+| Papel | Dark | Light |
+| --- | --- | --- |
+| Fundo | `#09090b` e gradientes existentes | `#f3f5f8` → `#eef2f7` |
+| Painel / card | branco a 1.8% / 3.5% | `#ffffff` / `#f5f7fb` |
+| Drawer / dialog | `#0b0d10` | `#ffffff` |
+| Input | preto a 25% | `#f1f4f8` |
+| Texto / muted | `#f4f4f5` / `#a1a1aa` | `#162131` / `#526177` |
+| Acento / hover | `#00A1F5` / `#008cd6` | `#006cad` / `#005b92` |
+| Texto sobre acento | `#09090b` | `#ffffff` |
+| Sucesso / erro | `#86efac` / `#fca5a5` | `#187143` / `#a82431` |
+
+Dark preserva seus valores de superfícies, azul, menus e overlays. Bordas de input e foco sólido ganham contraste suficiente; pesos/leading mudam pela direção tipográfica. Light usa separação tonal e borda discreta entre página, painel, cards e inputs; drawers elevados usam overlay escuro. O mesmo logo é legível nos dois temas. Texto e placeholders têm contraste mínimo 4.5:1 nas superfícies testadas; contorno de input ≥3:1. Outline de foco de 2px com offset 3px funciona em ambos.
+
+O seletor compacto fica no header ao lado do logo, com botões reais Light/Dark, nomes acessíveis “Tema claro”/“Tema escuro”, `aria-pressed`, teclado e alvos de 44px. O bootstrap síncrono inline no head resolve a preferência antes do stylesheet/body: aceita apenas `light`/`dark` em `localStorage["boltlink-theme"]`, ignora valores inválidos e usa `prefers-color-scheme`. Define também `theme-color`; CSS aplica `color-scheme` para controles nativos. Nenhum request, cookie ou escrita D1 é usado para o tema.
+
+Sem escolha explícita, eventos do sistema atualizam o tema. Após escolha manual, o sistema não a substitui. Storage bloqueado não impede renderização; falha de gravação mantém a escolha na página atual, sem prometer persistência após reload. A troca não anima a página inteira e respeita as regras existentes de reduced motion. A validação em 320/360/390/430/768/1024/1440 nos dois temas encontrou geometria igual, sem overflow; drawers, QR, menus e feedback herdam os tokens.
 
 ## 1. Overview
 

@@ -751,3 +751,160 @@ describe("Phase 8 Gate 8.6.3: clipboard fallback", () => {
     expect(api).toHaveBeenCalledWith("https://example.com/"); expect(ui.doc.createElement).not.toHaveBeenCalled(); expect(ui.doc.activeElement).toBe(ui.opener);
   });
 });
+
+// The real head script is executed against browser boundaries, including storage failures.
+function themeSetup({ saved = null, light = false, readFails = false, writeFails = false, mediaMissing = false }:
+  { saved?: string | null; light?: boolean; readFails?: boolean; writeFails?: boolean; mediaMissing?: boolean } = {}) {
+  const html = readFileSync("public/admin.html", "utf8");
+  const code = html.match(/<script id="theme-bootstrap">([\s\S]*?)<\/script>/)![1];
+  const root = { dataset: {} as Record<string, string> };
+  const meta = { content: "" };
+  const buttons = ["light", "dark"].map(theme => ({ dataset: { themeChoice: theme },
+    attributes: {} as Record<string, string>, listeners: {} as Record<string, Function>,
+    setAttribute(name: string, value: string) { this.attributes[name] = value; },
+    addEventListener(name: string, handler: Function) { this.listeners[name] = handler; } }));
+  let stored = saved, loaded = false;
+  const events: Record<string, Function> = {}, mediaEvents: Record<string, Function> = {};
+  const media = { matches: light, addEventListener(name: string, handler: Function) { mediaEvents[name] = handler; } };
+  const storage = { getItem: vi.fn((key: string) => { expect(key).toBe("boltlink-theme"); if (readFails) throw new Error("blocked"); return stored; }),
+    setItem: vi.fn((key: string, value: string) => { expect(key).toBe("boltlink-theme"); if (writeFails) throw new Error("quota"); stored = value; }) };
+  const document = { documentElement: root, querySelector: () => meta,
+    querySelectorAll: () => loaded ? buttons : [],
+    addEventListener(name: string, handler: Function) { events[name] = handler; } };
+  const matchMedia = vi.fn(() => { if (mediaMissing) throw new Error("unavailable"); return media; });
+  vm.runInNewContext(code, { localStorage: storage, document, window: { matchMedia } });
+  return { root, meta, buttons, storage, matchMedia, saved: () => stored,
+    load() { loaded = true; events.DOMContentLoaded(); },
+    click(theme: string) { buttons.find(button => button.dataset.themeChoice === theme)!.listeners.click(); },
+    system(light: boolean) { media.matches = light; mediaEvents.change?.(); } };
+}
+
+describe("Phase 8 Gate 8.6.4: early theme authority", () => {
+  it.each([
+    [null, false, "dark"], [null, true, "light"], ["dark", true, "dark"], ["light", false, "light"],
+    ["invalid", false, "dark"], ["invalid", true, "light"], ["LIGHT", true, "light"], ["", false, "dark"],
+  ])("resolves saved %s and OS light=%s before the body exists", (saved, light, expected) => {
+    const ui = themeSetup({ saved, light });
+    expect(ui.root.dataset.theme).toBe(expected);
+    expect(ui.storage.setItem).not.toHaveBeenCalled();
+    ui.load();
+    expect(ui.buttons.map(button => button.attributes["aria-pressed"])).toEqual(expected === "light" ? ["true", "false"] : ["false", "true"]);
+    expect(ui.matchMedia).toHaveBeenCalledOnce();
+  });
+  it.each(["dark", "light"])("chooses %s and restores it after a fresh script/reload", theme => {
+    const ui = themeSetup({ light: theme === "dark" }); ui.load(); ui.click(theme);
+    expect(ui.storage.setItem).toHaveBeenCalledWith("boltlink-theme", theme);
+    expect(ui.root.dataset.theme).toBe(theme);
+    expect(themeSetup({ saved: ui.saved(), light: theme === "dark" }).root.dataset.theme).toBe(theme);
+    expect(ui.meta.content).toBe(theme === "light" ? "#f3f5f8" : "#09090b");
+  });
+  it("tracks OS changes until an explicit choice, including the interval before DOMContentLoaded", () => {
+    const ui = themeSetup(); ui.system(true); expect(ui.root.dataset.theme).toBe("light");
+    ui.load(); ui.system(false); expect(ui.root.dataset.theme).toBe("dark");
+    ui.click("light"); ui.system(false); expect(ui.root.dataset.theme).toBe("light");
+    expect(ui.buttons[0].attributes["aria-pressed"]).toBe("true");
+  });
+  it.each(["dark", "light"])("never overwrites an explicit saved %s when OS changes", saved => {
+    const ui = themeSetup({ saved }); ui.load(); ui.system(true); ui.system(false);
+    expect(ui.root.dataset.theme).toBe(saved); expect(ui.storage.setItem).not.toHaveBeenCalled();
+  });
+  it("ignores invalid persisted values when the OS changes", () => {
+    const ui = themeSetup({ saved: "null" }); ui.load(); ui.system(true);
+    expect(ui.root.dataset.theme).toBe("light"); ui.system(false); expect(ui.root.dataset.theme).toBe("dark");
+  });
+  it.each([false, true])("blocked storage still renders the OS preference (light=%s)", light => {
+    const ui = themeSetup({ readFails: true, light }); ui.load();
+    expect(ui.root.dataset.theme).toBe(light ? "light" : "dark");
+  });
+  it("a failed save retains the manual choice for the current page", () => {
+    const ui = themeSetup({ writeFails: true }); ui.load(); ui.click("light"); ui.system(false);
+    expect(ui.root.dataset.theme).toBe("light"); expect(ui.buttons[0].attributes["aria-pressed"]).toBe("true");
+  });
+  it("missing media API has a safe dark fallback while valid saved light still works", () => {
+    expect(themeSetup({ mediaMissing: true }).root.dataset.theme).toBe("dark");
+    expect(themeSetup({ mediaMissing: true, saved: "light" }).root.dataset.theme).toBe("light");
+  });
+  it("rejects a tampered selector value without touching persistence or theme", () => {
+    const ui = themeSetup(); ui.load(); ui.buttons[0].dataset.themeChoice = "invalid";
+    ui.buttons[0].listeners.click(); expect(ui.root.dataset.theme).toBe("dark"); expect(ui.storage.setItem).not.toHaveBeenCalled();
+  });
+  it("runs the synchronous bootstrap before CSS and body, without deferred font/network work", () => {
+    const html = readFileSync("public/admin.html", "utf8");
+    expect(html.indexOf('id="theme-bootstrap"')).toBeLessThan(html.indexOf('href="/admin.css"'));
+    expect(html.indexOf('id="theme-bootstrap"')).toBeLessThan(html.indexOf("<body>"));
+    expect(html).not.toMatch(/fonts\.google|@font-face|data-theme-choice[^>]*(?:onclick|disabled)/);
+    const code = html.match(/<script id="theme-bootstrap">([\s\S]*?)<\/script>/)![1];
+    expect(code.indexOf("apply(resolve());")).toBeLessThan(code.indexOf('document.addEventListener("DOMContentLoaded"'));
+    expect(code).not.toMatch(/fetch|cookie|setTimeout|requestAnimationFrame|\.style\./);
+  });
+});
+
+describe("Phase 8 Gate 8.6.4: theme and typography contracts", () => {
+  const css = readFileSync("public/admin.css", "utf8"), html = readFileSync("public/admin.html", "utf8");
+  const dark = css.match(/:root,[\s\S]*?\{([\s\S]*?)\}/)![1];
+  const light = css.match(/\[data-theme="light"\] \{([\s\S]*?)\}/)![1];
+  const components = css.slice(css.indexOf("\n* {"));
+  it("exposes two native keyboard controls with explicit accessible names and selection", () => {
+    expect(html).toContain('role="group" aria-label="Tema do painel"');
+    for (const [theme, name] of [["light", "claro"], ["dark", "escuro"]])
+      expect(html).toMatch(new RegExp(`<button type="button" data-theme-choice="${theme}" aria-label="Tema ${name}" aria-pressed="(?:true|false)"`));
+    expect(css).toMatch(/\.theme-selector button \{[^}]*min-height: 44px;/);
+    // Visual selection follows the early root even while bottom scripts delay DOM ready.
+    expect(css).toContain('[data-theme="light"] .theme-selector button[data-theme-choice="light"]');
+    expect(css).toContain('[data-theme="dark"] .theme-selector button[data-theme-choice="dark"]');
+  });
+  it("defines a native global mono stack without font dependencies and inherits it into controls", () => {
+    for (const font of ["ui-monospace", "SFMono-Regular", '"SF Mono"', "Menlo", "Monaco", '"Cascadia Mono"', '"Segoe UI Mono"', "Consolas", '"Liberation Mono"', "monospace"])
+      expect(dark).toContain(font);
+    expect(dark).toContain("--font: var(--font-mono)");
+    expect(css).toMatch(/body \{[^}]*font-family: var\(--font\);[^}]*font-weight: 400;[^}]*line-height: 1\.55;/);
+    expect(css).toMatch(/input, button, select, textarea \{\s*font: inherit;/);
+    expect(css).not.toMatch(/font-weight: (?:700|800)|@font-face|@import/);
+    expect(css).toContain("font-variant-numeric: tabular-nums");
+  });
+  it("makes every color role available in light, including overlays, menus, QR and copy feedback", () => {
+    const names = (block: string) => [...block.matchAll(/(--[\w-]+):/g)].map(match => match[1]);
+    expect(names(light).sort()).toEqual(names(dark).filter(name => !/^--(?:font|radius|motion)/.test(name)).sort());
+    expect(components).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
+    expect(html.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<meta[^>]*>/g, "")).not.toMatch(/color:\s*#/);
+    expect(css).toMatch(/\.group-drawer,\s*\.import-drawer,\s*\.trash-drawer \{[^}]*background: var\(--raised-bg\);/);
+    expect(css).toMatch(/\.qr-dialog \{[^}]*background: var\(--raised-bg\);/);
+    expect(css).toMatch(/\.dropdown-menu \{[^}]*background: var\(--menu-bg\);/);
+    expect(css).toContain('button.copy-control[data-copy-state="error"] { color: var(--danger-text);');
+    expect(css).toContain('button.copy-control[data-copy-state="success"] { color: var(--text-secondary);');
+  });
+  it("uses native color-scheme and a solid focus outline on both themes", () => {
+    expect(dark).toContain("color-scheme: dark;"); expect(light).toContain("color-scheme: light;");
+    expect(css).toContain('html :is(button, summary, a, input, select, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }');
+    expect(css).toContain("border: 1px solid var(--control-line)");
+  });
+  it("preserves measured expansion, clamps and equal mobile actions with reserved copy feedback", () => {
+    expect(css).toMatch(/\.content-text:not\(\.is-expanded\) \{[^}]*-webkit-line-clamp: 1;/);
+    expect(css).toMatch(/@media \(max-width: 900px\) \{\s*\.content-text:not\(\.is-expanded\) \{ -webkit-line-clamp: 2;/);
+    expect(css).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
+    expect(css).toContain('.copy-feedback { display: none; position: absolute; inset: 0;');
+    expect(css).toContain('.card-actions .more-actions-dropdown summary { width: 100%; min-width: 0; min-height: 44px; }');
+  });
+});
+
+it.each(["dark", "light"])("Gate 8.6.4: %s palette meets text and input-boundary contrast", theme => {
+  const css = readFileSync("public/admin.css", "utf8");
+  const block = theme === "dark" ? css.match(/:root,[\s\S]*?\{([\s\S]*?)\}/)![1] : css.match(/\[data-theme="light"\] \{([\s\S]*?)\}/)![1];
+  const tokens = Object.fromEntries([...block.matchAll(/--([\w-]+):\s*([^;]+);/g)].map(match => [match[1], match[2]]));
+  const rgb = (color: string) => color.startsWith("#") ? [1, 3, 5].map(index => parseInt(color.slice(index, index + 2), 16))
+    : color.match(/[\d.]+/g)!.map(Number);
+  const composite = (color: number[], bg: number[]) => color.length === 3 ? color : bg.map((value, index) => color[index] * color[3] + value * (1 - color[3]));
+  const luminance = (color: number[]) => color.map(value => value / 255).map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+    .reduce((total, value, index) => total + value * [0.2126, 0.7152, 0.0722][index], 0);
+  const ratio = (a: number[], b: number[]) => (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05);
+  const page = rgb(tokens.bg), panel = composite(rgb(tokens["panel-bg"]), page), card = composite(rgb(tokens["card-bg"]), panel);
+  for (const surface of [page, panel, card, rgb(tokens["raised-bg"]), composite(rgb(tokens["accent-soft"]), panel)]) {
+    for (const ink of ["text", "text-secondary", "muted", "link-text", "danger-text", "success-text", "warning-text"])
+      expect(ratio(rgb(tokens[ink]), surface), `${theme}: ${ink}`).toBeGreaterThanOrEqual(4.5);
+  }
+  for (const bg of ["accent", "accent-hover"]) expect(ratio(rgb(tokens["on-accent"]), rgb(tokens[bg])), `${theme}: primary ${bg}`).toBeGreaterThanOrEqual(4.5);
+  expect(ratio(rgb(tokens["badge-text"]), composite(rgb(tokens["badge-bg"]), card))).toBeGreaterThanOrEqual(4.5);
+  const input = composite(rgb(tokens["surface-strong"]), panel);
+  expect(ratio(rgb(tokens.muted), input)).toBeGreaterThanOrEqual(4.5);
+  expect(ratio(rgb(tokens["control-line"]), input)).toBeGreaterThanOrEqual(3);
+});
