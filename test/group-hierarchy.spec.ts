@@ -844,3 +844,47 @@ describe("Gate 9.1: recursive administrative group filter", () => {
 		expect(await slugs("group_id=999999&include_descendants=true")).toEqual([]);
 	});
 });
+
+describe("Gate 9.2: administrative filter audit", () => {
+	it("includes each branch of A/B/C/D/E/F in descending creation order, with a single list query", async () => {
+		const a = await createGroupId("A");
+		const b = await createGroupId("B", a);
+		const c = await createGroupId("C", b);
+		const d = await createGroupId("D", c);
+		const e = await createGroupId("E", b);
+		const f = await createGroupId("F", a);
+		const x = await createGroupId("B"); // Same name in another tree is unrelated.
+		const entries = [["LA", a], ["LB", b], ["LC", c], ["LD", d], ["LE", e], ["LF", f], ["LX", x], ["LN", null]] as const;
+		for (const [index, [slug, id]] of entries.entries()) {
+			await env.db_boltlink.prepare("INSERT INTO links (slug, target_url, group_id, created_at) VALUES (?, 'https://example.com/', ?, ?)")
+				.bind(slug, id, `2026-01-0${index + 1}`).run();
+		}
+		for (const [id, expected] of [[a, ["LF", "LE", "LD", "LC", "LB", "LA"]], [b, ["LE", "LD", "LC", "LB"]], [c, ["LD", "LC"]], [d, ["LD"]], [f, ["LF"]], ["null", ["LN"]]] as const) {
+			const traced = tracedHandle(cloneDbHandle(env.db_boltlink));
+			const response = await fetchWorker(`http://localhost/api/links?group_id=${id}&include_descendants=true`, undefined, traced.handle);
+			expect(response.status).toBe(200);
+			const data = await response.json() as { links: { slug: string }[] };
+			expect(data.links.map((link) => link.slug)).toEqual(expected);
+			expect(traced.statements.filter((sql) => sql.includes("LEFT JOIN link_groups"))).toHaveLength(1);
+			if (id !== "null") expect(traced.statements.filter((sql) => sql.includes("descendant_groups"))).toHaveLength(1);
+		}
+		await env.db_boltlink.prepare("DELETE FROM links WHERE slug IN ('LA', 'LB', 'LC')").run();
+		const response = await fetchWorker(`http://localhost/api/links?group_id=${b}&include_descendants=true`);
+		expect(((await response.json()) as { links: { slug: string }[] }).links.map((link) => link.slug)).toEqual(["LE", "LD"]);
+	});
+	it("supports a 32-level legacy chain without a fixed filter depth cap", async () => {
+		let parent: number | null = null;
+		let root = 0;
+		for (let i = 0; i < 32; i++) {
+			const result = await env.db_boltlink.prepare("INSERT INTO link_groups (name, parent_id) VALUES ('Legado', ?)").bind(parent).run();
+			parent = Number(result.meta.last_row_id);
+			if (!root) root = parent;
+		}
+		await env.db_boltlink.prepare("INSERT INTO links (slug, target_url, group_id) VALUES ('deep-legacy', 'https://example.com/', ?)").bind(parent).run();
+		const response = await fetchWorker(`http://localhost/api/links?group_id=${root}&include_descendants=true`);
+		expect(response.status).toBe(200);
+		expect(((await response.json()) as { links: { slug: string }[] }).links.map((link) => link.slug)).toEqual(["deep-legacy"]);
+		const groupResponse = await fetchWorker("http://localhost/api/groups");
+		expect(groupResponse.status).toBe(200); // Deep legacy trees stay readable.
+	});
+});

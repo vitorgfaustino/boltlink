@@ -116,6 +116,13 @@ function utmForm() {
   return { sandbox, target: targetUrlInput, fields };
 }
 
+// Execute the real submit payload preparation, rather than a copied assembler.
+function submittedUrl(ui: ReturnType<typeof utmForm>) {
+  const start = admin.indexOf("  // Manual URL edits are authoritative");
+  const end = admin.indexOf("\n  collectSmartRules();", start);
+  return vm.runInContext(`(() => { ${admin.slice(start, end)}; return urlWithUtm; })()`, ui.sandbox);
+}
+
 describe("Gate 9.1: actual Admin UTM wiring", () => {
   it("hydrates, edits, clears and rehydrates after a manual URL blur", () => {
     const ui = utmForm();
@@ -151,6 +158,88 @@ describe("Gate 9.1: actual Admin UTM wiring", () => {
     expect(submit).toContain("hydrateUtmFields()");
     expect(actual("beginEdit")).toContain("hydrateUtmFields()");
     expect(html.indexOf('src="/utm-ui.js"')).toBeLessThan(html.indexOf('src="/admin.js"'));
+  });
+});
+
+describe("Gate 9.2: UTM regression hardening", () => {
+  it("explicitly associates all UTM labels with inputs even when help buttons share the label", () => {
+    for (const key of ["source", "medium", "campaign", "content", "term"]) {
+      const label = html.match(new RegExp(`<label for="utm-${key}">([\\s\\S]*?)</label>`));
+      expect(label, key).not.toBeNull();
+      expect(label![1]).toContain(`id="utm-${key}"`);
+    }
+  });
+  it.each([
+    "https://example.com/path",
+    "https://EXAMPLE.com:443/pr%6Fduct?id=55&ref=a%20b&ref=~&flag#det%61ils",
+    "https://example.com/path?#hash?utm_source=fragment",
+    "https://example.com/?utm_campaign=promo%20de%20verao&id=55#detalhes",
+  ])("does not transform an untouched URL on hydration and save: %s", (url) => {
+    const ui = utmForm(); ui.target.value = url;
+    ui.sandbox.hydrateUtmFields();
+    expect(ui.target.value).toBe(url);
+    expect(submittedUrl(ui)).toBe(url);
+  });
+  it.each(utm.KEYS as string[])("clearing %s removes only that parameter, preserving other UTMs/query/hash", (key) => {
+    const ui = utmForm();
+    const query = utm.KEYS.map((k: string) => `${k}=value`).join("&");
+    ui.target.value = `https://example.com/path?id=55&ref=abc&${query}#detalhes`;
+    ui.sandbox.hydrateUtmFields();
+    const index = utm.KEYS.indexOf(key);
+    ui.fields[index].value = ""; ui.fields[index].listeners.input();
+    const expected = `https://example.com/path?id=55&ref=abc&${utm.KEYS.filter((k: string) => k !== key).map((k: string) => `${k}=value`).join("&")}#detalhes`;
+    expect(submittedUrl(ui)).toBe(expected);
+  });
+  it.each(["google", "facebook"])("hydrates the first repeated value and normalizes save when the second is %s", (second) => {
+    const ui = utmForm();
+    ui.target.value = `https://example.com/?id=55&ref=a%20b&utm_source=google&ref=~&utm_source=${second}#hash`;
+    ui.sandbox.hydrateUtmFields();
+    expect(ui.fields[0].value).toBe("google");
+    expect(submittedUrl(ui)).toBe("https://example.com/?id=55&ref=a%20b&utm_source=google&ref=~#hash");
+  });
+  it("normalizes an explicitly edited duplicate even when both old values already equal the input", () => {
+    expect(utm.applyUtmToUrl("https://example.com/?utm_source=google&id=1&utm_source=google", { utm_source: "google" }))
+      .toBe("https://example.com/?utm_source=google&id=1");
+  });
+  it("encodes unicode once and preserves the untouched campaign encoding", () => {
+    const ui = utmForm();
+    ui.target.value = "https://example.com/?id=55&utm_campaign=promo%20de%20verao#hash";
+    ui.sandbox.hydrateUtmFields(); expect(ui.fields[2].value).toBe("promo de verao");
+    ui.fields[3].value = "botão principal"; ui.fields[3].listeners.input();
+    ui.fields[4].value = "ração gatos"; ui.fields[4].listeners.input();
+    expect(submittedUrl(ui)).toBe("https://example.com/?id=55&utm_campaign=promo%20de%20verao&utm_content=bot%C3%A3o+principal&utm_term=ra%C3%A7%C3%A3o+gatos#hash");
+    expect(ui.fields[3].value).toBe("botão principal"); expect(ui.fields[4].value).toBe("ração gatos");
+  });
+  it("preserves fields on empty/incomplete URL and rehydrates the next valid manual URL", () => {
+    const ui = utmForm(); ui.target.value = "https://example.com/?utm_source=google"; ui.sandbox.hydrateUtmFields();
+    for (const value of ["", "https:", "https://"]) {
+      ui.target.value = value; ui.target.listeners.input(); ui.target.listeners.blur();
+      expect(ui.fields[0].value).toBe("google");
+    }
+    ui.target.value = "https://example.com/?utm_source=facebook&utm_campaign=q2";
+    ui.target.listeners.blur(); expect(ui.fields.map((f) => f.value)).toEqual(["facebook", "", "q2", "", ""]);
+  });
+});
+
+describe("Gate 9.2: asynchronous group filter", () => {
+  it.each(["success", "failure"])("ignores an old filter %s that settles after the latest selection", async (oldResult) => {
+    const pending: Array<{ resolve: Function; reject: Function }> = [];
+    const sandbox: any = { URLSearchParams, state: {}, searchTermInput: { value: "" },
+      searchGroupIdInput: { value: "1", options: [{ text: "A" }, { text: "B" }], selectedIndex: 0 },
+      listStatus: {}, setStatus: vi.fn(), renderLinks: vi.fn(),
+      request: vi.fn(() => new Promise((resolve, reject) => pending.push({ resolve, reject }))) };
+    vm.createContext(sandbox); vm.runInContext(actual("loadLinks"), sandbox);
+    const oldRequest = sandbox.loadLinks("", "1");
+    sandbox.searchGroupIdInput.value = "2"; sandbox.searchGroupIdInput.selectedIndex = 1;
+    const currentRequest = sandbox.loadLinks("", "2");
+    pending[1].resolve({ links: [{ slug: "latest-selection" }] }); await currentRequest;
+    const calls = sandbox.setStatus.mock.calls.length;
+    if (oldResult === "success") pending[0].resolve({ links: [{ slug: "old-selection" }] });
+    else pending[0].reject(new Error("old selection failed"));
+    await oldRequest;
+    expect(sandbox.state.links).toEqual([{ slug: "latest-selection" }]);
+    expect(sandbox.renderLinks).toHaveBeenCalledOnce();
+    expect(sandbox.setStatus.mock.calls).toHaveLength(calls);
   });
 });
 

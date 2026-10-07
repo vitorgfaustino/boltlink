@@ -28,7 +28,7 @@
       const wanted = String(fields[key] || "");
       const matches = tokens.map((token, index) => ({ index, params: new URLSearchParams(token) }))
         .filter((entry) => entry.params.has(key));
-      if (wanted && matches.length && matches.every((entry) => entry.params.get(key) === wanted)) continue;
+      if (wanted && matches.length === 1 && matches[0].params.get(key) === wanted) continue;
       if (!wanted && !matches.length) continue;
       const indices = new Set(matches.map((entry) => entry.index));
       const replacement = new URLSearchParams([[key, wanted]]).toString();
@@ -42,7 +42,18 @@
     return path + (query ? "?" + query : "") + hash;
   }
 
-  const api = { KEYS, parseUtmFromUrl, applyUtmToUrl };
+  // URLSearchParams.get() defines the effective value: the first occurrence.
+  // Only repeated supported UTMs are rewritten at save. All other bytes survive.
+  function normalizeUtmDuplicates(value) {
+    const fields = parseUtmFromUrl(value);
+    if (!fields) return null;
+    const params = new URL(value).searchParams;
+    const repeated = Object.fromEntries(KEYS.filter((key) => params.getAll(key).length > 1)
+      .map((key) => [key, fields[key]]));
+    return applyUtmToUrl(value, repeated);
+  }
+
+  const api = { KEYS, parseUtmFromUrl, applyUtmToUrl, normalizeUtmDuplicates };
   if (typeof window !== "undefined") window.BoltLinkUtm = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

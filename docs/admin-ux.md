@@ -10,6 +10,8 @@ O filtro inclui o grupo selecionado e todos os seus descendentes, em qualquer pr
 
 O Admin usa `GET /api/links?group_id=<id>&include_descendants=true`. A seleção recursiva ocorre na mesma consulta administrativa, antes do `LIMIT 100`, evitando que links alheios ocupem o limite antes de filtrar. Sem a opção, a API mantém a associação direta para clientes existentes. A CTE usa `UNION` para visitar cada ID uma vez e terminar mesmo diante de ciclos legados. Não há consulta adicional nem mudança no redirect público. Paths usam a árvore de grupos já carregada.
 
+Ao trocar rapidamente a busca ou o grupo, somente a resposta da seleção mais recente pode atualizar a lista e seu status. Sucessos ou falhas atrasados de filtros anteriores são descartados.
+
 ## UTMs na edição
 
 `target_url` é a única fonte de verdade. Ao abrir Editar, o gerador lê `utm_source`, `utm_medium`, `utm_campaign`, `utm_content` e `utm_term`. Alterar um campo atualiza a URL; esvaziá-lo remove completamente o parâmetro. Não existem colunas ou persistência separada para UTMs.
@@ -17,6 +19,8 @@ O Admin usa `GET /api/links?group_id=<id>&include_descendants=true`. A seleção
 Editar a URL manualmente ressincroniza os campos no blur e antes de enviar o formulário. Durante digitação parcial ou inválida, o painel conserva os campos e deixa a validação existente cuidar do erro. A sincronização não dispara eventos de input em cascata.
 
 Os helpers editam somente os tokens UTM suportados. Pathname, fragmento, parâmetros desconhecidos, parâmetros repetidos não-UTM e seu encoding permanecem intactos. A mesma implementação serve para criar e editar links.
+
+Se um UTM suportado aparecer repetido, a hidratação usa o primeiro valor, como `URLSearchParams.get()`. Alterar o campo ou salvar normaliza esse UTM para uma única ocorrência; um primeiro valor vazio resulta na remoção do parâmetro. Parâmetros não-UTM repetidos permanecem intactos. Abrir e salvar uma URL sem duplicatas não reserializa o endereço nem muda seu encoding.
 
 ## Setup inicial
 

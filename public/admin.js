@@ -2980,6 +2980,7 @@ function renderLinks() {
 }
 
 async function loadLinks(searchTerm = searchTermInput.value, groupFilter = searchGroupIdInput.value) {
+  const generation = state.linksRequestGeneration = (state.linksRequestGeneration || 0) + 1;
   const normalizedSearch = searchTerm.trim();
   const normalizedGroupFilter = String(groupFilter || "").trim();
 
@@ -3002,6 +3003,7 @@ async function loadLinks(searchTerm = searchTermInput.value, groupFilter = searc
 
     const queryString = queryParams.toString();
     const payload = await request(`/api/links${queryString ? `?${queryString}` : ""}`, { method: "GET" });
+    if (generation !== state.linksRequestGeneration) return;
     state.links = payload.links || [];
     renderLinks();
 
@@ -3023,6 +3025,7 @@ async function loadLinks(searchTerm = searchTermInput.value, groupFilter = searc
         : `${state.links.length} link(s) carregado(s).`,
     );
   } catch (error) {
+    if (generation !== state.linksRequestGeneration) return;
     setStatus(listStatus, error.message, "error");
   }
 }
@@ -3286,7 +3289,7 @@ linkForm.addEventListener("submit", async (event) => {
 
   // Manual URL edits are authoritative even when submit happens before blur.
   hydrateUtmFields();
-  const urlWithUtm = targetUrlInput.value.trim();
+  const urlWithUtm = utmUi?.normalizeUtmDuplicates(targetUrlInput.value.trim()) || targetUrlInput.value.trim();
   collectSmartRules();
   clearSmartRuleInvalidState();
   // Clear any stale Smart error before a new attempt. The empty string does not

@@ -39,7 +39,7 @@ Use para links da bio, QR Codes em cardápios e materiais impressos, campanhas c
 
 ## Screenshots
 
-As imagens abaixo são capturas existentes do projeto; ilustram o produto e podem não refletir todos os detalhes da candidata 3.2.0.
+As imagens abaixo são capturas históricas do projeto (as telas com versão visível mostram v2.1.0). Ilustram os fluxos de links, página inicial e senha, mas não representam o layout da candidata 3.2.0. Serão revisadas após o redesign visual.
 
 ![Painel administrativo do BoltLink](public/tela-links.webp)
 
