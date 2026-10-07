@@ -1,5 +1,19 @@
 # GitHub Release Checklist
 
+## Preparação 3.1.1 — candidata, não publicada
+
+- confirmar versão `3.1.1` em package.json e nas duas entradas do lockfile; `APP_VERSION` deriva do package
+- manter `v3.1.0` e sua GitHub Release congeladas; não criar tag/release neste gate
+- confirmar scripts `db:migrations:apply` pelo binding `db_boltlink` e `deploy` com migrations antes do Worker e encadeamento `&&`
+- confirmar wrapper e `migrations_dir: "migrations"`; arquivos `0000`–`0006` inalterados; **MIGRATION_0007 = NOT REQUIRED**
+- validar encadeamento com mock e routing do wrapper em Workers Builds (`WORKERS_CI=1`) sem config privado
+- rodar `npm install`, `npm test`, `npm ls --depth=0 --offline`, `git diff --check`, syntax checks dos scripts e `npx tsc --noEmit`; somente o TS7016 histórico de `qrcode` é aceito
+- não executar `npm run deploy` para validar o gate: agora ele aplica migrations remotas
+- a GitHub Release continua source distribution; publicar tag/release não toca D1 de clientes; cada instalação executa seu próprio `npm run deploy`
+- manter Deploy command = `npm run deploy` no Deploy Button/Workers Builds da instalação; comandos diretos não passam pelo apply
+
+## Checklist geral
+
 - confirmar que `README.md`, `AI-START.md`, `docs/cloudflare-setup.md`, `docs/privacy.md` e `docs/upgrading.md` refletem a versão atual
 - confirmar que `docs/privacy-template.md` está presente e coerente com a baseline LGPD
 - confirmar que nenhum valor real de `API_KEY`, `PASSWORD_SESSION_SECRET`, `TEAM_DOMAIN`, `POLICY_AUD`, `database_id` ou domínio privado aparece em arquivos versionados

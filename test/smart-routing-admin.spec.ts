@@ -1994,7 +1994,7 @@ const UNRELEASED_SCOPE_PATTERNS = [
  * heading that names both keeps the stricter historical scope.
  */
 const CURRENT_SCOPE_PATTERNS = [
-	/\bv?3\.(?:0|1)\.0\b/i,
+	/\bv?3\.(?:0\.0|1\.[01])\b/i,
 	/release atual/i,
 	/vers[ãa]o atual/i,
 ];
@@ -2149,7 +2149,7 @@ function classifySectionScope(section: MarkdownSection): SectionScope {
 		}
 		// Explicit current-version identity supersedes generic published wording.
 		// A heading naming v2.2.1 still retains its strict historical ceiling.
-		if (/\bv?3\.1\.0\b/i.test(title) && !/v2\.2\.1/i.test(title)) return "current";
+		if (/\bv?3\.1\.[01]\b/i.test(title) && !/v2\.2\.1/i.test(title)) return "current";
 		if (PUBLISHED_SCOPE_PATTERNS.some((pattern) => pattern.test(title))) {
 			return "published";
 		}
@@ -2484,7 +2484,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 
 		const leading = usage.filter((entry) => entry.level === 3);
 		expect(leading.length).toBeGreaterThan(0);
-		expect(leading[0].title, "the first usage path must be the shipped release").toMatch(/3\.1\.0/);
+		expect(leading[0].title, "the first usage path must be the shipped release").toMatch(/3\.1\.1/);
 		expect(leading[0].title, "the first usage path must not be the previous release").not.toMatch(/v2\.2\.1/);
 
 		// Lineage is preserved, but every heading naming the previous release has to
@@ -2565,7 +2565,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 		const sections = parseMarkdownSections(setup);
 
 		// The leading flow is the shipped release and carries its full chain.
-		const fluxoA = markdownSection(setup, "## Fluxo A: Wrangler local (release atual v3.1.0)");
+		const fluxoA = markdownSection(setup, "## Fluxo A: Wrangler local (candidata v3.1.1)");
 		expect(fluxoA).not.toBeNull();
 		expect(fluxoA).toMatch(/dev-prepare/);
 		expect(fluxoA).toMatch(/0006/);
@@ -4100,7 +4100,9 @@ describe("Gate 8.10: published 3.1.0 identity (BL-89-01)", () => {
 			const text = readDoc(name);
 			expect(text).toContain("3.1.0 está publicada");
 			expect(text).toContain("v3.1.0");
-			expect(text).not.toMatch(/3\.1\.1|3\.2\.0/);
+			expect(text).toContain("3.1.1");
+			expect(text).toContain("## Release candidate — 3.1.1 (não publicada)");
+			expect(text).not.toMatch(/3\.1\.1 está publicada|Release atual publicada: 3\.1\.1|3\.2\.0/);
 		}
 	});
 	it.each([

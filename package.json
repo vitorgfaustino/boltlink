@@ -1,13 +1,14 @@
 {
   "name": "boltlink",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "private": true,
   "scripts": {
     "setup": "npm run wrangler:init && npm run cf-typegen",
     "setup:local": "npm run setup",
     "wrangler": "node scripts/wrangler.mjs",
     "wrangler:init": "node scripts/init-wrangler-local.mjs",
-    "deploy": "node scripts/wrangler.mjs deploy",
+    "db:migrations:apply": "node scripts/wrangler.mjs d1 migrations apply db_boltlink --remote",
+    "deploy": "npm run db:migrations:apply && node scripts/wrangler.mjs deploy",
     "dev": "node scripts/wrangler.mjs dev",
     "start": "node scripts/wrangler.mjs dev",
     "test": "vitest run",

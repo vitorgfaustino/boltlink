@@ -29,12 +29,70 @@
 
 import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { buildLocalConfig } from "../scripts/config-utils.mjs";
 import { isWorkersBuildEnvironment, resolveWranglerExecution } from "../scripts/wrangler-routing.mjs";
 
 const rootDir = "/workspace/boltlink";
 const publicConfigPath = resolve(rootDir, "wrangler.jsonc");
 const localConfigPath = resolve(rootDir, "wrangler.local.jsonc");
+
+const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+const remoteMigrationArgs = ["d1", "migrations", "apply", "db_boltlink", "--remote"];
+
+describe("3.1.1 deployment migration contract", () => {
+	it("uses the binding and wrapper, and applies migrations before deployment with fail-closed chaining", () => {
+		expect(pkg.scripts["db:migrations:apply"]).toBe("node scripts/wrangler.mjs d1 migrations apply db_boltlink --remote");
+		expect(pkg.scripts.deploy).toBe("npm run db:migrations:apply && node scripts/wrangler.mjs deploy");
+	});
+
+	it("preserves the D1 migration directory and the complete frozen 0000–0006 chain", () => {
+		const config = Function(`"use strict"; return (${readFileSync("wrangler.jsonc", "utf8")});`)();
+		const binding = config.d1_databases.find((entry: { binding: string }) => entry.binding === "db_boltlink");
+		expect(binding.migrations_dir).toBe("migrations");
+		expect(pkg.scripts["db:migrations:apply"]).not.toContain(binding.database_name);
+		expect(readdirSync("migrations").sort()).toEqual([
+			"0000_initial_schema.sql", "0001_link_management.sql", "0002_advanced_features.sql",
+			"0003_lgpd_minimization.sql", "0004_ab_testing.sql", "0005_smart_routing.sql", "0006_expired_redirect.sql",
+		]);
+	});
+
+	it("keeps package and both lockfile versions at 3.1.1 and derives APP_VERSION from the package", () => {
+		const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+		expect([pkg.version, lock.version, lock.packages[""].version]).toEqual(["3.1.1", "3.1.1", "3.1.1"]);
+		expect(readFileSync("src/index.ts", "utf8")).toContain("const APP_VERSION = packageJson.version;");
+	});
+
+	it.each([0, 23])("runs the real npm chain with an isolated mock runner (migration exit %s)", (migrationExit) => {
+		const directory = mkdtempSync(resolve(tmpdir(), "boltlink-deploy-test-"));
+		try {
+			mkdirSync(resolve(directory, "scripts"));
+			writeFileSync(resolve(directory, "package.json"), JSON.stringify({ scripts: pkg.scripts }));
+			// This fixture has no Wrangler dependency and cannot contact Cloudflare.
+			writeFileSync(resolve(directory, "scripts/wrangler.mjs"), `
+import { appendFileSync } from "node:fs";
+const args = process.argv.slice(2);
+appendFileSync("calls.jsonl", JSON.stringify(args) + "\\n");
+process.exit(args[0] === "d1" ? Number(process.env.MOCK_MIGRATION_EXIT) : 0);
+`);
+			const result = spawnSync("npm", ["run", "deploy"], {
+				cwd: directory,
+				env: { ...process.env, MOCK_MIGRATION_EXIT: String(migrationExit) },
+				encoding: "utf8",
+				timeout: 15_000,
+				shell: process.platform === "win32",
+			});
+			expect(result.error).toBeUndefined();
+			expect(result.status).toBe(migrationExit);
+			const calls = readFileSync(resolve(directory, "calls.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
+			expect(calls).toEqual(migrationExit === 0 ? [remoteMigrationArgs, ["deploy"]] : [remoteMigrationArgs]);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+});
 
 describe("wrangler wrapper routing", () => {
 	it("detects Workers Builds via WORKERS_CI", () => {
@@ -107,6 +165,40 @@ describe("wrangler wrapper routing", () => {
 		});
 
 		expect(result.errorMessage).toContain("before using D1 commands");
+	});
+
+	it("routes remote migration apply to the provisioned public binding in Workers Builds", () => {
+		const result = resolveWranglerExecution({ args: remoteMigrationArgs, rootDir, hasLocalConfig: false, env: { WORKERS_CI: "1" } });
+		expect(result).toMatchObject({ configPath: publicConfigPath, shouldSyncLocalConfig: false, args: [...remoteMigrationArgs, "--config", publicConfigPath] });
+	});
+
+	it("uses the same local configuration for remote migrations and deploy", () => {
+		for (const args of [remoteMigrationArgs, ["deploy"]]) {
+			const result = resolveWranglerExecution({ args, rootDir, hasLocalConfig: true, env: {} });
+			expect(result).toMatchObject({ configPath: localConfigPath, shouldSyncLocalConfig: true, args: [...args, "--config", localConfigPath] });
+		}
+	});
+
+	it.each([{}, { CI: "true" }])("requires private config for remote migration apply outside Workers Builds (%j)", (env) => {
+		const result = resolveWranglerExecution({ args: remoteMigrationArgs, rootDir, hasLocalConfig: false, env });
+		expect(result.errorMessage).toContain("wrangler.local.jsonc");
+	});
+
+	it.each([
+		["d1", "execute", "db_boltlink", "--remote"],
+		["d1", "migrations", "apply", "db_boltlink", "--local"],
+		[...remoteMigrationArgs, "--local"],
+		[...remoteMigrationArgs, "--preview"],
+		["d1", "migrations", "apply", "another-binding", "--remote"],
+	])("keeps unrelated D1 commands protected in Workers Builds: %j", (...args) => {
+		const result = resolveWranglerExecution({ args, rootDir, hasLocalConfig: false, env: { WORKERS_CI: "1" } });
+		expect(result.errorMessage).toContain("wrangler.local.jsonc");
+	});
+
+	it("preserves explicit config on remote migration apply", () => {
+		const args = [...remoteMigrationArgs, "-c", "custom.jsonc"];
+		const result = resolveWranglerExecution({ args, rootDir, hasLocalConfig: false, env: { WORKERS_CI: "1" } });
+		expect(result).toMatchObject({ args, configPath: null, shouldSyncLocalConfig: false });
 	});
 
 	it("does not override an explicit --config argument", () => {

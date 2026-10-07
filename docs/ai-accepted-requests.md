@@ -1,10 +1,18 @@
 # Catálogo de Pedidos Aceitos pela IA
 
+## Release candidate — 3.1.1 (não publicada)
+
+Este checkout prepara a **3.1.1**, candidata local do Gate 8.11, sem tag ou GitHub Release. A última release publicada continua sendo **3.1.0** (`v3.1.0`), congelada.
+
+O patch corrige o processo de deploy: `npm run deploy` executa `npm run db:migrations:apply` antes de publicar o Worker e interrompe o fluxo se a aplicação falhar. O comando usa o binding `db_boltlink`, preserva o wrapper e aplica somente migrations pendentes. **MIGRATION_0007 = NOT REQUIRED**; cadeia `0000`–`0006` inalterada.
+
+Publicar tag/release no GitHub é **source distribution** e não toca D1 de ninguém. Quando uma instalação executa seu próprio `npm run deploy`, as migrations pendentes do D1 daquela instalação são aplicadas antes do Worker. Deploy e D1 remoto continuam exigindo autorização por instalação.
+
 ## Release publicada — 3.1.0
 
 A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo pertencem à `3.1.0`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo seguem a candidata `3.1.1`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
 ## Regras de uso

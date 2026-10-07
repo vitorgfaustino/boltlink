@@ -1,10 +1,18 @@
 # AI-START
 
+## Release candidate — 3.1.1 (não publicada)
+
+Este checkout prepara a **3.1.1**, candidata local do Gate 8.11, sem tag ou GitHub Release. A última release publicada continua sendo **3.1.0** (`v3.1.0`), congelada.
+
+O patch corrige o processo de deploy: `npm run deploy` executa `npm run db:migrations:apply` antes de publicar o Worker e interrompe o fluxo se a aplicação falhar. O comando usa o binding `db_boltlink`, preserva o wrapper e aplica somente migrations pendentes. **MIGRATION_0007 = NOT REQUIRED**; cadeia `0000`–`0006` inalterada.
+
+Publicar tag/release no GitHub é **source distribution** e não toca D1 de ninguém. Quando uma instalação executa seu próprio `npm run deploy`, as migrations pendentes do D1 daquela instalação são aplicadas antes do Worker. Deploy e D1 remoto continuam exigindo autorização por instalação.
+
 ## Release publicada — 3.1.0
 
 A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos correntes abaixo pertencem à `3.1.0`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
+Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos correntes abaixo seguem a candidata `3.1.1`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
 Este arquivo é a entrada única para qualquer IA operar o BoltLink (**3.1.0** é a release publicada atual — tag `v3.1.0`, branch `main`; `v3.0.0` é a release anterior e `v2.2.1` é o baseline histórico do upgrade das features) com segurança.
@@ -66,7 +74,7 @@ Release atual publicada (`3.1.0`, tag `v3.1.0`):
 
 ### Histórico dos gates 3.0.0 e publicação 3.1.0
 
-- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Essa linha evoluiu para a release `3.0.0` (essa é a versão histórica; o checkout corrente está em `3.1.0`).
+- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Essa linha evoluiu para a release `3.0.0` (essa é a versão histórica; o checkout corrente prepara a candidata `3.1.1`).
 - Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
 - Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fechou o finding BL-54-04 e reconciliou a documentação, sem feature nova, sem migration, sem bump de versão, sem tag e sem deploy.
 - **Phase 6 — Release Readiness: COMPLETE**, terminando em **Gate 6.6 (publicação): PASSED** — na publicação inicial, a tag `v3.0.0` foi criada sobre `60c8575`, com push de `main` e da tag e GitHub Release concluídos. A `v3.0.0` **já possui tag e GitHub Release**; Cloudflare/D1 continuam per-installation.
@@ -110,7 +118,7 @@ O produto não mantém:
 - configuração Smart Routing persistida e ilegível é corrupção **preservada**, não "desativada": a API informa `smartRoutingStatus: "invalid"` (sem expor o valor cru), edições não relacionadas não podem apagá-la e só uma ação explícita de limpeza grava `NULL`
 - o lifecycle vence senha, A/B e Smart Routing: link expirado com destino válido responde `302` + `no-store`, sem destino responde `410` + `no-store`, e requests expirados não contam clique nem gravam no banco (Fase 4)
 - `ROOT_REDIRECT_URL` é opcional e não secreta: válida faz `GET /` responder `302` + `no-store` sem tocar D1; ausente/inválida serve a landing; unknown slugs continuam `404` (Fase 4)
-- para desenvolvimento local do Worker na release atual (`3.1.0`), rode `npm run dev-prepare` (aplica as migrations `0000`–`0006` no D1 do Wrangler) antes de `npm run dev`; no checkout histórico da tag `v2.2.1` esse script não existe, use `npm run wrangler -- d1 migrations apply ... --local`
+- para desenvolvimento local do Worker na candidata (`3.1.1`), rode `npm run dev-prepare` (aplica as migrations `0000`–`0006` no D1 do Wrangler) antes de `npm run dev`; no checkout histórico da tag `v2.2.1` esse script não existe, use `npm run wrangler -- d1 migrations apply ... --local`
 
 ## Como interpretar pedidos
 
@@ -171,15 +179,15 @@ Fluxo para `Iniciar o Projeto`:
 4. rodar `npm install`
 5. rodar `npm run setup`
 6. se o usuário quiser banco explícito, criar D1 com `npm run wrangler -- d1 create ... --update-config`
-7. aplicar migrations locais (na release atual `3.1.0`: `npm run dev-prepare`; no checkout histórico da tag `v2.2.1`: `npm run wrangler -- d1 migrations apply ... --local`)
-8. se o destino for remoto, aplicar as migrations no D1 (`--remote -c wrangler.local.jsonc`) antes de publicar/validar; no Deploy Button, o provisionamento inicial **não** substitui esse passo
+7. aplicar migrations locais (na candidata `3.1.1`: `npm run dev-prepare`; no checkout histórico da tag `v2.2.1`: `npm run wrangler -- d1 migrations apply ... --local`)
+8. se houver autorização para deploy remoto da candidata 3.1.1, usar `npm run deploy`: aplica as migrations pendentes antes do Worker; no Deploy Button/Workers Builds, manter esse Deploy command após o provisionamento do D1
 9. rodar `npm test`
 10. parar antes da criação final do Access
 
 Se o pedido for iniciar o projeto apenas localmente para testes manuais, a IA deve preparar o D1 local do Worker **antes** de `npm run dev`:
 
 ```bash
-npm run dev-prepare   # release atual 3.1.0: aplica 0000–0006 no D1 local do Worker
+npm run dev-prepare   # candidata 3.1.1: aplica 0000–0006 no D1 local do Worker
 ```
 
 `npm run dev-prepare` aplica as migrations no D1 local usado pelo `wrangler dev` (`.wrangler/state/v3/d1`). Sem isso o Worker responde `503 Database schema is not initialized`. No checkout histórico da tag `v2.2.1` esse script não existe; use `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
@@ -211,8 +219,8 @@ Quando o pedido for `Atualizar o Projeto`, a IA deve:
 6. rodar `npm install`
 7. rodar `npm run wrangler:init`
 8. aplicar migrations locais (`npm run dev-prepare` na release atual; `npm run wrangler -- d1 migrations apply ... --local` no checkout histórico da tag `v2.2.1`)
-9. se o deploy remoto for operado por CLI: aplicar as migrations remotas (`--remote -c wrangler.local.jsonc`) e só então publicar com `npm run deploy`
-10. se o deploy for GitHub auto-deploy ou Deploy Button: após o provisionamento/deploy inicial, aplicar as migrations remotas antes de validar; deploy sozinho não deixa a instalação operacional (`503 Database schema is not initialized`)
+9. se o deploy remoto for operado por CLI e estiver autorizado: usar `npm run deploy` da candidata 3.1.1 (migrations pendentes antes do Worker)
+10. se o deploy for GitHub auto-deploy ou Deploy Button: conferir Deploy command = `npm run deploy`; o script aplica migrations antes de publicar, sem etapa manual posterior obrigatória
 11. rodar `npm test`
 
 ## Upgrade específico para legados anteriores à v2.0.0
@@ -272,16 +280,26 @@ A IA deve:
 
 O botão e o auto-deploy continuam usando `wrangler.jsonc`.
 
-O provisionamento/deploy inicial **não** prepara o schema D1. Até as migrations serem aplicadas, `/api/*` e os redirects respondem `503 Database schema is not initialized`.
+No checkout candidato **3.1.1**, aceite/mantenha `npm run deploy` como Deploy command. O Deploy Button detecta esse script; em Workers Builds já configurado, confira **Settings > Build > Deploy command** e ajuste para `npm run deploy`. Um comando direto `wrangler deploy` não executa o script de migrations.
 
-Depois do deploy/provisionamento:
+```text
+npm run deploy
+  -> npm run db:migrations:apply
+     -> node scripts/wrangler.mjs d1 migrations apply db_boltlink --remote
+  -> somente após sucesso: node scripts/wrangler.mjs deploy
+```
 
-1. aplicar as migrations no D1 remoto: `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`
-2. validar `workers.dev` (API e redirect)
-3. configurar Access para `/admin`, `/admin.html`, `/api` e `/api/*`
-4. preencher `TEAM_DOMAIN` e `POLICY_AUD`
-5. opcionalmente configurar `API_KEY`; configurar `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
-6. opcionalmente trocar para domínio próprio
+Após provisionar o D1, o fluxo padrão aplica as migrations pendentes antes de publicar o Worker. O binding permanece `db_boltlink` mesmo que o operador escolha outro nome físico. No Workers Builds (`WORKERS_CI=1`), sem config privado, o wrapper usa `wrangler.jsonc` tanto no apply remoto quanto no deploy; na CLI local ambos usam `wrangler.local.jsonc`.
+
+Na tag histórica **v3.1.0**, o deploy não aplicava migrations automaticamente; banco vazio exigia aplicação manual e respondia `503 Database schema is not initialized`. A **3.1.1** corrige esse processo. O runtime continua sem aplicar migrations durante requests.
+
+Depois do deploy/provisionamento concluído:
+
+1. valide `workers.dev` (API e redirect)
+2. configure Access para `/admin`, `/admin.html`, `/api` e `/api/*`
+3. preencha `TEAM_DOMAIN` e `POLICY_AUD`
+4. opcionalmente configure `API_KEY`; configure `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
+5. opcionalmente configure domínio próprio
 
 Não existe mais etapa de publicar `IP_HASH_SECRET`.
 
@@ -324,7 +342,7 @@ npm install
 npm run setup
 ```
 
-Setup local com banco SQLite de apoio (release atual `3.1.0`):
+Setup local com banco SQLite de apoio (candidata `3.1.1`):
 
 ```bash
 npm install

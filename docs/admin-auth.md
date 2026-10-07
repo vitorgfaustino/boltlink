@@ -27,7 +27,7 @@ O Worker:
 
 ## One-click e GitHub auto-deploy
 
-Antes de validar a API, aplique as migrations no D1 remoto (`npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`): sem isso `/api/*` e os redirects respondem `503 Database schema is not initialized`.
+Na candidata 3.1.1, mantenha Deploy command = `npm run deploy`: aplica migrations pendentes antes do Worker. A tag publicada v3.1.0 exigia preparação manual do D1; banco vazio responde `503 Database schema is not initialized`. Para manutenção, permanece disponível `npm run wrangler -- d1 migrations apply db_boltlink --remote` no alvo autorizado. A autenticação permanece igual.
 
 Depois do deploy:
 

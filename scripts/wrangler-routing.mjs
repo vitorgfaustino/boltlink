@@ -114,6 +114,24 @@ export function resolveWranglerExecution({
 
 	if (command === "d1") {
 		if (!hasLocalConfig) {
+			// The Deploy Button provisions D1 before running the deploy script.
+			// Permit only its remote migration apply in Workers Builds; local
+			// development and other D1 operations still require private config.
+			const isRemoteMigrationApply = args[1] === "migrations"
+				&& args[2] === "apply"
+				&& args[3] === "db_boltlink"
+				&& args.includes("--remote")
+				&& !args.includes("--local")
+				&& !args.includes("--preview");
+			if (isWorkersBuildEnvironment(env) && isRemoteMigrationApply) {
+				return {
+					args: [...args, "--config", resolvedPublicConfigPath],
+					command,
+					hasExplicitConfig,
+					configPath: resolvedPublicConfigPath,
+					shouldSyncLocalConfig: false,
+				};
+			}
 			return {
 				errorMessage:
 					"Missing wrangler.local.jsonc. Run `npm run wrangler:init` first before using D1 commands.",

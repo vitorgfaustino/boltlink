@@ -31,6 +31,7 @@ export default defineConfig({
 					name: "workers",
 					include: ["test/**/*.spec.ts"],
 					exclude: [
+						"test/wrangler.spec.ts",
 						"test/ab-display.spec.ts",
 						"test/trash-admin.spec.ts",
 						"test/smart-routing-admin.spec.ts",
@@ -47,6 +48,7 @@ export default defineConfig({
 					name: "node",
 					environment: "node",
 					include: [
+						"test/wrangler.spec.ts",
 						"test/ab-display.spec.ts",
 						"test/trash-admin.spec.ts",
 						"test/smart-routing-admin.spec.ts",

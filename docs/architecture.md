@@ -241,7 +241,8 @@ O módulo `src/portability-import.ts` é dono da validação e do plano; os hand
 - O runtime **não** executa `schema.sql`, **não** cria colunas, **não** aplica migrations implicitamente e **não** reconstrói tabelas. Ele valida que o banco foi preparado; sem a tabela `links` ou sem colunas obrigatórias, responde `503` com erro operacional controlado e sem vazar SQL.
 - Colunas legadas extras (`last_clicked_at`, `notes`, `stats`) são ignoradas e permanecem até que uma migration explícita as remova. Nenhum rebuild destrutivo roda durante requests.
 - `schema.sql` é apenas o snapshot baseline da migration `0000_initial_schema.sql` para ferramentas manuais; não é executado pelo runtime e não deve receber colunas de features.
-- Instalação limpa da release atual (`3.1.0`): criar o D1, aplicar as migrations `0000` até `0006` (localmente com `npm run dev-prepare`), publicar o Worker. Upgrade da release histórica `v2.2.1`: aplicar as pendentes `0004` a `0006`, depois publicar e validar. Mesmo sem restart, um isolate antigo detecta uma migration aplicada no request seguinte.
+- Na candidata 3.1.1 (não publicada), `npm run deploy` aplica migrations remotas pendentes pelo binding `db_boltlink` antes de publicar o Worker; erro no apply impede o deploy. Workers Builds deve usar esse Deploy command. Publicar a GitHub Release não toca bancos de clientes.
+- Instalação limpa da release publicada (`3.1.0`, sem migrations automáticas no deploy): criar o D1, aplicar as migrations `0000` até `0006` (localmente com `npm run dev-prepare`), publicar o Worker. Upgrade da release histórica `v2.2.1`: aplicar as pendentes `0004` a `0006`, depois publicar e validar. Mesmo sem restart, um isolate antigo detecta uma migration aplicada no request seguinte.
 
 #### Procedimento histórico: instalação da release histórica (v2.2.1)
 

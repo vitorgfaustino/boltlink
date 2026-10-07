@@ -1,10 +1,18 @@
 # BoltLink
 
+## Release candidate — 3.1.1 (não publicada)
+
+Este checkout prepara a **3.1.1**, candidata local do Gate 8.11, sem tag ou GitHub Release. A última release publicada continua sendo **3.1.0** (`v3.1.0`), congelada.
+
+O patch corrige o processo de deploy: `npm run deploy` executa `npm run db:migrations:apply` antes de publicar o Worker e interrompe o fluxo se a aplicação falhar. O comando usa o binding `db_boltlink`, preserva o wrapper e aplica somente migrations pendentes. **MIGRATION_0007 = NOT REQUIRED**; cadeia `0000`–`0006` inalterada.
+
+Publicar tag/release no GitHub é **source distribution** e não toca D1 de ninguém. Quando uma instalação executa seu próprio `npm run deploy`, as migrations pendentes do D1 daquela instalação são aplicadas antes do Worker. Deploy e D1 remoto continuam exigindo autorização por instalação.
+
 ## Release publicada — 3.1.0
 
 A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos correntes abaixo pertencem à `3.1.0`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
+Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos correntes abaixo seguem a candidata `3.1.1`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
 BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel administrativo estático.
@@ -62,13 +70,13 @@ O foco do sistema é manter o caminho crítico do redirect enxuto e previsível,
 
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/vitorgfaustino/boltlink)
 
-O botão continua funcional com o `wrangler.jsonc` público.
+O botão usa o `wrangler.jsonc` público. Enquanto a candidata 3.1.1 não for publicada, o botão que aponta para `main` continua distribuindo a 3.1.0; o patch descrito abaixo pertence a este checkout candidato.
 
 ## Três formas de usar
 
-### 1. Wrangler local (instalação da release 3.1.0)
+### 1. Wrangler local (candidata 3.1.1)
 
-Fluxo principal: instalar a release atual (`3.1.0`, tag `v3.1.0`) a partir do repositório.
+Fluxo deste checkout: preparar a candidata `3.1.1` para validação local. Para instalar a última release publicada, use a tag `v3.1.0`, que não executa migrations remotas no script de deploy.
 
 ```bash
 npm install
@@ -112,7 +120,7 @@ Os checkpoints históricos de desenvolvimento aplicavam cadeias mais curtas no m
 
 #### Procedimento histórico: ambiente local da release histórica (v2.2.1)
 
-A tag `v2.2.1` é a **release anterior**, mantida aqui apenas como referência de lineage; este não é o caminho recomendado para instalar a versão atual. Naquele checkout a cadeia termina na migration `0003_lgpd_minimization.sql` e o script de preparação local do D1 não existe, então a cadeia é aplicada manualmente:
+A tag `v2.2.1` é o **baseline histórico do upgrade**, mantida aqui apenas como referência de lineage; este não é o caminho recomendado para instalar a versão atual. Naquele checkout a cadeia termina na migration `0003_lgpd_minimization.sql` e o script de preparação local do D1 não existe, então a cadeia é aplicada manualmente:
 
 ```bash
 npm install
@@ -135,14 +143,26 @@ Pedidos úteis:
 
 ### 3. One-click / GitHub auto-deploy
 
-Depois do deploy:
+No checkout candidato **3.1.1**, aceite/mantenha `npm run deploy` como Deploy command. O Deploy Button detecta esse script; em Workers Builds já configurado, confira **Settings > Build > Deploy command** e ajuste para `npm run deploy`. Um comando direto `wrangler deploy` não executa o script de migrations.
 
-1. aplicar as migrations no D1 (`npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --remote -c wrangler.local.jsonc`); sem isso a API e os redirects respondem `503 Database schema is not initialized`
-2. validar `workers.dev`
-3. configurar Access para `/admin`, `/admin.html`, `/api` e `/api/*`
-4. preencher `TEAM_DOMAIN` e `POLICY_AUD`
-5. opcionalmente configurar `API_KEY`; configurar `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
-6. opcionalmente trocar para domínio próprio
+```text
+npm run deploy
+  -> npm run db:migrations:apply
+     -> node scripts/wrangler.mjs d1 migrations apply db_boltlink --remote
+  -> somente após sucesso: node scripts/wrangler.mjs deploy
+```
+
+Após provisionar o D1, o fluxo padrão aplica as migrations pendentes antes de publicar o Worker. O binding permanece `db_boltlink` mesmo que o operador escolha outro nome físico. No Workers Builds (`WORKERS_CI=1`), sem config privado, o wrapper usa `wrangler.jsonc` tanto no apply remoto quanto no deploy; na CLI local ambos usam `wrangler.local.jsonc`.
+
+Na tag histórica **v3.1.0**, o deploy não aplicava migrations automaticamente; banco vazio exigia aplicação manual e respondia `503 Database schema is not initialized`. A **3.1.1** corrige esse processo. O runtime continua sem aplicar migrations durante requests.
+
+Depois do deploy/provisionamento concluído:
+
+1. valide `workers.dev` (API e redirect)
+2. configure Access para `/admin`, `/admin.html`, `/api` e `/api/*`
+3. preencha `TEAM_DOMAIN` e `POLICY_AUD`
+4. opcionalmente configure `API_KEY`; configure `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
+5. opcionalmente configure domínio próprio
 
 Se você utiliza o recurso de links protegidos por senha, **deve obrigatoriamente** configurar o `PASSWORD_SESSION_SECRET`. Se não for configurado, a criação e o acesso aos links com senha falharão. O `API_KEY` não serve para isso: na `v2.2.1` ele ainda podia ser fallback da sessão de senha, mas a `3.0.0` removeu esse fallback e exige o secret dedicado.
 Se você usa GitHub auto-deploy ou o botão de deploy da Cloudflare, configure `PASSWORD_SESSION_SECRET` no painel da Cloudflare como `Secret`.
