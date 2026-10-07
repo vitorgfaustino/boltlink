@@ -6,7 +6,7 @@
 --
 -- NULL means no expired destination is configured, which keeps the pre-0006
 -- behavior for every existing row. The runtime never creates or alters this
--- column; this migration is the only authority for it.
+-- column. This migration is the only authority for it.
 --
 -- Additive only: no default (existing rows stay NULL), no UPDATE, no table
 -- rebuild, no auxiliary table and no index.

@@ -6,6 +6,8 @@ A **3.1.1 está publicada**, identificada pela tag **v3.1.1**; é a release atua
 
 Publicar tag/release é **source distribution** e não opera Cloudflare de clientes. Cada instalação executa o próprio `npm run deploy`, que aplica apenas migrations pendentes antes do Worker, e configura seu próprio Access. O guia completo está em [Cloudflare Access](docs/admin-auth.md).
 
+A correção de compatibilidade da mesma 3.1.1 substitui apenas pontos e vírgulas em comentários das migrations históricas para o parser remoto D1/Wrangler. O SQL executável, o schema e os nomes `0000`–`0006` permanecem inalterados. Instalações novas usam os arquivos corrigidos; bancos que já registraram a cadeia não reaplicam essas migrations. Esta correção existe somente na branch de trabalho. A validação D1 remota e a republicação estão pendentes.
+
 ## Recursos preservados desde a 3.1.0
 
 A **3.1.0**, agora release anterior congelada na tag **v3.1.0**, introduziu os recursos abaixo. A tag histórica **v3.0.0** também permanece congelada. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
@@ -76,6 +78,7 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - `wrangler.local.jsonc` é a configuração privada local e não deve ser versionada
 - não introduza `wrangler.toml`
 - se bindings mudarem, rode `npm run cf-typegen`
+- em `migrations/*.sql`, ponto e vírgula em statement SQL é permitido e normal, mas ponto e vírgula dentro de comentários `--` ou `/* ... */` é proibido, nas migrations existentes e futuras, para compatibilidade com o parser remoto D1/Wrangler; valide com `npm test -- --project node test/migration-comments.spec.ts`
 - se schema mudar, crie uma nova migration; `schema.sql` é apenas o baseline da `0000_initial_schema.sql` e não deve receber colunas de features
 - o runtime não pode executar `schema.sql`, criar/alterar colunas, aplicar migrations implicitamente nem reconstruir tabelas durante requests; banco não preparado deve falhar fechado com `503`
 - na release 3.1.1, `npm run deploy` aplica migrations D1 remotas pendentes pelo binding `db_boltlink` antes de publicar; uma falha impede o deploy. No Workers Builds sem config privado, somente o apply remoto desse binding usa o template público; outros comandos D1 continuam exigindo config privado ou config explícito. Deploy command deve ser `npm run deploy`. Nunca execute esse script para validação local: ele altera o D1 remoto. A tag v3.1.0 conserva o deploy sem migrations automáticas.

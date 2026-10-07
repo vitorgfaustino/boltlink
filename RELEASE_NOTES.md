@@ -1,6 +1,7 @@
 ## BoltLink 3.1.1 — publicada
 
 - Corrige o Deploy Button: `npm run deploy` aplica migrations D1 pendentes pelo binding `db_boltlink` antes do Worker; falha no apply impede deploy.
+- Corrige a compatibilidade das migrations históricas com o parser remoto D1/Wrangler em instalação nova: somente comentários SQL, sem alteração do SQL executável, schema, nomes ou ordem da cadeia `0000`–`0006`. Correção local para a mesma versão 3.1.1, com validação D1 remota e republicação pendentes.
 - Preserva `scripts/wrangler.mjs`; o wrapper permite o apply remoto desse binding no Workers Builds sem configuração privada.
 - Instalação nova aplica `0000`–`0006`; instalações preparadas não reaplicam migrations; legados aplicam somente pendentes.
 - Sem migration nova, schema ou mudança funcional: **MIGRATION_0007 = NOT REQUIRED**.

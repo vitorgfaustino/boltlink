@@ -32,6 +32,7 @@ export default defineConfig({
 					include: ["test/**/*.spec.ts"],
 					exclude: [
 						"test/wrangler.spec.ts",
+						"test/migration-comments.spec.ts",
 						"test/ab-display.spec.ts",
 						"test/trash-admin.spec.ts",
 						"test/smart-routing-admin.spec.ts",
@@ -49,6 +50,7 @@ export default defineConfig({
 					environment: "node",
 					include: [
 						"test/wrangler.spec.ts",
+						"test/migration-comments.spec.ts",
 						"test/ab-display.spec.ts",
 						"test/trash-admin.spec.ts",
 						"test/smart-routing-admin.spec.ts",
