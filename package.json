@@ -1,6 +1,6 @@
 {
   "name": "boltlink",
-  "version": "3.1.1",
+  "version": "3.2.0",
   "private": true,
   "scripts": {
     "setup": "npm run wrangler:init && npm run cf-typegen",
@@ -36,7 +36,7 @@
         "description": "Application timezone used to interpret scheduling fields (`Ativa em`/`Expira em`) when values are submitted without explicit timezone offset. Default: `America/Sao_Paulo`."
       },
       "ROOT_REDIRECT_URL": {
-        "description": "Optional, non-secret operational variable, new in 3.0.0. When set to a valid absolute http(s) URL, GET / answers 302 with Cache-Control: no-store without querying D1; when absent or invalid, the normal landing page is served. Configure it in the Cloudflare dashboard (Text) or in wrangler.local.jsonc/.dev.vars for local development. It does not affect unknown slugs (still 404), /admin, /api, /health or /privacidade."
+        "description": "Opcional (Text, não Secret; optional, non-secret): URL para redirecionar a raiz `/`. Deixe vazio para manter a página inicial padrão do BoltLink (landing). Use uma URL absoluta http(s) válida: GET / responde 302 com Cache-Control: no-store, sem consultar D1. Disponível no setup inicial do Deploy to Cloudflare. Não afeta unknown slugs (404), /admin, /api, /health ou /privacidade. Também pode ser configurada no dashboard como Text."
       },
       "API_KEY": {
         "description": "Optional secret for internal API automation only. Store it as a secret, not as a public `vars` value."

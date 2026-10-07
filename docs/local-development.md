@@ -1,5 +1,9 @@
 # Desenvolvimento Local
 
+## Candidata em desenvolvimento — 3.2.0
+
+Este checkout abre a **3.2.0 candidata**, ainda não publicada. A base oficial continua **3.1.1**, tag **v3.1.1**, congelada e reconciliada. Gate 9.1: filtro de grupos recursivo, badges com caminho completo, edição bidirecional de UTMs, `ROOT_REDIRECT_URL` como Text opcional no setup e README orientado ao produto. Sem migration nova: **MIGRATION_0007 = NOT REQUIRED**. Veja [Admin UX](admin-ux.md).
+
 > Escopo: release atual = **`3.1.1`** (tag `v3.1.1`, migrations `0000` a `0006`, com `npm run dev-prepare`). Este documento descreve o desenvolvimento local da release atual; os checkpoints de desenvolvimento (Fase 2 = `0004`/Split Test A/B, Fase 3 = `0005`/Smart Routing, Fase 4 = `0006`/destino de expiração, Fase 5 = hierarquia de grupos, portabilidade e QR Code sem migration nova) são **origem histórica** desses recursos, publicados juntos na `3.0.0` — não são estados ativos.
 
 Este projeto suporta desenvolvimento local com banco SQLite isolado para teste manual e validação rápida.

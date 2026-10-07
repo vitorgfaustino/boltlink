@@ -17,6 +17,7 @@
 
 const state = {
   editingSlug: null,
+  pendingUtmFields: {},
   links: [],
   pendingDeletes: new Map(),
   countdownInterval: null,
@@ -76,6 +77,7 @@ const expiredRedirectUi = window.BoltLinkExpiredRedirect || null;
 // Loaded before this script, and pinned by an order test. The panel fails closed
 // with an explanatory status instead of throwing when the module is absent.
 const groupHierarchyUi = window.BoltLinkGroupHierarchy || null;
+const utmUi = window.BoltLinkUtm || null;
 // Loaded before this script, and pinned by an order test. When it is missing the
 // export button disables itself instead of downloading a file under a guessed name.
 const portabilityUi = window.BoltLinkPortability || null;
@@ -529,37 +531,22 @@ function getZonedParts(timestamp, timeZone) {
   }
 }
 
-function buildUtmUrl(baseUrl) {
-  if (!baseUrl) {
-    return "";
+function hydrateUtmFields() {
+  let fields = utmUi?.parseUtmFromUrl(targetUrlInput.value.trim());
+  if (!fields) return;
+  // Generator edits made before a valid URL are retained until blur/submit.
+  const updated = utmUi.applyUtmToUrl(targetUrlInput.value.trim(), state.pendingUtmFields);
+  if (updated) {
+    targetUrlInput.value = updated;
+    fields = utmUi.parseUtmFromUrl(updated);
+    state.pendingUtmFields = {};
   }
-
-  try {
-    const parsed = new URL(baseUrl);
-    const entries = [
-      ["utm_source", utmSourceInput.value.trim()],
-      ["utm_medium", utmMediumInput.value.trim()],
-      ["utm_campaign", utmCampaignInput.value.trim()],
-      ["utm_content", utmContentInput.value.trim()],
-      ["utm_term", utmTermInput.value.trim()],
-    ];
-
-    entries.forEach(([key, value]) => {
-      if (value) {
-        parsed.searchParams.set(key, value);
-      } else {
-        parsed.searchParams.delete(key);
-      }
-    });
-
-    return parsed.toString();
-  } catch {
-    return "";
-  }
+  [utmSourceInput, utmMediumInput, utmCampaignInput, utmContentInput, utmTermInput]
+    .forEach((input, index) => { input.value = fields[utmUi.KEYS[index]]; });
 }
 
 function refreshUtmPreview() {
-  const url = buildUtmUrl(targetUrlInput.value.trim());
+  const url = utmUi?.parseUtmFromUrl(targetUrlInput.value.trim()) ? targetUrlInput.value.trim() : "";
   utmPreview.textContent = url ? `Prévia da URL com UTMs: ${url}` : "Prévia da URL com UTMs: —";
 }
 
@@ -1154,6 +1141,7 @@ async function loadGroups() {
   state.groupTree = tree;
   renderGroupTree();
   refreshGroupSelects();
+  renderLinks();
 }
 
 async function createGroupFromPanel() {
@@ -2650,6 +2638,7 @@ function collapseCreateFormIfNarrow() {
 
 function resetForm() {
   state.editingSlug = null;
+  state.pendingUtmFields = {};
   linkForm.reset();
   redirectTypeInput.value = "302";
   abEnabledInput.checked = false;
@@ -2685,11 +2674,13 @@ function resetForm() {
 
 function beginEdit(link) {
   state.editingSlug = link.slug;
+  state.pendingUtmFields = {};
   // Editing happens from a card in the list, so the form has to be on screen before it is
   // filled in.
   setCreateFormCollapsed(false);
   slugInput.value = link.slug;
   targetUrlInput.value = link.target_url;
+  hydrateUtmFields();
   redirectTypeInput.value = link.redirect_type || "302";
   tagsInput.value = (() => {
     try {
@@ -2949,6 +2940,10 @@ function renderLinks() {
         }
       })();
 
+      const groupPath = state.groupTree && groupHierarchyUi && link.group_id != null
+        ? groupHierarchyUi.groupPath(state.groupTree.byId, link.group_id)
+        : link.group_name || "";
+
       return `
         <article class="${cardClass}">
           <div class="card-top">
@@ -2962,7 +2957,7 @@ function renderLinks() {
             </div>
           </div>
           <div class="link-states">
-            ${link.group_name ? `<span class="group-badge" aria-label="Grupo: ${escapeHtml(link.group_name)}">${escapeHtml(link.group_name)}</span>` : ""}
+            ${groupPath ? `<span class="group-badge" title="${escapeHtml(groupPath)}" aria-label="Grupo: ${escapeHtml(groupPath)}">${escapeHtml(groupPath)}</span>` : ""}
             ${link.has_qrcode ? '<span class="state-chip">QR Code baixado</span>' : ""}
             ${link.has_password ? '<span class="state-chip">Senha definida</span>' : ""}
             ${renderSmartBadge(link)}
@@ -3002,6 +2997,7 @@ async function loadLinks(searchTerm = searchTermInput.value, groupFilter = searc
     }
     if (normalizedGroupFilter) {
       queryParams.set("group_id", normalizedGroupFilter === "__none__" ? "null" : normalizedGroupFilter);
+      if (normalizedGroupFilter !== "__none__") queryParams.set("include_descendants", "true");
     }
 
     const queryString = queryParams.toString();
@@ -3288,7 +3284,9 @@ linkForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  const urlWithUtm = buildUtmUrl(targetUrlInput.value.trim()) || targetUrlInput.value.trim();
+  // Manual URL edits are authoritative even when submit happens before blur.
+  hydrateUtmFields();
+  const urlWithUtm = targetUrlInput.value.trim();
   collectSmartRules();
   clearSmartRuleInvalidState();
   // Clear any stale Smart error before a new attempt. The empty string does not
@@ -3582,13 +3580,23 @@ groupCreateNameInput.addEventListener("keydown", (event) => {
 
 [targetUrlInput, utmSourceInput, utmMediumInput, utmCampaignInput, utmContentInput, utmTermInput].forEach((input) => {
   input.addEventListener("input", () => {
+    if (input !== targetUrlInput) {
+      if (utmUi) {
+        const index = [utmSourceInput, utmMediumInput, utmCampaignInput, utmContentInput, utmTermInput].indexOf(input);
+        state.pendingUtmFields[utmUi.KEYS[index]] = input.value;
+        hydrateUtmFields();
+      }
+    }
     refreshUtmPreview();
     refreshDomainWarning();
-    if (input === targetUrlInput) {
-      refreshSmartFallback();
-      schedulePreviewLoad();
-    }
+    refreshSmartFallback();
+    schedulePreviewLoad();
   });
+});
+
+targetUrlInput.addEventListener("blur", () => {
+  hydrateUtmFields();
+  refreshUtmPreview();
 });
 
 searchForm.addEventListener("submit", (event) => {

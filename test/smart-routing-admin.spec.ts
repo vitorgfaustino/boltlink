@@ -2436,7 +2436,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 	});
 
 	it("keeps the historical README upgrade section free of Smart Routing and 0005", () => {
-		const readme = readDoc("README.md");
+		const readme = readDoc("docs/technical-reference.md");
 		const published = markdownSection(readme, "## Procedimento histórico: upgrade para a v2.2.1");
 		expect(published).not.toBeNull();
 		expect(published).not.toMatch(/0005|Smart Routing/i);
@@ -2448,7 +2448,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 	});
 
 	it("keeps the README usage section led by the shipped release", () => {
-		const readme = readDoc("README.md");
+		const readme = readDoc("docs/technical-reference.md");
 		const section = parseMarkdownSections(readme).find((entry) => entry.title.startsWith("1. Wrangler local"))!;
 		expect(section).toBeTruthy();
 		// The main installation path is the release this checkout ships, and it
@@ -2476,7 +2476,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 	 * lineage can stay as long as it is never the leading path.
 	 */
 	it("keeps the previous release out of the leading position of the README usage section", () => {
-		const readme = readDoc("README.md");
+		const readme = readDoc("docs/technical-reference.md");
 		const usage = parseMarkdownSections(readme).filter((entry) =>
 			entry.ancestors.some((ancestor) => ancestor.title === "Três formas de usar"),
 		);
@@ -2544,7 +2544,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 	});
 
 	it("keeps the historical README v2.2.1 upgrade section free of Smart Routing and 0005", () => {
-		const readme = readDoc("README.md");
+		const readme = readDoc("docs/technical-reference.md");
 		const published = markdownSection(readme, "## Procedimento histórico: upgrade para a v2.2.1");
 		expect(published).not.toBeNull();
 		expect(published).not.toMatch(/0005|Smart Routing|smartRouting|smart_routing_rules/i);
@@ -2776,6 +2776,7 @@ describe("Gate 7.2: current-state release documentation guard (BL-66-01)", () =>
 	 */
 	const HISTORICAL_HEADING_ALLOWLIST: Array<{ file: string; title: RegExp }> = [
 		{ file: "README.md", title: /^Procedimento histórico:/ },
+		{ file: "docs/technical-reference.md", title: /^Procedimento histórico:/ },
 		{ file: "docs/upgrading.md", title: /^Procedimento histórico:/ },
 		{ file: "docs/cloudflare-setup.md", title: /^Procedimento histórico:/ },
 		{ file: "docs/architecture.md", title: /^Procedimento histórico:/ },
@@ -3466,7 +3467,7 @@ describe("Gate 7.2: current-state release documentation guard (BL-66-01)", () =>
 	 * of each row are.
 	 */
 	it("documents the runtime variable matrix in README and upgrading", () => {
-		const readmeSection = parseMarkdownSections(readDoc("README.md")).find((section) => /^Runtime Variables/i.test(section.title))!;
+		const readmeSection = parseMarkdownSections(readDoc("docs/technical-reference.md")).find((section) => /^Runtime Variables/i.test(section.title))!;
 		expect(readmeSection).toBeTruthy();
 		const readmeMatrix = readmeSection.body;
 
@@ -3521,7 +3522,7 @@ describe("Gate 7.2: current-state release documentation guard (BL-66-01)", () =>
  * semantics of each matrix row and of the upgrade prose — never exact wording.
  */
 describe("Gate 7.4: PASSWORD_SESSION_SECRET upgrade semantics guard (BL-73-01)", () => {
-	const MATRIX_FILES = ["README.md", "docs/upgrading.md", "docs/cloudflare-setup.md"] as const;
+	const MATRIX_FILES = ["docs/technical-reference.md", "docs/upgrading.md", "docs/cloudflare-setup.md"] as const;
 
 	/** A "still the fallback" claim — the opposite of the removed-fallback fact. */
 	const FALLBACK_KEEPS_PATTERN =
@@ -3621,7 +3622,7 @@ describe("Gate 7.4: PASSWORD_SESSION_SECRET upgrade semantics guard (BL-73-01)",
 
 		// The global claim stays true and global: no NEW variable is required
 		// for every installation — the password-secret requirement is conditional.
-		for (const file of ["README.md", "docs/upgrading.md", "docs/cloudflare-setup.md"] as const) {
+		for (const file of ["docs/technical-reference.md", "docs/upgrading.md", "docs/cloudflare-setup.md"] as const) {
 			expect(readDoc(file), `${file} must keep the no-new-global-variable claim`).toMatch(
 				/(?:nenhum|nenhuma|n[ãa]o\s+existe)[^.]{0,200}?obrigat[óo]ri/i,
 			);
@@ -4103,9 +4104,10 @@ describe("Gate 8.12: published 3.1.1 identity (BL-89-01 preserved)", () => {
 			expect(text).toContain("3.1.1 está publicada");
 			expect(text).toContain("v3.1.1");
 			expect(text).toContain("3.1.1");
-			expect(text).toContain("## Release publicada — 3.1.1");
+			if (name !== "README.md") expect(text).toContain("## Release publicada — 3.1.1");
 			expect(text).toMatch(/release anterior[^\n]+v3\.1\.0/i);
-			expect(text).not.toMatch(/Release candidate|candidata|3\.1\.1[^\n.]+não publicada|3\.2\.0/);
+			expect(text).not.toMatch(/3\.1\.1[^\n.]+não publicada/);
+			expect(text).toMatch(/3\.2\.0.*candidata|candidata.*3\.2\.0/i);
 		}
 	});
 	it.each([
@@ -4184,7 +4186,7 @@ describe("Gate 8.12: operational Access onboarding documentation", () => {
 		expect(auth).toContain("npm run db:migrations:apply");
 		expect(auth).toMatch(/não é etapa adicional obrigatória/i);
 		for (const [name, heading] of [
-			["README.md", "### 3. One-click / GitHub auto-deploy"],
+			["docs/technical-reference.md", "### 3. One-click / GitHub auto-deploy"],
 			["AI-START.md", "### 3. One-click / GitHub auto-deploy"],
 			["docs/cloudflare-setup.md", "## Fluxo C: Deploy to Cloudflare Workers"],
 		]) {

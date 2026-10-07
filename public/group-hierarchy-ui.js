@@ -194,7 +194,7 @@
     var ids = new Set();
     var queue = [groupId];
     while (queue.length) {
-      var current = queue.shift();
+      var current = queue.pop();
       if (ids.has(current)) {
         continue;
       }

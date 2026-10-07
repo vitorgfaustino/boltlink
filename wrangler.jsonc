@@ -59,7 +59,9 @@
 		]
 	},
 	"vars": {
-		"APP_TIMEZONE": "America/Sao_Paulo"
+		"APP_TIMEZONE": "America/Sao_Paulo",
+		// Optional Text field in Deploy to Cloudflare. Empty keeps the normal home page.
+		"ROOT_REDIRECT_URL": ""
 	}
 	/**
 	 * Smart Placement

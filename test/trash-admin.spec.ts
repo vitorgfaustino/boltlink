@@ -685,7 +685,7 @@ describe("Phase 8 Gate 8.6.2: mobile component consistency", () => {
     const css = readFileSync("public/admin.css", "utf8");
     const badge = css.match(/\.group-badge\s*\{[^}]*\}/)![0];
     expect(badge).toContain("border-radius: 6px;"); expect(badge).toContain("padding: 4px 8px;");
-    expect(badge).toContain("max-width: 100%;"); expect(badge).toContain("overflow-wrap: anywhere;");
+    expect(badge).toContain("max-width: 100%;"); expect(badge).toContain("text-overflow: ellipsis;");
     expect(badge).not.toContain("999px");
   });
   it("limits compact create and equal-width actions to mobile while retaining a 44px touch target", () => {

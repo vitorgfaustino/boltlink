@@ -1,5 +1,9 @@
 # Catálogo de Pedidos Aceitos pela IA
 
+## Candidata em desenvolvimento — 3.2.0
+
+Este checkout abre a **3.2.0 candidata**, ainda não publicada. A base oficial continua **3.1.1**, tag **v3.1.1**, congelada e reconciliada. Gate 9.1: filtro de grupos recursivo, badges com caminho completo, edição bidirecional de UTMs, `ROOT_REDIRECT_URL` como Text opcional no setup e README orientado ao produto. Sem migration nova: **MIGRATION_0007 = NOT REQUIRED**. Veja [Admin UX](admin-ux.md).
+
 ## Release publicada — 3.1.1
 
 A **3.1.1 está publicada**, identificada pela tag **v3.1.1**; é a release atual e latest do repositório. A release anterior **v3.1.0** permanece congelada. Este patch operacional aplica migrations D1 pendentes antes do Worker no fluxo padrão de deploy e amplia o guia Cloudflare Access. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006`, sem mudança funcional no produto.

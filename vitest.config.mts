@@ -33,6 +33,7 @@ export default defineConfig({
 					exclude: [
 						"test/wrangler.spec.ts",
 						"test/migration-comments.spec.ts",
+						"test/admin-ux.spec.ts",
 						"test/ab-display.spec.ts",
 						"test/trash-admin.spec.ts",
 						"test/smart-routing-admin.spec.ts",
@@ -51,6 +52,7 @@ export default defineConfig({
 					include: [
 						"test/wrangler.spec.ts",
 						"test/migration-comments.spec.ts",
+						"test/admin-ux.spec.ts",
 						"test/ab-display.spec.ts",
 						"test/trash-admin.spec.ts",
 						"test/smart-routing-admin.spec.ts",

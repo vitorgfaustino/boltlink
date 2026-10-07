@@ -45,6 +45,7 @@ import {
 	GROUP_DELETE_SQL,
 	GROUP_INSERT_SQL,
 	GROUP_MOVE_SQL,
+	GROUP_SUBTREE_FILTER_SQL,
 	MAX_GROUP_DEPTH,
 	analyzeGroupHierarchy,
 	groupDeleteBindings,
@@ -483,7 +484,7 @@ app.get("/api/links", async (c) => {
 		} else {
 			const groupId = Number.parseInt(groupIdRaw, 10);
 			if (!Number.isNaN(groupId)) {
-				filters.push("group_id = ?");
+				filters.push(c.req.query("include_descendants") === "true" ? GROUP_SUBTREE_FILTER_SQL : "group_id = ?");
 				bindings.push(groupId);
 			}
 		}

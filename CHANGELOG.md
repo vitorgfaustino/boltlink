@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.2.0] - Unreleased
+
+- Badges do Admin exibem o caminho completo do grupo, com ellipsis visual, title e rótulo acessível integrais.
+- Filtro administrativo inclui todos os descendentes, antes do limite de resultados e sem requests extras.
+- Editor hidrata as cinco UTMs da URL e sincroniza alterações/remoções, preservando parâmetros não-UTM e fragmento.
+- Deploy Button expõe `ROOT_REDIRECT_URL` como Text opcional, vazio por padrão, sem alterar o redirect existente.
+- README começa pela apresentação do produto; procedimentos e detalhes de migrations passam à [referência técnica](docs/technical-reference.md).
+- Base publicada e congelada: 3.1.1, tag v3.1.1. Nenhuma tag, publicação ou deploy da candidata neste gate.
+- Migrations 0000–0006 intactas, sem mudança de schema. **MIGRATION_0007 = NOT REQUIRED**.
+
 ## [3.1.1] - 2026-10-07
 
 - Corrige o Deploy Button: `npm run deploy` aplica migrations D1 pendentes pelo binding `db_boltlink` antes do Worker; falha no apply impede deploy.

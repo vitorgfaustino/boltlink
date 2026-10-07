@@ -1068,8 +1068,11 @@ button.icon-btn {
 
 .group-badge {
   max-width: 100%;
-  overflow-wrap: anywhere;
-  display: inline-flex;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
   width: fit-content;
   margin-top: 4px;
   padding: 4px 8px;

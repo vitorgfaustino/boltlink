@@ -59,9 +59,9 @@ describe("3.1.1 deployment migration contract", () => {
 		]);
 	});
 
-	it("keeps package and both lockfile versions at 3.1.1 and derives APP_VERSION from the package", () => {
+	it("keeps package and both lockfile versions at 3.2.0 and derives APP_VERSION from the package", () => {
 		const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
-		expect([pkg.version, lock.version, lock.packages[""].version]).toEqual(["3.1.1", "3.1.1", "3.1.1"]);
+		expect([pkg.version, lock.version, lock.packages[""].version]).toEqual(["3.2.0", "3.2.0", "3.2.0"]);
 		expect(readFileSync("src/index.ts", "utf8")).toContain("const APP_VERSION = packageJson.version;");
 	});
 

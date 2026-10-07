@@ -74,6 +74,10 @@ components:
 
 # Design System: BoltLink
 
+## Admin — candidata 3.2.0
+
+O filtro inclui o grupo escolhido e todos os descendentes. Badges mostram o caminho completo da raiz à folha; ellipsis é apenas visual, com texto completo no DOM, no title e no aria-label. O editor UTM hidrata a URL e sincroniza alterações sem reserializar parâmetros alheios. Os demais tokens, temas e componentes seguem a base publicada. Esta seção prevalece sobre o comportamento de associação direta descrito nos checkpoints históricos abaixo.
+
 ## Admin — 3.1.0 publicada (Gates 8.6–8.6.4)
 
 Esta seção prevalece sobre os exemplos históricos da base 3.0.0 abaixo. Branding e identidade azul permanecem; o Gate 8.6.4 adota mono leve e temas Light/Dark. No Dark, Criar link e Links ativos usam superfície principal discreta (fundo branco a 1.8%, borda a 6.5%, radius 12px), sem sombra/blur. Registros têm fundo ligeiramente mais claro (3.5%), borda suave, radius 8px, padding 16px (12px em mobile estreito) e gap 12px (16px até 900px). Não há terceiro nível de cards: accordions continuam leves, com divisores, e métricas são itens independentes com flex-wrap e gap, sem pontuação separadora órfã; chips comunicam estado. Grupos usam badge de contexto com raio 6px, padding 4px 8px, fundo/borda discretos e só o nome visível (o rótulo acessível mantém “Grupo:”).

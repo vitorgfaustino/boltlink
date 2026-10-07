@@ -794,3 +794,53 @@ describe("Phase 5: read contract and redirect freeze", () => {
 		expect(traced.statements.some((sql) => /link_groups|JOIN|PRAGMA|WITH RECURSIVE/i.test(sql))).toBe(false);
 	});
 });
+
+describe("Gate 9.1: recursive administrative group filter", () => {
+	async function fixture() {
+		const a = await createGroupId("Franquia 01");
+		const b = await createGroupId("Bio", a);
+		const c = await createGroupId("Instagram", b);
+		const d = await createGroupId("Cardápio", a);
+		const e = await createGroupId("Outro");
+		const f = await createGroupId("Mais profundo", c);
+		for (const [slug, id] of [["a1", a], ["b1", b], ["c1", c], ["d1", d], ["e1", e], ["f1", f], ["ungrouped", null]] as const) {
+			await env.db_boltlink.prepare("INSERT INTO links (slug, target_url, group_id) VALUES (?, 'https://example.com/', ?)").bind(slug, id).run();
+		}
+		return { a, b, c, d, e, f };
+	}
+	async function slugs(query: string) {
+		const response = await fetchWorker(`http://localhost/api/links${query ? "?" + query : ""}`);
+		expect(response.status).toBe(200);
+		const data = await response.json() as { links: { slug: string }[] };
+		return data.links.map((link) => link.slug).sort();
+	}
+	it("parent/intermediate/leaf include all descendants without duplicating rows; direct API remains compatible", async () => {
+		const { a, b, c, d } = await fixture();
+		expect(await slugs(`group_id=${a}&include_descendants=true`)).toEqual(["a1", "b1", "c1", "d1", "f1"]);
+		expect(await slugs(`group_id=${b}&include_descendants=true`)).toEqual(["b1", "c1", "f1"]);
+		expect(await slugs(`group_id=${c}&include_descendants=true`)).toEqual(["c1", "f1"]);
+		expect(await slugs(`group_id=${d}&include_descendants=true`)).toEqual(["d1"]);
+		expect(await slugs(`group_id=${a}`)).toEqual(["a1"]);
+		expect(await slugs("group_id=null&include_descendants=true")).toEqual(["ungrouped"]);
+		expect(await slugs("")).toEqual(["a1", "b1", "c1", "d1", "e1", "f1", "ungrouped"]);
+	});
+	it("finds old child links before LIMIT even when 110 unrelated newer links exist, excluding tombstones and preserving text search", async () => {
+		const { a, e } = await fixture();
+		await env.db_boltlink.prepare("DELETE FROM links WHERE slug = 'a1'").run();
+		await env.db_boltlink.prepare("UPDATE links SET created_at = '2020-01-01'").run();
+		await env.db_boltlink.batch(Array.from({ length: 110 }, (_, i) => env.db_boltlink.prepare("INSERT INTO links (slug, target_url, group_id, created_at) VALUES (?, 'https://example.com/', ?, '2026-01-01')").bind(`unrelated-${i}`, e)));
+		await env.db_boltlink.prepare("INSERT INTO links (slug, target_url, group_id, disabled_at) VALUES ('deleted', 'https://example.com/', ?, '2026-01-01')").bind(a).run();
+		expect(await slugs(`group_id=${a}&include_descendants=true`)).toEqual(["b1", "c1", "d1", "f1"]);
+		expect(await slugs(`group_id=${a}&include_descendants=true&search=c1`)).toEqual(["c1"]);
+	});
+	it("terminates on a legacy cycle and returns each link once, with no fixed depth limit", async () => {
+		const { a, c } = await fixture();
+		await env.db_boltlink.prepare("UPDATE link_groups SET parent_id = ? WHERE id = ?").bind(c, a).run();
+		expect(await slugs(`group_id=${a}&include_descendants=true`)).toEqual(["a1", "b1", "c1", "d1", "f1"]);
+	});
+	it("returns an empty list for a genuinely empty/missing group", async () => {
+		const id = await createGroupId("Vazio");
+		expect(await slugs(`group_id=${id}&include_descendants=true`)).toEqual([]);
+		expect(await slugs("group_id=999999&include_descendants=true")).toEqual([]);
+	});
+});

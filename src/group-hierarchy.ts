@@ -55,6 +55,18 @@
 /** Root groups are depth 1, so a chain of 16 groups is the deepest legal shape. */
 export const MAX_GROUP_DEPTH = 16;
 
+/** Admin list filter, applied before LIMIT. UNION visits each id once, even in
+ * legacy cycles, without a depth cap. Never used on the public redirect path. */
+export const GROUP_SUBTREE_FILTER_SQL = `links.group_id IN (
+  WITH RECURSIVE descendant_groups(id) AS (
+    SELECT id FROM link_groups WHERE id = ?
+    UNION
+    SELECT child.id FROM link_groups AS child
+    JOIN descendant_groups AS parent ON child.parent_id = parent.id
+  )
+  SELECT id FROM descendant_groups
+)`;
+
 /**
  * Recursion bound of the measurement CTEs. It is deliberately larger than the
  * ceiling: a tree that already exceeds {@link MAX_GROUP_DEPTH} must still be

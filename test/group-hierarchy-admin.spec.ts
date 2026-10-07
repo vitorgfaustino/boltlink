@@ -318,8 +318,8 @@ describe("Phase 5: admin wiring", () => {
 		// Creation takes an optional parent, which is the CREATE contract.
 		expect(panel).toMatch(/Grupo pai \(opcional\)/);
 		expect(panel).toMatch(/id="group-create-button"[^>]*>/);
-		// The filter stays a direct association, with no implicit descendants.
-		expect(html).toMatch(/vinculados diretamente ao grupo escolhido[\s\S]*Não inclui links dos subgrupos/);
+		// The Admin includes the selected group and every recursive descendant.
+		expect(html).toMatch(/grupo escolhido e de todos os seus subgrupos, em qualquer nível/);
 	});
 
 	it("keeps the tree controls as real buttons and a reachable list", () => {

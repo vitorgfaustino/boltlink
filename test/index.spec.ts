@@ -151,7 +151,7 @@ describe("URL shortener worker", () => {
 		expect(response.headers.get("content-type")).toContain("text/html");
 		expect(body).toContain('href="/admin"');
 		expect(body).toContain('BoltLink');
-		expect(body).toContain('v3.1.1');
+		expect(body).toContain('v3.2.0');
 	});
 
 	it("serves health data on the /healt alias", async () => {
@@ -167,7 +167,7 @@ describe("URL shortener worker", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toContain("application/json");
-		expect(await response.json()).toEqual({ version: "3.1.1", timezone: "America/Sao_Paulo" });
+		expect(await response.json()).toEqual({ version: "3.2.0", timezone: "America/Sao_Paulo" });
 	});
 
 	it("serves the admin UI for localhost requests", async () => {

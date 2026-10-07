@@ -1,12 +1,16 @@
 # Setup na Cloudflare
 
+## Candidata em desenvolvimento — 3.2.0
+
+Este checkout abre a **3.2.0 candidata**, ainda não publicada. A base oficial continua **3.1.1**, tag **v3.1.1**, congelada e reconciliada. Gate 9.1: filtro de grupos recursivo, badges com caminho completo, edição bidirecional de UTMs, `ROOT_REDIRECT_URL` como Text opcional no setup e README orientado ao produto. Sem migration nova: **MIGRATION_0007 = NOT REQUIRED**. Veja [Admin UX](admin-ux.md).
+
 ## Release publicada — 3.1.1
 
 A **3.1.1 está publicada**, identificada pela tag **v3.1.1**; é a release atual e latest do repositório. A release anterior **v3.1.0** permanece congelada. Este patch operacional aplica migrations D1 pendentes antes do Worker no fluxo padrão de deploy e amplia o guia Cloudflare Access. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006`, sem mudança funcional no produto.
 
 Publicar tag/release é **source distribution** e não opera Cloudflare de clientes. Cada instalação executa o próprio `npm run deploy`, que aplica apenas migrations pendentes antes do Worker, e configura seu próprio Access. O guia completo está em [Cloudflare Access](admin-auth.md).
 
-A correção de compatibilidade da mesma 3.1.1 substitui apenas pontos e vírgulas em comentários das migrations históricas para o parser remoto D1/Wrangler. O SQL executável, o schema e os nomes `0000`–`0006` permanecem inalterados. Instalações novas usam os arquivos corrigidos; bancos que já registraram a cadeia não reaplicam essas migrations. Esta correção existe somente na branch de trabalho. A validação D1 remota e a republicação estão pendentes.
+A correção de compatibilidade da mesma 3.1.1 substitui apenas pontos e vírgulas em comentários das migrations históricas para o parser remoto D1/Wrangler. O SQL executável, o schema e os nomes `0000`–`0006` permanecem inalterados. Instalações novas usam os arquivos corrigidos; bancos que já registraram a cadeia não reaplicam essas migrations. A correção integra a v3.1.1 republicada e congelada. O fresh install D1 remoto foi validado pelo usuário, e o CI da main e da tag passou. Um segundo deploy não é requisito da release source distribution.
 
 ## Recursos preservados desde a 3.1.0
 
@@ -157,7 +161,7 @@ Na release atual:
 
 - aplique também a `0006_expired_redirect.sql` antes de configurar destino de expiração (a API recusa `expiredRedirectUrl` com `400` em banco pré-`0006`);
 - valide `GET /api/capabilities` com `expiredRedirect: true`;
-- opcionalmente configure `ROOT_REDIRECT_URL` (nova na `3.0.0`; variável `Text`, não é secret) para redirecionar `GET /`; ausente ou inválida, a landing normal é servida — valide a configuração após o deploy.
+- opcionalmente configure `ROOT_REDIRECT_URL` (nova na `3.0.0`; variável `Text`, não é secret) para redirecionar `GET /`; ausente ou inválida, a landing normal é servida. Na candidata 3.2.0, o campo aparece no setup inicial do Deploy Button com valor vazio: deixe-o vazio para manter a página inicial. Na tag publicada v3.1.1, adicione a variável no dashboard após o deploy.
 
 ### Hierarquia de grupos, portabilidade de configuração e QR Code (origem Fase 5, sem migration)
 
