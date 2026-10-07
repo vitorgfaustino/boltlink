@@ -1,13 +1,14 @@
-## BoltLink 3.1.1 — release candidate (não publicada)
+## BoltLink 3.1.1 — publicada
 
 - Corrige o Deploy Button: `npm run deploy` aplica migrations D1 pendentes pelo binding `db_boltlink` antes do Worker; falha no apply impede deploy.
 - Preserva `scripts/wrangler.mjs`; o wrapper permite o apply remoto desse binding no Workers Builds sem configuração privada.
 - Instalação nova aplica `0000`–`0006`; instalações preparadas não reaplicam migrations; legados aplicam somente pendentes.
 - Sem migration nova, schema ou mudança funcional: **MIGRATION_0007 = NOT REQUIRED**.
 - A tag histórica `v3.1.0` não aplicava migrations no deploy. Publicar no GitHub continua source distribution e não opera o D1 de clientes.
-- Regressões de scripts, fail-closed com runner mockado, configuração e versões; 3.1.1 candidata local, sem publicação neste gate.
+- Regressões de scripts, fail-closed com runner mockado, configuração, versões e documentação operacional.
+- Guia Cloudflare Access completo: uma aplicação/um AUD, paths administrativos, policy Allow por email, Team Domain, Application Audience, variáveis de runtime, validação e troubleshooting.
 
-No Deploy Button, aceite `npm run deploy`. Em Workers Builds existente, confira Settings > Build > Deploy command e ajuste para esse script. Operação manual continua disponível: `npm run wrangler -- d1 migrations apply db_boltlink --remote`. Veja [Upgrade da candidata](docs/upgrading.md#upgrade-para-a-candidata-311).
+No Deploy Button, aceite `npm run deploy`. Em Workers Builds existente, confira Settings > Build > Deploy command e ajuste para esse script. Operação manual continua disponível: `npm run wrangler -- d1 migrations apply db_boltlink --remote`. Veja [Upgrade 3.1.1](docs/upgrading.md#upgrade-para-a-release-311).
 
 ## BoltLink 3.1.0 — publicada
 
@@ -325,5 +326,5 @@ npm test
 
 ---
 
-Release atual publicada: 3.1.0 · Tag: v3.1.0
+Release atual publicada: 3.1.1 · Tag: v3.1.1 · Release anterior: 3.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

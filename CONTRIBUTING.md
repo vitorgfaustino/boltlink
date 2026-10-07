@@ -82,5 +82,5 @@ npm test
 
 ---
 
-Release atual publicada: 3.1.0 · Tag: v3.1.0
+Release atual publicada: 3.1.1 · Tag: v3.1.1
 Criado por Vitor Faustino - vitorfaustino.com.br

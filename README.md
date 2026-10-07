@@ -1,25 +1,23 @@
 # BoltLink
 
-## Release candidate — 3.1.1 (não publicada)
+## Release publicada — 3.1.1
 
-Este checkout prepara a **3.1.1**, candidata local do Gate 8.11, sem tag ou GitHub Release. A última release publicada continua sendo **3.1.0** (`v3.1.0`), congelada.
+A **3.1.1 está publicada**, identificada pela tag **v3.1.1**; é a release atual e latest do repositório. A release anterior **v3.1.0** permanece congelada. Este patch operacional aplica migrations D1 pendentes antes do Worker no fluxo padrão de deploy e amplia o guia Cloudflare Access. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006`, sem mudança funcional no produto.
 
-O patch corrige o processo de deploy: `npm run deploy` executa `npm run db:migrations:apply` antes de publicar o Worker e interrompe o fluxo se a aplicação falhar. O comando usa o binding `db_boltlink`, preserva o wrapper e aplica somente migrations pendentes. **MIGRATION_0007 = NOT REQUIRED**; cadeia `0000`–`0006` inalterada.
+Publicar tag/release é **source distribution** e não opera Cloudflare de clientes. Cada instalação executa o próprio `npm run deploy`, que aplica apenas migrations pendentes antes do Worker, e configura seu próprio Access. O guia completo está em [Cloudflare Access](docs/admin-auth.md).
 
-Publicar tag/release no GitHub é **source distribution** e não toca D1 de ninguém. Quando uma instalação executa seu próprio `npm run deploy`, as migrations pendentes do D1 daquela instalação são aplicadas antes do Worker. Deploy e D1 remoto continuam exigindo autorização por instalação.
+## Recursos preservados desde a 3.1.0
 
-## Release publicada — 3.1.0
+A **3.1.0**, agora release anterior congelada na tag **v3.1.0**, introduziu os recursos abaixo. A tag histórica **v3.0.0** também permanece congelada. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
-
-Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos correntes abaixo seguem a candidata `3.1.1`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
+Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.1.1`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
 BoltLink é um gerenciador de links com Cloudflare Workers, Hono, D1 e painel administrativo estático.
 
-**Release publicada 3.1.0 · Tag v3.1.0 · AGPL-3.0**
+**Release publicada 3.1.1 · Tag v3.1.1 · AGPL-3.0**
 
-> A última release publicada é a **3.1.0** do repositório (tag `v3.1.0`). Ela reúne o Smart Routing (Fase 3, migration `0005_smart_routing.sql`), o destino de expiração + `ROOT_REDIRECT_URL` (Fase 4, migration `0006_expired_redirect.sql`) e os recursos da Fase 5 — hierarquia de grupos com integridade, portabilidade de configuração (exportação e importação) e o QR Code com preview e downloads no painel, todos sem migration nova. Um checkout da tag anterior `v2.2.1` não contém nenhum desses recursos nem as migrations `0005`/`0006`. O BoltLink é **self-hosted**: a release do repositório é distribuição de código e cada instalação opera o próprio Worker, D1, Cloudflare Access, secrets, migrations e deploy.
+> A última release publicada é a **3.1.1** do repositório (tag `v3.1.1`). Ela reúne o Smart Routing (Fase 3, migration `0005_smart_routing.sql`), o destino de expiração + `ROOT_REDIRECT_URL` (Fase 4, migration `0006_expired_redirect.sql`) e os recursos da Fase 5 — hierarquia de grupos com integridade, portabilidade de configuração (exportação e importação) e o QR Code com preview e downloads no painel, todos sem migration nova. Um checkout da tag anterior `v2.2.1` não contém nenhum desses recursos nem as migrations `0005`/`0006`. O BoltLink é **self-hosted**: a release do repositório é distribuição de código e cada instalação opera o próprio Worker, D1, Cloudflare Access, secrets, migrations e deploy.
 
 Ele funciona como encurtador de URLs, mas o objetivo real do projeto é maior: manter links públicos estáveis, simples de operar e independentes de plataformas terceiras, com controle do redirect, proteção do painel e uma baseline de privacidade mais rígida do que a maioria das ferramentas desse tipo.
 
@@ -70,13 +68,13 @@ O foco do sistema é manter o caminho crítico do redirect enxuto e previsível,
 
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/vitorgfaustino/boltlink)
 
-O botão usa o `wrangler.jsonc` público. Enquanto a candidata 3.1.1 não for publicada, o botão que aponta para `main` continua distribuindo a 3.1.0; o patch descrito abaixo pertence a este checkout candidato.
+O botão usa o `wrangler.jsonc` público. O botão que aponta para `main` distribui a release 3.1.1 e detecta o script `npm run deploy`.
 
 ## Três formas de usar
 
-### 1. Wrangler local (candidata 3.1.1)
+### 1. Wrangler local (release 3.1.1)
 
-Fluxo deste checkout: preparar a candidata `3.1.1` para validação local. Para instalar a última release publicada, use a tag `v3.1.0`, que não executa migrations remotas no script de deploy.
+Fluxo deste checkout: preparar a release `3.1.1` para validação local. Para instalar a última release publicada, use a tag `v3.1.0`, que não executa migrations remotas no script de deploy.
 
 ```bash
 npm install
@@ -143,7 +141,7 @@ Pedidos úteis:
 
 ### 3. One-click / GitHub auto-deploy
 
-No checkout candidato **3.1.1**, aceite/mantenha `npm run deploy` como Deploy command. O Deploy Button detecta esse script; em Workers Builds já configurado, confira **Settings > Build > Deploy command** e ajuste para `npm run deploy`. Um comando direto `wrangler deploy` não executa o script de migrations.
+No checkout da release **3.1.1**, aceite/mantenha `npm run deploy` como Deploy command. O Deploy Button detecta esse script; em Workers Builds já configurado, confira **Settings > Build > Deploy command** e ajuste para `npm run deploy`. Um comando direto `wrangler deploy` não executa o script de migrations.
 
 ```text
 npm run deploy
@@ -159,7 +157,7 @@ Na tag histórica **v3.1.0**, o deploy não aplicava migrations automaticamente;
 Depois do deploy/provisionamento concluído:
 
 1. valide `workers.dev` (API e redirect)
-2. configure Access para `/admin`, `/admin.html`, `/api` e `/api/*`
+2. configure [uma única aplicação Access](docs/admin-auth.md) para `/admin`, `/admin/*`, `/admin.html`, `/api` e `/api/*`
 3. preencha `TEAM_DOMAIN` e `POLICY_AUD`
 4. opcionalmente configure `API_KEY`; configure `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
 5. opcionalmente configure domínio próprio
@@ -206,7 +204,7 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 
 ## Procedimento histórico: upgrade para a v2.2.1
 
-Procedimento histórico da **release v2.2.1 (tag `v2.2.1`)**, que termina na migration `0003_lgpd_minimization.sql`. A release atual é a `3.1.0`; para sair da `v2.2.1` e chegar nela, use o fluxo consolidado de `docs/upgrading.md`.
+Procedimento histórico da **release v2.2.1 (tag `v2.2.1`)**, que termina na migration `0003_lgpd_minimization.sql`. A release atual é a `3.1.1`; para sair da `v2.2.1` e chegar nela, use o fluxo consolidado de `docs/upgrading.md`.
 
 ```bash
 git pull --ff-only

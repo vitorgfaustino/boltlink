@@ -287,3 +287,5 @@ O sistema usa camadas com transparência e blur, não sombras pesadas. A profund
 - **Don't** adicionar animações com bounce, elastic, ou curvas de entrada chamativas. A curva padrão é `cubic-bezier(0.16, 1, 0.3, 1)` (ease-out-quart). Sempre.
 - **Don't** usar mais de 6rem no `clamp()` máximo de headings. Acima disso a página grita.
 - **Don't** usar `letter-spacing` menor que `-0.04em` em headings display. Letras coladas não é "design" — é erro de legibilidade.
+
+Release atual publicada: 3.1.1 · Tag: v3.1.1 · Release anterior: 3.1.0

@@ -1,44 +1,42 @@
 # Upgrading
 
-## Release candidate — 3.1.1 (não publicada)
+## Release publicada — 3.1.1
 
-Este checkout prepara a **3.1.1**, candidata local do Gate 8.11, sem tag ou GitHub Release. A última release publicada continua sendo **3.1.0** (`v3.1.0`), congelada.
+A **3.1.1 está publicada**, identificada pela tag **v3.1.1**; é a release atual e latest do repositório. A release anterior **v3.1.0** permanece congelada. Este patch operacional aplica migrations D1 pendentes antes do Worker no fluxo padrão de deploy e amplia o guia Cloudflare Access. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006`, sem mudança funcional no produto.
 
-O patch corrige o processo de deploy: `npm run deploy` executa `npm run db:migrations:apply` antes de publicar o Worker e interrompe o fluxo se a aplicação falhar. O comando usa o binding `db_boltlink`, preserva o wrapper e aplica somente migrations pendentes. **MIGRATION_0007 = NOT REQUIRED**; cadeia `0000`–`0006` inalterada.
+Publicar tag/release é **source distribution** e não opera Cloudflare de clientes. Cada instalação executa o próprio `npm run deploy`, que aplica apenas migrations pendentes antes do Worker, e configura seu próprio Access. O guia completo está em [Cloudflare Access](admin-auth.md).
 
-Publicar tag/release no GitHub é **source distribution** e não toca D1 de ninguém. Quando uma instalação executa seu próprio `npm run deploy`, as migrations pendentes do D1 daquela instalação são aplicadas antes do Worker. Deploy e D1 remoto continuam exigindo autorização por instalação.
+## Recursos preservados desde a 3.1.0
 
-## Release publicada — 3.1.0
+A **3.1.0**, agora release anterior congelada na tag **v3.1.0**, introduziu os recursos abaixo. A tag histórica **v3.0.0** também permanece congelada. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
-
-Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo seguem a candidata `3.1.1`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.1.1`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
-## Escopo das bases de código (release 3.1.0)
+## Escopo das bases de código (release 3.1.1)
 
 Os documentos abaixo descrevem estados de código diferentes. Confirme em qual você está antes de seguir um procedimento:
 
 | Base | Como identificar | Migrations | Recursos de produto |
 | --- | --- | --- | --- |
-| Release atual | tag `v3.1.0` (este repositório) | `0000` a `0006` | links, grupos, tags, QR code, senha, agenda/expiração, Split Test A/B, Smart Routing, destino de expiração, `ROOT_REDIRECT_URL`, hierarquia de grupos, portabilidade (exportação e importação) e QR Code com preview e downloads no painel |
-| Release anterior congelada | tag `v3.0.0` | `0000` a `0006` | recursos das Fases 2–5; sem Lixeira recuperável no Admin |
+| Release atual | tag `v3.1.1` (este repositório) | `0000` a `0006` | links, grupos, tags, QR code, senha, agenda/expiração, Split Test A/B, Smart Routing, destino de expiração, `ROOT_REDIRECT_URL`, hierarquia de grupos, portabilidade (exportação e importação) e QR Code com preview e downloads no painel |
+| Release anterior congelada | tag `v3.1.0` | `0000` a `0006` | mesmos recursos de produto; deploy sem migrations automáticas |
 | Baseline histórico do upgrade | tag `v2.2.1` (`git rev-parse v2.2.1` → `8b3895e`) | `0000` a `0003` | links, grupos, tags, QR code, senha, agenda/expiração |
 | Checkpoint histórico da Fase 2 | baseline local `23353a1` | `0000` a `0004` | baseline v2.2.1 + Split Test A/B |
 | Checkpoint histórico da Fase 3 | HEAD `548f179` | `0000` a `0005` | Fase 2 + Smart Routing |
 | Checkpoint histórico da Fase 4 | HEAD `cdb9f83` | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
 
-A release `3.1.0` é a última versão publicada deste repositório (tag `v3.1.0`); a release anterior é `v3.0.0`, congelada. `v2.2.1` permanece baseline histórico das migrations `0004`–`0006`. O upgrade é executado **por cada instalação**: publicar a release no repositório não aplica migrations nem faz deploy em nenhuma instalação.
+A release `3.1.1` é a última versão publicada deste repositório (tag `v3.1.1`); a release anterior é `v3.1.0`, congelada. `v2.2.1` permanece baseline histórico das migrations `0004`–`0006`. O upgrade é executado **por cada instalação**: publicar a release no repositório não aplica migrations nem faz deploy em nenhuma instalação.
 
-## Upgrade 3.0.0 → 3.1.0
+## Upgrade histórico 3.0.0 → 3.1.0
 
 Com a cadeia `0000`–`0006` já aplicada, atualize apenas o código para a tag `v3.1.0`, preservando configuração privada, overlays, bindings e secrets existentes. Faça backup integral do D1, instale as dependências, execute os testes, publique pelo processo normal da instalação e valide links ativos, Lixeira, restauração e portabilidade. Preserve `PASSWORD_SESSION_SECRET`; não o regenere apenas pelo upgrade. **MIGRATION_0007 = NOT REQUIRED**: nenhuma migration, binding ou variável nova para esta atualização. Não há Cron automático.
 
 Instalações anteriores à 3.0.0 seguem o fluxo de migrations abaixo antes de executar código que depende delas. Os recursos e mudanças de secrets introduzidos na 3.0.0 continuam necessários na 3.1.0.
 
-## Upgrade para a candidata 3.1.1
+## Upgrade para a release 3.1.1
 
-A 3.1.1 corrige somente o processo de deploy. Faça backup integral do D1 antes de executar o script, preserve overlays/configuração privada/bindings/secrets, atualize o código candidato e rode `npm install` e `npm test`. Não regenere secrets apenas por esse patch.
+A 3.1.1 corrige somente o processo de deploy. Faça backup integral do D1 antes de executar o script, preserve overlays/configuração privada/bindings/secrets, atualize o código para a tag `v3.1.1` e rode `npm install` e `npm test`. Não regenere secrets apenas por esse patch.
 
 Com autorização da instalação, execute `npm run deploy`: `npm run db:migrations:apply` aplica as pendentes pelo binding `db_boltlink` e, somente se tiver sucesso, o wrapper publica o Worker. Em Workers Builds, configure **Settings > Build > Deploy command** como `npm run deploy`; no Deploy Button, aceite o script detectado. Configurações existentes com `npx wrangler deploy` precisam desse ajuste para usar o novo fluxo.
 
@@ -50,15 +48,15 @@ Com autorização da instalação, execute `npm run deploy`: `npm run db:migrati
 
 O Wrangler registra migrations aplicadas em `d1_migrations`. Rodar o comando novamente consulta esse histórico e não reaplica as concluídas. Se uma migration falhar, ela é revertida e as anteriores bem-sucedidas permanecem aplicadas; o `&&` impede o deploy do Worker. Corrija a causa e use o histórico do D1 antes de retomar. Nenhuma migration nova: **MIGRATION_0007 = NOT REQUIRED**, cadeia `0000`–`0006`.
 
-A operação manual `npm run wrangler -- d1 migrations apply db_boltlink --remote` continua disponível para manutenção no alvo autorizado; não é etapa adicional obrigatória do Deploy Button padrão da candidata. O desenvolvimento local continua usando `npm run dev-prepare`.
+A operação manual `npm run wrangler -- d1 migrations apply db_boltlink --remote` continua disponível para manutenção no alvo autorizado; não é etapa adicional obrigatória do Deploy Button padrão da 3.1.1. O desenvolvimento local continua usando `npm run dev-prepare`.
 
-A tag histórica **v3.1.0** não executava migrations automaticamente. Publicar a candidata no GitHub futuramente continuará sendo **source distribution**: nenhuma tag/release aplica migrations em clientes. Cada instalação executa seu próprio fluxo e valida o próprio Worker/D1.
+A tag histórica **v3.1.0** não executava migrations automaticamente. Publicar uma release no GitHub continua sendo **source distribution**: nenhuma tag/release aplica migrations em clientes. Cada instalação executa seu próprio fluxo e valida o próprio Worker/D1.
 
 Referências oficiais: [Deploy Button e migrations por binding](https://developers.cloudflare.com/workers/platform/deploy-buttons/#best-practices), [Workers Builds / Deploy command](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#deploy-command), [Wrangler D1 migrations apply](https://developers.cloudflare.com/workers/wrangler/commands/d1/#d1-migrations-apply).
 
 ## Upgrade para a versão 3.0.0
 
-> Escopo: procedimento histórico da release `3.0.0` (deploy sem migrations automáticas, também na tag `v3.1.0`); para a candidata `3.1.1`, use o fluxo acima. Fluxo operacional consolidado da release `3.0.0`, partindo da release histórica `v2.2.1` (commit `8b3895e`, migrations `0000` a `0003`). Este repositório é a base do produto e sua release é distribuição de código: não existe instalação canônica em Cloudflare, e o upgrade abaixo é executado **por cada instalação**, no próprio Worker e D1. As seções por migration abaixo permanecem como referência; este é o fluxo único.
+> Escopo: procedimento histórico da release `3.0.0` (deploy sem migrations automáticas, também na tag `v3.1.0`); para a release `3.1.1`, use o fluxo acima. Fluxo operacional consolidado da release `3.0.0`, partindo da release histórica `v2.2.1` (commit `8b3895e`, migrations `0000` a `0003`). Este repositório é a base do produto e sua release é distribuição de código: não existe instalação canônica em Cloudflare, e o upgrade abaixo é executado **por cada instalação**, no próprio Worker e D1. As seções por migration abaixo permanecem como referência; este é o fluxo único.
 
 1. **Backup do D1 antes das migrations.** Faça backup do estado do banco conforme o procedimento da instância, antes de aplicar qualquer migration. O **Portability Export não é backup**: o documento `boltlink-portability` carrega apenas configuração lógica, sem métricas, sem hashes e sem IDs internos — a recuperação integral do estado operacional continua sendo backup do D1.
 2. **Atualize o código:**
@@ -151,7 +149,7 @@ O Smart Routing adiciona a migration `0005_smart_routing.sql`, fonte autoritativ
 - Em banco pré-0005, links normais continuam funcionando e a API retorna `400` explicando a migration ao tentar configurar Smart Routing; `GET /api/capabilities` reporta `smartRouting: false`.
 - Aplique a `0005` pelo fluxo normal antes de configurar Smart Routing em produção.
 - Ordem recomendada: backup → aplicar migrations (`0004` e `0005` quando aplicável) → publicar/atualizar o Worker → validar `GET /api/capabilities` → validar um redirect normal → configurar Smart Routing no Admin.
-- Nas tags históricas v3.0.0/v3.1.0, o deploy não aplicava migrations automaticamente; na candidata 3.1.1, `npm run deploy` aplica as pendentes antes do Worker.
+- Nas tags históricas v3.0.0/v3.1.0, o deploy não aplicava migrations automaticamente; na release 3.1.1, `npm run deploy` aplica as pendentes antes do Worker.
 - Um isolate iniciado antes da migration revalida a capability no request seguinte; o restart não é obrigatório.
 - Smart Routing e Split Test A/B são mutuamente exclusivos e links com Smart Routing usam sempre `302` com `Cache-Control: no-store`.
 - Links configurados antes do upgrade permanecem com `smart_routing_rules = NULL` (desativado) até serem configurados no Admin.
@@ -167,7 +165,7 @@ O destino de expiração adiciona a migration `0006_expired_redirect.sql`, fonte
 - Ordem recomendada: backup → aplicar migrations pendentes (`0006`) → publicar/atualizar o Worker → validar `GET /api/capabilities` (`expiredRedirect: true`) → validar um redirect normal → configurar destinos no Admin quando desejado.
 - Não há downtime obrigatório: a coluna é nullable e additive.
 - Rollback benigno: banco em `0006` com código anterior (sem o destino de expiração) ignora a coluna extra; nenhum dado é perdido e nenhum comportamento muda.
-- Nas tags históricas v3.0.0/v3.1.0, o deploy não aplicava migrations automaticamente; na candidata 3.1.1, `npm run deploy` aplica as pendentes antes do Worker. O runtime nunca cria a coluna durante requests.
+- Nas tags históricas v3.0.0/v3.1.0, o deploy não aplicava migrations automaticamente; na release 3.1.1, `npm run deploy` aplica as pendentes antes do Worker. O runtime nunca cria a coluna durante requests.
 
 ```bash
 npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
@@ -305,5 +303,5 @@ Se você atualiza pelo GitHub ou pelo botão:
 
 ---
 
-Release atual publicada: 3.1.0 · Tag: v3.1.0 · Release anterior: 3.0.0
+Release atual publicada: 3.1.1 · Tag: v3.1.1 · Release anterior: 3.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br

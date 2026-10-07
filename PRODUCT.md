@@ -1,6 +1,6 @@
 # Product
 
-Release atual publicada: **3.1.0**, tag **v3.1.0**. A release anterior **v3.0.0** permanece congelada.
+Release atual publicada: **3.1.1**, tag **v3.1.1**. A release anterior **v3.1.0** permanece congelada.
 
 ## Register
 

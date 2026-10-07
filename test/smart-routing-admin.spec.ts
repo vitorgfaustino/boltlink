@@ -2565,7 +2565,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 		const sections = parseMarkdownSections(setup);
 
 		// The leading flow is the shipped release and carries its full chain.
-		const fluxoA = markdownSection(setup, "## Fluxo A: Wrangler local (candidata v3.1.1)");
+		const fluxoA = markdownSection(setup, "## Fluxo A: Wrangler local (release v3.1.1)");
 		expect(fluxoA).not.toBeNull();
 		expect(fluxoA).toMatch(/dev-prepare/);
 		expect(fluxoA).toMatch(/0006/);
@@ -2688,7 +2688,7 @@ describe("Phase 3: Smart Routing documentation scope", () => {
 			const text = readDoc(file);
 			expect(text, `${file} must not frame the shipped release as upcoming`).not.toMatch(/pr[óo]xima release|next release/i);
 			expect(text, `${file} must not send readers of shipped features to a development branch`).not.toMatch(/branch de desenvolvimento|development branch/i);
-			expect(text, `${file} must name the current release`).toMatch(/3\.1\.0/);
+			expect(text, `${file} must name the current release`).toMatch(/3\.1\.1/);
 		}
 	});
 
@@ -2727,8 +2727,8 @@ describe("Phase 3: Smart Routing documentation scope", () => {
  * and templates are never comments (BL-73-04).
  */
 describe("Gate 7.2: current-state release documentation guard (BL-66-01)", () => {
-	const CURRENT_RELEASE = "3.1.0";
-	const CURRENT_TAG = "v3.1.0";
+	const CURRENT_RELEASE = "3.1.1";
+	const CURRENT_TAG = "v3.1.1";
 
 	/**
 	 * Append-only histories keep their pre-publication wording on purpose: the
@@ -3012,7 +3012,9 @@ describe("Gate 7.2: current-state release documentation guard (BL-66-01)", () =>
 		expect(CURRENT_RELEASE_DOC_MANIFEST).not.toContain("RELEASE_NOTES.md");
 
 		for (const file of CURRENT_RELEASE_DOC_MANIFEST) {
-			expect(readDoc(file), `${file} must name the current release`).toMatch(/3\.1\.0/);
+			// Frozen implementation report for Gates 8.1–8.5, not current release metadata.
+			if (file === "docs/phase8-local-validation.md") continue;
+			expect(readDoc(file), `${file} must name the current release`).toMatch(/3\.1\.1/);
 		}
 	});
 
@@ -4079,12 +4081,12 @@ describe("Gate 7.13: global hidden semantics (BL-712-04)", () => {
 	});
 });
 
-describe("Gate 8.10: published 3.1.0 identity (BL-89-01)", () => {
+describe("Gate 8.12: published 3.1.1 identity (BL-89-01 preserved)", () => {
 	function staleIdentity(text: string): boolean {
 		const prose = text.replace(/[`*]/g, "");
-		return /3\.1\.0[^\n.]{0,100}(?:não publicada|não foi publicada|not published|development)/i.test(prose)
-			|| /(?:release\s+(?:atual(?:\s+publicada)?|publicada\s+atual)|(?:última|latest)\s+(?:release\s+)?(?:publicada\b\s*)?)\s*(?:é(?:\s+a)?|=|:)?\s*v?3\.0\.0/i.test(prose)
-			|| /main\s*(?:==|=|e|\/)\s*(?:tag\s+)?v3\.0\.0/i.test(prose);
+		return /3\.1\.[01][^\n.]{0,100}(?:não publicada|não foi publicada|not published|development)/i.test(prose)
+			|| /(?:release\s+(?:atual(?:\s+publicada)?|publicada\s+atual)|(?:última|latest)\s+(?:release\s+)?(?:publicada\b\s*)?)\s*(?:é(?:\s+a)?|=|:)?\s*v?3\.(?:0\.0|1\.0)/i.test(prose)
+			|| /main\s*(?:==|=|e|\/)\s*(?:tag\s+)?v3\.(?:0\.0|1\.0)/i.test(prose);
 	}
 	it("scans all current documents and the current blocks of the release histories", () => {
 		for (const file of collectDocumentationFiles(process.cwd())) {
@@ -4092,23 +4094,27 @@ describe("Gate 8.10: published 3.1.0 identity (BL-89-01)", () => {
 			// This exact file is the historical local Gates 8.1-8.5 report.
 			if (name === "docs/phase8-local-validation.md") continue;
 			let text = readDoc(name);
-			if (name === "CHANGELOG.md") text = text.split("## [3.0.0]")[0];
-			if (name === "RELEASE_NOTES.md") text = text.split("## BoltLink 3.0.0")[0];
+			if (name === "CHANGELOG.md") text = text.split("## [3.1.0]")[0];
+			if (name === "RELEASE_NOTES.md") text = text.split("## BoltLink 3.1.0")[0];
 			expect(staleIdentity(text), name).toBe(false);
 		}
 		for (const name of ["AGENTS.md", "AI-START.md", "README.md", "docs/cloudflare-setup.md", "docs/upgrading.md"]) {
 			const text = readDoc(name);
-			expect(text).toContain("3.1.0 está publicada");
-			expect(text).toContain("v3.1.0");
+			expect(text).toContain("3.1.1 está publicada");
+			expect(text).toContain("v3.1.1");
 			expect(text).toContain("3.1.1");
-			expect(text).toContain("## Release candidate — 3.1.1 (não publicada)");
-			expect(text).not.toMatch(/3\.1\.1 está publicada|Release atual publicada: 3\.1\.1|3\.2\.0/);
+			expect(text).toContain("## Release publicada — 3.1.1");
+			expect(text).toMatch(/release anterior[^\n]+v3\.1\.0/i);
+			expect(text).not.toMatch(/Release candidate|candidata|3\.1\.1[^\n.]+não publicada|3\.2\.0/);
 		}
 	});
 	it.each([
 		"3.1.0 está em desenvolvimento, não publicada",
 		"3.1.0 not published",
 		"3.1.0 development",
+		"3.1.1 não publicada",
+		"release atual é a 3.1.0",
+		"main == v3.1.0",
 		"release atual é a 3.0.0",
 		"Última release publicada: v3.0.0",
 		"main == v3.0.0",
@@ -4117,6 +4123,89 @@ describe("Gate 8.10: published 3.1.0 identity (BL-89-01)", () => {
 		expect(staleIdentity(text)).toBe(true);
 	});
 	it("accepts historical origins and the frozen previous release", () => {
-		expect(staleIdentity("Release atual publicada: 3.1.0, tag v3.1.0. Release anterior: v3.0.0. Smart Routing publicado desde a 3.0.0.")).toBe(false);
+		expect(staleIdentity("Release atual publicada: 3.1.1, tag v3.1.1. Release anterior: v3.1.0. Smart Routing publicado desde a 3.0.0.")).toBe(false);
+	});
+});
+
+describe("Gate 8.12: operational Access onboarding documentation", () => {
+	const auth = readDoc("docs/admin-auth.md");
+
+	it("documents all administrative paths in one Access application with one audience", () => {
+		for (const path of ["/admin", "/admin/*", "/admin.html", "/api", "/api/*"]) {
+			expect(auth).toContain(`\`${path}\``);
+		}
+		expect(auth).toMatch(/UMA ÚNICA aplicação Access\s*\/\s*UM AUD/i);
+		expect(auth).toMatch(/Worker valida um único `POLICY_AUD`/);
+		expect(auth).toMatch(/wildcard `admin\/\*`[^\n]+não o pai `\/admin`/);
+		expect(auth).toMatch(/Não deixe Path vazio[^\n]+`\/`[^\n]+`\/\*`/);
+	});
+
+	it("explains setup, an email Allow policy, JWT validation and typed runtime variables", () => {
+		for (const concept of ["Zero Trust", "Access policies", "deny-by-default", "Allow", "Emails", "Team Name", "Team Domain", "Application Audience", "TEAM_DOMAIN", "POLICY_AUD", "Variables and Secrets", "issuer", "audience", "Cf-Access-Jwt-Assertion"]) {
+			expect(auth).toContain(concept);
+		}
+		expect(auth).toMatch(/https:\/\/sua-equipe\.cloudflareaccess\.com/);
+		for (const name of ["TEAM_DOMAIN", "POLICY_AUD", "ROOT_REDIRECT_URL", "APP_TIMEZONE"]) {
+			expect(auth).toMatch(new RegExp(`\\| \\x60${name}\\x60 \\| \\x60Text\\x60 \\|`));
+		}
+		for (const name of ["API_KEY", "PASSWORD_SESSION_SECRET"]) {
+			expect(auth).toMatch(new RegExp(`\\| \\x60${name}\\x60 \\| \\x60Secret\\x60 \\|`));
+		}
+		expect(auth).toContain("keep_vars=true");
+	});
+
+	it("keeps public routes open and gives validation and troubleshooting for both boundaries", () => {
+		for (const concept of ["/promocao", "GET /", "/health", "/version", "/api/links", "401", "503 Database schema is not initialized", "Cookie Path Attribute", "apagada e recriada"]) {
+			expect(auth).toContain(concept);
+		}
+		expect(auth).toMatch(/Links curtos públicos[^\n]+sem login Access/);
+		expect(auth).toMatch(/Salvar TEAM_DOMAIN\/POLICY_AUD[^\n]+não cria Access/);
+		expect(auth).toMatch(/Criar Access[^\n]+não preenche automaticamente/);
+	});
+
+	it("links abbreviated onboarding documents to the canonical Access guide", () => {
+		for (const name of ["README.md", "AI-START.md", "AGENTS.md", "docs/cloudflare-setup.md"]) {
+			expect(readDoc(name), name).toMatch(/\[[^\]]*Access[^\]]*\]\((?:docs\/)?admin-auth\.md\)/i);
+		}
+		for (const url of ["/cloudflare-one/setup/", "/policies/app-paths/", "/authorization-cookie/validating-json/", "/workers/configuration/environment-variables/"]) {
+			expect(auth).toContain(`https://developers.cloudflare.com${url.startsWith("/cloudflare-one") || url.startsWith("/workers") ? url : ""}`);
+			expect(auth).toContain(url);
+		}
+	});
+
+	function requiresManualPostDeploy(text: string): boolean {
+		const prose = text.replace(/[`*]/g, "");
+		return /(?:depois|após)\s+do\s+deploy[^\n]*:\s*\n\s*1\.\s*(?:aplicar|aplique|executar|execute)[^\n]*migrations/i.test(prose)
+			|| /(?:Deploy Button|3\.1\.1)\s+(?:sempre\s+)?(?:exige|precisa de)\s+(?:aplicar\s+)?migrations\s+manua[il]/i.test(prose);
+	}
+
+	it("documents migrations in the deploy chain, without a mandatory manual post-deploy step", () => {
+		expect(auth).toContain("npm run deploy");
+		expect(auth).toContain("npm run db:migrations:apply");
+		expect(auth).toMatch(/não é etapa adicional obrigatória/i);
+		for (const [name, heading] of [
+			["README.md", "### 3. One-click / GitHub auto-deploy"],
+			["AI-START.md", "### 3. One-click / GitHub auto-deploy"],
+			["docs/cloudflare-setup.md", "## Fluxo C: Deploy to Cloudflare Workers"],
+		]) {
+			const section = markdownSection(readDoc(name), heading);
+			expect(section, name).not.toBeNull();
+			expect(section, name).toContain("npm run deploy");
+			expect(requiresManualPostDeploy(section!), name).toBe(false);
+		}
+		expect(requiresManualPostDeploy(auth)).toBe(false);
+	});
+
+	it.each([
+		"Depois do deploy:\n1. aplicar as migrations manualmente no D1",
+		"Após do deploy:\n1. execute migrations no D1",
+		"Deploy Button sempre exige migrations manuais",
+		"3.1.1 exige migrations manuais depois do deploy",
+	])("rejects obsolete mandatory manual onboarding: %s", (text) => {
+		expect(requiresManualPostDeploy(text)).toBe(true);
+	});
+
+	it("accepts automatic deployment and historical manual operations", () => {
+		expect(requiresManualPostDeploy("Na 3.1.1, npm run deploy aplica migrations antes do Worker. Na tag histórica v3.1.0, a preparação era manual.")).toBe(false);
 	});
 });

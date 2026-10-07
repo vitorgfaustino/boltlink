@@ -1,29 +1,27 @@
 # Setup na Cloudflare
 
-## Release candidate — 3.1.1 (não publicada)
+## Release publicada — 3.1.1
 
-Este checkout prepara a **3.1.1**, candidata local do Gate 8.11, sem tag ou GitHub Release. A última release publicada continua sendo **3.1.0** (`v3.1.0`), congelada.
+A **3.1.1 está publicada**, identificada pela tag **v3.1.1**; é a release atual e latest do repositório. A release anterior **v3.1.0** permanece congelada. Este patch operacional aplica migrations D1 pendentes antes do Worker no fluxo padrão de deploy e amplia o guia Cloudflare Access. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006`, sem mudança funcional no produto.
 
-O patch corrige o processo de deploy: `npm run deploy` executa `npm run db:migrations:apply` antes de publicar o Worker e interrompe o fluxo se a aplicação falhar. O comando usa o binding `db_boltlink`, preserva o wrapper e aplica somente migrations pendentes. **MIGRATION_0007 = NOT REQUIRED**; cadeia `0000`–`0006` inalterada.
+Publicar tag/release é **source distribution** e não opera Cloudflare de clientes. Cada instalação executa o próprio `npm run deploy`, que aplica apenas migrations pendentes antes do Worker, e configura seu próprio Access. O guia completo está em [Cloudflare Access](admin-auth.md).
 
-Publicar tag/release no GitHub é **source distribution** e não toca D1 de ninguém. Quando uma instalação executa seu próprio `npm run deploy`, as migrations pendentes do D1 daquela instalação são aplicadas antes do Worker. Deploy e D1 remoto continuam exigindo autorização por instalação.
+## Recursos preservados desde a 3.1.0
 
-## Release publicada — 3.1.0
+A **3.1.0**, agora release anterior congelada na tag **v3.1.0**, introduziu os recursos abaixo. A tag histórica **v3.0.0** também permanece congelada. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-A **3.1.0 está publicada**, identificada pela tag **v3.1.0**; é a release atual e latest do repositório. A release anterior **v3.0.0** permanece congelada em sua própria tag. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
-
-Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo seguem a candidata `3.1.1`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.1.1`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
-Este guia cobre as três formas de operar este checkout candidato **`3.1.1`**:
+Este guia cobre as três formas de operar este checkout da release **`3.1.1`**:
 
 - `Wrangler local`
 - `AI-guided setup`
 - `Deploy to Cloudflare Workers`
 
-## Premissas da release atual (v3.1.0)
+## Premissas da release atual (v3.1.1)
 
-O upgrade **3.0.0 → 3.1.0** atualiza código sem migration nova se a cadeia `0000`–`0006` já estiver aplicada. **MIGRATION_0007 = NOT REQUIRED**. Para instalações anteriores, aplique somente as migrations ainda pendentes conforme [Upgrading](upgrading.md).
+O upgrade **3.1.0 → 3.1.1** atualiza código sem migration nova e adiciona o apply de pendentes ao deploy se a cadeia `0000`–`0006` já estiver aplicada. **MIGRATION_0007 = NOT REQUIRED**. Para instalações anteriores, aplique somente as migrations ainda pendentes conforme [Upgrading](upgrading.md).
 
 - `wrangler.jsonc` continua sendo o template público
 - `wrangler.local.jsonc` continua sendo a configuração privada local
@@ -36,16 +34,16 @@ O upgrade **3.0.0 → 3.1.0** atualiza código sem migration nova se a cadeia `0
 
 | Base | Migrations | Recursos extras |
 | --- | --- | --- |
-| **Release atual publicada** (`3.1.0`, tag `v3.1.0`) | `0000` a `0006` | Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + portabilidade de configuração (exportação e importação) + QR Code com preview e download PNG/SVG no painel |
-| Release anterior (tag `v2.2.1`, `8b3895e`) | `0000` a `0003` | — |
+| **Release atual publicada** (`3.1.1`, tag `v3.1.1`) | `0000` a `0006` | Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + portabilidade de configuração (exportação e importação) + QR Code com preview e download PNG/SVG no painel |
+| Baseline histórico do upgrade (tag `v2.2.1`, `8b3895e`) | `0000` a `0003` | — |
 | Fase 2 (checkpoint histórico, `23353a1`) | `0000` a `0004` | Split Test A/B |
 | Fase 3 (checkpoint congelado, `548f179`) | `0000` a `0005` | Fase 2 + Smart Routing |
 | Fase 4 (checkpoint congelado, `cdb9f83`) | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
 | Fase 5 (checkpoint pre-freeze, `3670a44` sobre `cdb9f83`) | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + portabilidade + QR Code — evoluiu para a `3.0.0` |
 
-Os fluxos desta página seguem a candidata 3.1.1. A hierarquia de grupos, a portabilidade de configuração e o QR Code não acrescentam migration sobre a `0006`: a primeira usa `link_groups.parent_id`, criado pela `0002`; a segunda lê colunas existentes e grava links/grupos como qualquer criação pelo painel; o QR usa os endpoints e a coluna `has_qrcode` que existem desde a base publicada.
+Os fluxos desta página seguem a release 3.1.1. A hierarquia de grupos, a portabilidade de configuração e o QR Code não acrescentam migration sobre a `0006`: a primeira usa `link_groups.parent_id`, criado pela `0002`; a segunda lê colunas existentes e grava links/grupos como qualquer criação pelo painel; o QR usa os endpoints e a coluna `has_qrcode` que existem desde a base publicada.
 
-## Fluxo A: Wrangler local (candidata v3.1.1)
+## Fluxo A: Wrangler local (release v3.1.1)
 
 1. `npm install`
 2. `npm run setup`
@@ -73,7 +71,7 @@ npm run dev-prepare
 npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local
 ```
 
-5. Para deploy remoto autorizado da candidata 3.1.1, após backup e conferência do D1 em `wrangler.local.jsonc`:
+5. Para deploy remoto autorizado da release 3.1.1, após backup e conferência do D1 em `wrangler.local.jsonc`:
 
 ```bash
 npm run deploy
@@ -104,9 +102,9 @@ npm run dev
 npm test
 ```
 
-## Fluxo local de desenvolvimento (candidata v3.1.1)
+## Fluxo local de desenvolvimento (release v3.1.1)
 
-No desenvolvimento local da candidata `3.1.1`, o script `npm run dev-prepare` aplica a cadeia completa de migrations (`0000` a `0006`) no D1 local do Wrangler (`.wrangler/state/v3/d1`):
+No desenvolvimento local da release `3.1.1`, o script `npm run dev-prepare` aplica a cadeia completa de migrations (`0000` a `0006`) no D1 local do Wrangler (`.wrangler/state/v3/d1`):
 
 ```bash
 npm run dev-prepare
@@ -126,7 +124,7 @@ Pedidos recomendados:
 - `Auditar estado operacional`
 - `Aplicar migrations`
 
-> Escopo: release atual = **`3.1.0`** (migrations `0000` a `0006`). Não instrua operadores de um checkout histórico da tag `v2.2.1` a procurar migrations ou recursos que não existem nela; para aquele checkout, o procedimento é o histórico do Fluxo A.
+> Escopo: release atual = **`3.1.1`** (migrations `0000` a `0006`). Não instrua operadores de um checkout histórico da tag `v2.2.1` a procurar migrations ou recursos que não existem nela; para aquele checkout, o procedimento é o histórico do Fluxo A.
 
 No checkout da release atual, o pedido de atualização deve:
 
@@ -178,7 +176,7 @@ Na release atual:
 
 O botão continua usando `wrangler.jsonc`.
 
-No checkout candidato **3.1.1**, aceite/mantenha `npm run deploy` como Deploy command. O Deploy Button detecta esse script; em Workers Builds já configurado, confira **Settings > Build > Deploy command** e ajuste para `npm run deploy`. Um comando direto `wrangler deploy` não executa o script de migrations.
+No checkout da release **3.1.1**, aceite/mantenha `npm run deploy` como Deploy command. O Deploy Button detecta esse script; em Workers Builds já configurado, confira **Settings > Build > Deploy command** e ajuste para `npm run deploy`. Um comando direto `wrangler deploy` não executa o script de migrations.
 
 ```text
 npm run deploy
@@ -194,7 +192,7 @@ Na tag histórica **v3.1.0**, o deploy não aplicava migrations automaticamente;
 Depois do deploy/provisionamento concluído:
 
 1. valide `workers.dev` (API e redirect)
-2. configure Access para `/admin`, `/admin.html`, `/api` e `/api/*`
+2. configure [uma única aplicação Access](admin-auth.md) para `/admin`, `/admin/*`, `/admin.html`, `/api` e `/api/*`
 3. preencha `TEAM_DOMAIN` e `POLICY_AUD`
 4. opcionalmente configure `API_KEY`; configure `PASSWORD_SESSION_SECRET` se a instância usar links protegidos por senha
 5. opcionalmente configure domínio próprio
@@ -224,7 +222,7 @@ Sugestao:
 Para quem já está em produção e recebe atualização por GitHub/Deploy Button:
 
 - o runtime não executa reconciliação de schema; colunas legadas extras são ignoradas e permanecem até uma migration explícita
-- na candidata 3.1.1, o Deploy command `npm run deploy` aplica migrations pendentes e só então publica o Worker; erro de migration interrompe a publicação
+- na release 3.1.1, o Deploy command `npm run deploy` aplica migrations pendentes e só então publica o Worker; erro de migration interrompe a publicação
 - vindo da `v2.2.1`, as pendentes são `0004` a `0006`; vindo da 3.1.0 com a cadeia aplicada, não há migration a reaplicar
 - a `0004_ab_testing.sql` habilita o Split Test A/B (origem Fase 2), a `0005_smart_routing.sql` habilita Smart Routing (origem Fase 3) e a `0006_expired_redirect.sql` habilita o destino de expiração (origem Fase 4). Nenhuma das três existe no checkout da tag `v2.2.1`; todas foram publicadas na `3.0.0`.
 - a hierarquia de grupos, a portabilidade de configuração e o QR Code (origem Fase 5, publicados na `3.0.0`) não acrescentam migration sobre a `0006`: nada além do fluxo acima
@@ -270,5 +268,5 @@ Se o operador reativar logs, Logpush, source maps ou outra telemetria externa, i
 
 ---
 
-Release atual publicada: 3.1.0 · Tag: v3.1.0 · Release anterior: 3.0.0
+Release atual publicada: 3.1.1 · Tag: v3.1.1 · Release anterior: 3.1.0
 Criado por Vitor Faustino - vitorfaustino.com.br
