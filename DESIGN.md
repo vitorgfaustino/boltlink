@@ -4,10 +4,10 @@ description: Gerenciador de links com privacidade por padrão — painel operaci
 colors:
   primary: "#00A1F5"
   primary-hover: "#008cd6"
-  bg: "#09090b"
-  text: "#f4f4f5"
-  text-secondary: "#e4e4e7"
-  muted: "#a1a1aa"
+  bg: "#0b0f13"
+  text: "#e8ebee"
+  text-secondary: "#d9dfe5"
+  muted: "#98a2ac"
   danger: "#ef4444"
 typography:
   display:
@@ -62,11 +62,11 @@ components:
     rounded: "{rounded.sm}"
     padding: "10px 16px"
   card:
-    backgroundColor: "rgba(255,255,255,0.03)"
+    backgroundColor: "#151b21"
     rounded: "{rounded.md}"
     padding: "20px"
   input:
-    backgroundColor: "rgba(0,0,0,0.25)"
+    backgroundColor: "#0e1418"
     textColor: "{colors.text}"
     rounded: "{rounded.sm}"
     padding: "10px 14px"
@@ -80,7 +80,7 @@ O filtro inclui o grupo escolhido e todos os descendentes. Badges mostram o cami
 
 ## Admin — 3.1.0 publicada (Gates 8.6–8.6.4)
 
-Esta seção prevalece sobre os exemplos históricos da base 3.0.0 abaixo. Branding e identidade azul permanecem; o Gate 8.6.4 adota mono leve e temas Light/Dark. No Dark, Criar link e Links ativos usam superfície principal discreta (fundo branco a 1.8%, borda a 6.5%, radius 12px), sem sombra/blur. Registros têm fundo ligeiramente mais claro (3.5%), borda suave, radius 8px, padding 16px (12px em mobile estreito) e gap 12px (16px até 900px). Não há terceiro nível de cards: accordions continuam leves, com divisores, e métricas são itens independentes com flex-wrap e gap, sem pontuação separadora órfã; chips comunicam estado. Grupos usam badge de contexto com raio 6px, padding 4px 8px, fundo/borda discretos e só o nome visível (o rótulo acessível mantém “Grupo:”).
+Esta seção prevalece sobre os exemplos históricos da base 3.0.0 abaixo. Branding e identidade azul permanecem; o Gate 8.6.4 adota mono leve e temas Light/Dark. No Dark, Criar link e Links ativos usam superfície principal discreta (fundo sólido `#11161b`, borda a 9%, radius 12px), sem sombra/blur. Registros têm fundo sólido um passo mais claro (`#151b21`), borda suave, radius 8px, padding 16px (12px em mobile estreito) e gap 12px (16px até 900px). Não há terceiro nível de cards: accordions continuam leves, com divisores, e métricas são itens independentes com flex-wrap e gap, sem pontuação separadora órfã; chips comunicam estado. Grupos usam badge de contexto com raio 6px, padding 4px 8px, fundo/borda discretos e só o nome visível (o rótulo acessível mantém “Grupo:”).
 
 Toolbar agrupa três ferramentas com alturas/raios coerentes. Busca e filtro formam uma seção separada dos resultados por espaço e divisor. Footer tem distância própria da lista.
 
@@ -106,11 +106,11 @@ Uma autoridade: `data-theme` no elemento `html`. `public/admin.css` centraliza t
 
 | Papel | Dark | Light |
 | --- | --- | --- |
-| Fundo | `#09090b` e gradientes existentes | `#f3f5f8` → `#eef2f7` |
-| Painel / card | branco a 1.8% / 3.5% | `#ffffff` / `#f5f7fb` |
-| Drawer / dialog | `#0b0d10` | `#ffffff` |
-| Input | preto a 25% | `#f1f4f8` |
-| Texto / muted | `#f4f4f5` / `#a1a1aa` | `#162131` / `#526177` |
+| Fundo | `#0b0f13` (gradiente chapado) e véus residuais de azul | `#f3f5f8` → `#eef2f7` |
+| Painel / card | `#11161b` / `#151b21` | `#ffffff` / `#f5f7fb` |
+| Drawer / dialog | `#141a20` | `#ffffff` |
+| Input | `#0e1418` | `#f1f4f8` |
+| Texto / muted | `#e8ebee` / `#98a2ac` | `#162131` / `#526177` |
 | Acento / hover | `#00A1F5` / `#008cd6` | `#006cad` / `#005b92` |
 | Texto sobre acento | `#09090b` | `#ffffff` |
 | Sucesso / erro | `#86efac` / `#fca5a5` | `#187143` / `#a82431` |
@@ -125,7 +125,7 @@ Sem escolha explícita, eventos do sistema atualizam o tema. Após escolha manua
 
 **Creative North Star: "O Farol Discreto"**
 
-O BoltLink é um painel operacional que vive no escuro. O fundo é near-black (`#09090b`) com véus sutis de azul — não como decoração, mas como profundidade. Sobre essa base, um único acento ciano (`#00A1F5`) age como farol: marca onde agir, confirma o que foi feito, indica o que está ativo. Nada compete com ele porque nada mais tem cor saturada.
+O BoltLink é um painel operacional que vive no escuro. O fundo é near-black (`#0b0f13`) chapado, com os três stops do gradiente do body na mesma cor e véus residuais de azul em opacidade muito baixa — não como decoração, mas como profundidade. Sobre essa base, um único acento ciano (`#00A1F5`) age como farol: marca onde agir, confirma o que foi feito, indica o que está ativo. Nada compete com ele porque nada mais tem cor saturada.
 
 A interface rejeita o espetáculo. Não há gradientes em texto, não há cards coloridos, não há métricas brigando por atenção. Cada elemento existe para uma tarefa: criar link, buscar slug, copiar URL, ver contagem agregada. A beleza está na contenção — o que não está na tela importa tanto quanto o que está.
 
@@ -134,7 +134,7 @@ O tom é técnico mas não frio. A fonte do sistema elimina carregamento externo
 **Key Characteristics:**
 - Tema escuro como fundação, não como opção
 - Um acento. Só um. Ciano operacional.
-- Transparência e blur como profundidade, não como truque
+- Superfície sólida e borda discreta como profundidade, não como truque
 - Fontes do sistema — zero webfonts, zero latência
 - Tipografia mono para dados técnicos; sans para interface
 - Movimento rápido, curvas ease-out — sem bounce, sem elastic
@@ -144,19 +144,19 @@ O tom é técnico mas não frio. A fonte do sistema elimina carregamento externo
 A paleta é mínima por decisão estratégica. O acento ciano carrega toda a carga semântica; os neutros existem para dar contraste e hierarquia sem competir.
 
 ### Primary
-- **Ciano Operacional** (`#00A1F5`): O farol. Usado em botões primários, links, indicadores de foco, contadores ativos, e o underline decorativo de 2rem sob headings de painel. Também aparece como glow difuso no background (via `radial-gradient` com baixa opacidade) e como brilho de texto no título principal (`text-shadow` com opacidade 0.15).
+- **Ciano Operacional** (`#00A1F5`): O farol. Usado em botões primários, links, indicadores de foco, contadores ativos, e o underline decorativo de 2rem sob headings de painel. No Dark ele não aparece como glow difuso no background nem como brilho de texto: os `radial-gradient` do body ficam em `rgba(0,161,245,0.04)` e `rgba(14,165,233,0.026)` (véu residual, não glow) e o título principal usa `text-shadow: var(--heading-glow)`, que é `none`.
 - **Ciano Hover** (`#008cd6`): Estado hover/focus do acento principal. Tom mais escuro e assertivo.
 
 ### Neutral
-- **Fundo Near-Black** (`#09090b`): A tela. Não é preto puro — tem um leve azul na composição que mantém o tema escuro respirando. Usado como `background-color` do `body`.
-- **Superfície Translúcida** (`rgba(255,255,255,0.03)`): Background de painéis e cards. Transparente o suficiente para herdar os gradientes do fundo; sólido o suficiente para definir área.
-- **Superfície Elevada** (`rgba(255,255,255,0.05)`): Hover de cards e painéis. Clareamento sutil.
-- **Superfície de Input** (`rgba(0,0,0,0.25)`): Fundo de campos de formulário. Mais escuro que o painel para indicar área editável.
-- **Linha** (`rgba(255,255,255,0.08)`): Bordas de painéis, cards, inputs, separadores. Presente mas não dominante.
-- **Linha Hover** (`rgba(0,161,245,0.3)`): Borda de card em hover/focus. Aciona o acento como indicador de estado.
-- **Texto Primário** (`#f4f4f5`): Corpo de texto, labels, headings. Contraste ≥12:1 contra o fundo.
-- **Texto Secundário** (`#e4e4e7`): Contadores, badges, texto de apoio em cards.
-- **Texto Atenuado** (`#a1a1aa`): Placeholders, ajuda contextual, metadados, rodapé. Contraste ≥4.6:1 contra o fundo.
+- **Fundo Near-Black** (`#0b0f13`): A tela. Não é preto puro — tem um leve azul na composição que mantém o tema escuro respirando. Usado como `background-color` do `body`.
+- **Superfície de Painel** (`#11161b`): Background sólido de painéis e abas. Um passo acima do fundo, definido por superfície + borda, sem transparência nem blur.
+- **Superfície de Card** (`#151b21`): Background sólido dos registros. O hover de card e painel não altera o fundo; `rgba(255,255,255,0.05)` fica reservado a hover de itens de menu e controles secundários.
+- **Superfície de Input** (`#0e1418`): Fundo sólido recessivo de campos, abas e nós. Mais escuro que o painel para indicar área editável.
+- **Linha** (`rgba(255,255,255,0.09)`): Bordas de painéis, cards, inputs, separadores. Presente mas não dominante.
+- **Linha Hover** (`rgba(0,161,245,0.26)`): Borda de acento em hover/focus de controles. Aciona o acento como indicador de estado.
+- **Texto Primário** (`#e8ebee`): Corpo de texto, labels, headings. Contraste ≥12:1 contra o fundo.
+- **Texto Secundário** (`#d9dfe5`): Contadores, badges, texto de apoio em cards.
+- **Texto Atenuado** (`#98a2ac`): Placeholders, ajuda contextual, metadados, rodapé. Contraste ≥4.6:1 contra o fundo.
 
 ### Estados
 - **Perigo** (`#ef4444`): Links expirados, ações destrutivas, notas de pendência. Usado com moderação — apenas onde a atenção é crítica.
@@ -172,7 +172,7 @@ A paleta é mínima por decisão estratégica. O acento ciano carrega toda a car
 **Character:** A sans do sistema é familiar e invisível — o operador não percebe a fonte, percebe a tarefa. A mono aparece onde a exatidão importa: slugs, previews de URL, código. O contraste entre as duas não é decorativo; é semântico.
 
 ### Hierarchy
-- **Display** (800, `clamp(1.8rem, 4vw, 2.4rem)`, line-height 1.1, letter-spacing -0.04em): Título principal da página. Aparece uma vez, no hero. O letter-spacing negativo dá coesão sem sacrificar legibilidade (mínimo -0.04em — nunca mais apertado). Inclui `text-shadow` com glow ciano e cursor piscante como elemento de identidade.
+- **Display** (800, `clamp(1.8rem, 4vw, 2.4rem)`, line-height 1.1, letter-spacing -0.04em): Título principal da página. Aparece uma vez, no hero. O letter-spacing negativo dá coesão sem sacrificar legibilidade (mínimo -0.04em — nunca mais apertado). O halo ciano de `text-shadow` foi removido (`--heading-glow: none`); o cursor piscante permanece como elemento de identidade.
 - **Title** (700, `1.125rem`, letter-spacing -0.02em): Headings de seção e painel. Inclui underline decorativo de 2rem em `--accent` via `::after`. Suficiente para hierarquizar sem gritar.
 - **Body** (400, `0.94rem`, line-height 1.6): Texto corrido, descrições, help text expandido. Cor `--muted` por padrão; `--text` quando é conteúdo principal. Largura máxima implícita pela largura do painel (~65-75ch no painel de formulário).
 - **Label** (600, `0.88rem`): Labels de formulário, itens de menu, contadores. Sempre visível, sempre acima do campo.
@@ -182,53 +182,53 @@ A paleta é mínima por decisão estratégica. O acento ciano carrega toda a car
 
 ## 4. Elevation
 
-O sistema usa camadas com transparência e blur, não sombras pesadas. A profundidade vem de três mecanismos combinados:
+O sistema usa superfícies sólidas com borda, não sombras pesadas. A profundidade vem de três mecanismos combinados:
 
-1. **Transparência progressiva**: painéis (`rgba(255,255,255,0.03)`) → hover (`rgba(255,255,255,0.05)`) → inputs (`rgba(0,0,0,0.25)`). Cada camada altera sua opacidade para se destacar ou recuar.
-2. **Blur de fundo**: painéis usam `backdrop-filter: blur(24px)`. O conteúdo atrás do painel fica desfocado, criando separação sem borda dura.
-3. **Sombra de profundidade**: `0 20px 40px rgba(0,0,0,0.4)` — sombra ampla e difusa, sem borda nítida. Não projeta o painel para fora da tela; apenas o descola do fundo.
+1. **Degraus de superfície**: fundo (`#0b0f13`) → painel (`#11161b`) → card (`#151b21`) → drawer/dialog (`#141a20`) → input/aba/nó (`#0e1418`). Cada camada escolhe um sólido um passo acima ou abaixo da anterior para se destacar ou recuar.
+2. **Borda de 1px**: cada superfície é delimitada por `--line` (`rgba(255,255,255,0.09)`) ou `--panel-line`; o acento aparece na borda só em hover/focus (`--line-hover`, `rgba(0,161,245,0.26)`).
+3. **Sombra contida**: `--shadow` (`0 12px 28px rgba(0,0,0,0.45)`) fica reservada a dropdowns, popovers e dialogs; painéis e cards não projetam sombra.
 
 ### Shadow Vocabulary
-- **Sombra de Superfície** (`0 20px 40px rgba(0,0,0,0.4)`): Painéis e dropdowns. Difusa, sem offset lateral, apenas profundidade.
-- **Sombra de Destaque** (`0 0 0 1px rgba(0,161,245,0.05), 0 0 16px rgba(0,161,245,0.12), 0 10px 24px rgba(0,0,0,0.35)`): Cards em hover. Adiciona um anel sutil de acento + glow difuso.
+- **Sombra de Superfície** (`--shadow: 0 12px 28px rgba(0,0,0,0.45)`): Dropdowns, popovers e dialogs. Difusa, sem offset lateral, apenas profundidade.
+- **Sombra de Destaque**: não existe mais no Dark. O hover do botão primário mantém `box-shadow: 0 0 16px var(--accent-soft)`; cards e painéis não têm anel de acento nem glow.
 
-**The Float-By-Default Rule.** Painéis flutuam com blur e transparência. Cards em repouso têm sombra sutil; em hover, ganham anel de acento e glow. Nenhuma superfície é completamente plana; todas têm pelo menos `backdrop-filter` e uma borda semitransparente. O sistema é "flutuante" por natureza — a profundidade está na transparência, não na sombra.
+**The Solid-By-Default Rule.** Painéis, cards e drawers são sólidos e opacos; a separação vem do degrau de superfície e de uma borda de 1px. O `backdrop-filter` sobrevive só no menu de ações, sobre fundo já opaco. O sistema é plano por natureza — a profundidade está na hierarquia de superfícies, não na sombra.
 
 ## 5. Components
 
 ### Buttons
 - **Shape:** Todos os botões usam raio de 8px (`--radius-sm`). Sem cantos vivos, sem pills.
-- **Primary:** Fundo Ciano Operacional (`#00A1F5`) com texto near-black (`#09090b`) e um inset highlight branco (`inset 0 1px 0 rgba(255,255,255,0.2)`) para definição. Padding `10px 16px`, altura mínima 46px. Hover: escurece para `#008cd6` e adiciona `box-shadow: 0 0 16px` com `--accent-soft`. Active: `scale(0.98)`.
-- **Secondary:** Fundo transparente, borda `--line`, texto `--text`. Hover: fundo `rgba(255,255,255,0.04)`, borda clareia. Active: `scale(0.98)`.
-- **Danger:** Fundo transparente, borda `rgba(239,68,68,0.2)`, texto `#fca5a5`. Hover: fundo `rgba(239,68,68,0.08)`, texto branco. Reservado para ações destrutivas.
+- **Primary:** Fundo Ciano Operacional (`#00A1F5`) com texto near-black (`#09090b`) e um inset highlight branco (`inset 0 1px 0 rgba(255,255,255,0.12)`) para definição. Padding `10px 16px`, altura mínima 46px. Hover: escurece para `#008cd6` e adiciona `box-shadow: 0 0 16px` com `--accent-soft`. Active: `scale(0.98)`.
+- **Secondary:** Fundo transparente, borda `--line`, texto `--text`. Hover: fundo `rgba(255,255,255,0.05)`, borda clareia. Active: `scale(0.98)`.
+- **Danger:** Fundo transparente, borda `rgba(239,68,68,0.22)`, texto `#fca5a5`. Hover: fundo `rgba(239,68,68,0.08)`, texto `--heading`. Reservado para ações destrutivas.
 - **Compact:** Altura reduzida (40px), padding `8px 12px`, fonte `0.84rem`. Usado em ações auxiliares (Gerar slug, Criar grupo).
 - **Focus:** `box-shadow: 0 0 0 4px var(--accent-soft)` via `:focus-visible`. Anel de 4px com transparência — visível sem ser agressivo.
 - **Disabled:** `opacity: 0.6`, cursor `wait`. Sem hover, sem active.
 
 ### Cards (Link Items)
 - **Shape:** Raio 12px (`--radius`), padding 20px, borda `--line`.
-- **Background:** `--surface` (translúcido), hover → `--surface-hover`.
-- **Shadow:** Em repouso, `0 4px 12px rgba(0,0,0,0.2)`. Em hover/focus, `--shadow-glow` (anel de acento + glow + profundidade).
+- **Background:** `--card-bg` (`#151b21`) sólido; hover/focus não alteram o fundo (só `z-index`).
+- **Shadow:** Nenhuma. O card se apoia em superfície sólida + borda `--line`; hover/focus não adicionam anel de acento nem glow.
 - **Layout:** Flex column com gap 16px. Topo reorganiza para row em ≥700px (slug info à esquerda, ações à direita).
 - **Animation:** `card-in`: 200ms ease-out, translateY(6px) → 0, opacity 0 → 1.
 - **States:** `is-pending` (link expirado/desativado): borda avermelhada, fundo com leve tom de danger, opacidade 0.8.
 
 ### Inputs / Fields
-- **Style:** Fundo `--surface-strong`, borda `--line`, raio 8px, altura mínima 46px, padding `10px 14px`.
-- **Placeholder:** Cor `#52525b` (contraste suficiente contra fundo escuro).
+- **Style:** Fundo `--surface-strong` (`#0e1418`), borda `--control-line` (`#5b646c`), raio 8px, altura mínima 46px, padding `10px 14px`.
+- **Placeholder:** Cor `--muted` (`#98a2ac`); contraste ≥4.5:1 contra `--surface-strong`.
 - **Focus:** Borda muda para `--accent`, `box-shadow: 0 0 0 4px var(--accent-soft)`.
-- **Hover (não focado):** Borda clareia para `rgba(255,255,255,0.15)`.
+- **Hover (não focado):** Borda clareia para `--line-hover-control` (`rgba(255,255,255,0.16)`).
 - **Readonly:** Fundo mais escuro, texto `--muted`, cursor `not-allowed`.
 - **Select:** Mesmo estilo de input. Dropdown nativo mantido.
 
 ### Chips / Pills
-- **Counter Pill:** `border-radius: 999px`, padding `6px 12px`, borda `rgba(0,161,245,0.2)`, fundo `rgba(0,161,245,0.08)`. Número forte em Ciano Operacional.
-- **Group Badge:** `border-radius: 999px`, padding `3px 8px`, borda `rgba(0,161,245,0.25)`, fundo `rgba(0,161,245,0.08)`, texto `#b1f0ff`.
-- **Metric Pill:** `border-radius: 999px`, padding `4px 10px`, fundo `rgba(255,255,255,0.04)`, borda `--line`. Para tags e metadados em cards.
+- **Counter Pill:** renderizado sem borda e sem fundo (o Admin sobrepõe a regra base a `transparent`); o destaque fica no número forte em Ciano Operacional.
+- **Group Badge:** `border-radius: 6px`, padding `4px 8px`, borda `rgba(0,161,245,0.18)`, fundo `rgba(0,161,245,0.07)`, texto `#8fb8d4`.
+- **Metric Pill:** renderizado sem fundo nem borda (o Admin sobrepõe a regra base, que usa `rgba(255,255,255,0.05)` e `--line`). Para tags e metadados em cards.
 
 ### Dropdown (More Actions)
 - **Trigger:** Botão quadrado 40×40px com borda `--line`, ícone de três pontos (SVG). Active: `scale(0.95)`.
-- **Menu:** `position: absolute`, top `calc(100% + 6px)`, right 0, fundo `rgba(15,15,20,0.96)`, borda `--line`, raio 8px, blur `20px`. Padding interno 6px, gap 4px entre itens.
+- **Menu:** `position: absolute`, top `calc(100% + 6px)`, right 0, fundo `--menu-bg` (`#151b21`), borda `--line`, raio 8px, `box-shadow: var(--shadow)`, blur `20px`. Padding interno 6px, gap 4px entre itens.
 - **Animation:** `dropdown-in`: 150ms ease-out, opacity 0 → 1, translateY(4px) → 0, scale(0.95) → 1.
 - **Items:** Botões full-width com fundo transparente, altura 38px, padding `8px 12px`. Hover: fundo `rgba(255,255,255,0.05)`.
 
@@ -246,7 +246,7 @@ O sistema usa camadas com transparência e blur, não sombras pesadas. A profund
 
 ### Details / Accordion
 - **Summary:** Cursor pointer, peso 700, cor `--text-secondary`. Hover: cor `--accent`. Chevron customizado via `::after` com borda rotacionada (não usa `::marker` nativo).
-- **Open:** Fundo `rgba(255,255,255,0.03)`, borda `rgba(0,161,245,0.2)`. Chevron rotaciona -135deg.
+- **Open:** Fundo transparente, apoiado no divisor `--line`; a borda não muda de cor. Chevron rotaciona -135deg.
 - **Content:** Gap 14px entre fields internos.
 
 ### Split Test A/B
@@ -276,7 +276,7 @@ O sistema usa camadas com transparência e blur, não sombras pesadas. A profund
 ### Do:
 - **Do** usar o Ciano Operacional como único acento cromático. Se precisar de ênfase, use peso, tamanho ou posição — nunca uma segunda cor saturada.
 - **Do** usar a font mono para slugs, previews de URL, e dados técnicos. A troca sans → mono carrega significado.
-- **Do** manter painéis com `backdrop-filter: blur(24px)` e fundo translúcido. A profundidade vem da transparência, não de sombras duras.
+- **Do** manter painéis, cards e drawers em superfície sólida com borda de 1px. A profundidade vem do degrau de superfície, não de sombras duras.
 - **Do** usar `var(--muted)` para texto de apoio e metadados. A hierarquia de três níveis (text → text-secondary → muted) cobre todas as necessidades de ênfase.
 - **Do** respeitar `prefers-reduced-motion`. Toda animação e transição deve ter fallback instantâneo.
 - **Do** usar o underline de 2rem em `--accent` sob headings de painel como marcador de seção. Consistente e discreto.
@@ -286,7 +286,7 @@ O sistema usa camadas com transparência e blur, não sombras pesadas. A profund
 - **Don't** introduzir uma segunda cor saturada. Se parecer que precisa de verde, vermelho, ou laranja como acento adicional, a solução está em hierarquia visual, não em cor.
 - **Don't** usar `border-left` ou `border-right` maior que 1px como faixa colorida decorativa em cards, headings, ou callouts. É o marcador visual de UI gerada por IA. Use fundo com transparência do acento ou o underline `::after` padrão.
 - **Don't** usar gradientes em texto (`background-clip: text`). O texto é sempre cor sólida. Ênfase vem de peso, tamanho, ou posição.
-- **Don't** usar glassmorphism como textura decorativa genérica. O blur nos painéis do BoltLink serve para profundidade funcional (separar camadas), não para estética "vidro fosco".
+- **Don't** usar glassmorphism como textura decorativa genérica. As superfícies do BoltLink são sólidas com borda de 1px — o único `backdrop-filter` é o do menu de ações, sobre fundo já opaco.
 - **Don't** usar `z-index` com valores arbitrários (999, 9999). A escala semântica é: dropdown (8) → card hover (20) → dropdown menu (100).
 - **Don't** adicionar animações com bounce, elastic, ou curvas de entrada chamativas. A curva padrão é `cubic-bezier(0.16, 1, 0.3, 1)` (ease-out-quart). Sempre.
 - **Don't** usar mais de 6rem no `clamp()` máximo de headings. Acima disso a página grita.

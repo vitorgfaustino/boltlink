@@ -15,28 +15,29 @@
  * along with BoltLink. If not, see <https://www.gnu.org/licenses/>.
  */
 
+/* Dark is neutral-first: flat page, one restrained surface step, borders and spacing
+   carry the hierarchy. Blue stays the identity accent for actions, selection and focus,
+   never a large glowing surface. Light lives below and is untouched. */
 :root,
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #09090b;
-  --bg-mesh-1: rgba(0, 161, 245, 0.12);
-  --bg-mesh-2: rgba(14, 165, 233, 0.08);
-  --surface: rgba(255, 255, 255, 0.03);
+  --bg: #0b0f13;
+  --bg-mesh-1: rgba(0, 161, 245, 0.04);
+  --bg-mesh-2: rgba(14, 165, 233, 0.026);
+  --surface: rgba(255, 255, 255, 0.035);
   --surface-hover: rgba(255, 255, 255, 0.05);
-  --surface-strong: rgba(0, 0, 0, 0.25);
-  --line: rgba(255, 255, 255, 0.08);
-  --line-hover: rgba(0, 161, 245, 0.3);
-  --text: #f4f4f5;
-  --text-secondary: #e4e4e7;
-  --muted: #a1a1aa;
+  --surface-strong: #0e1418;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-hover: rgba(0, 161, 245, 0.26);
+  --text: #e8ebee;
+  --text-secondary: #d9dfe5;
+  --muted: #98a2ac;
   --accent: #00A1F5;
   --accent-hover: #008cd6;
-  --accent-soft: rgba(0, 161, 245, 0.15);
-  --accent-glow: rgba(0, 161, 245, 0.2);
+  --accent-soft: rgba(0, 161, 245, 0.12);
   --danger: #ef4444;
   --danger-soft: rgba(239, 68, 68, 0.12);
-  --shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 0 1px rgba(0, 161, 245, 0.05), 0 0 16px rgba(0, 161, 245, 0.12), 0 10px 24px rgba(0, 0, 0, 0.35);
+  --shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
   --radius: 12px;
   --radius-sm: 8px;
   --radius-xs: 6px;
@@ -45,39 +46,41 @@
   --font: var(--font-mono);
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", Consolas, "Liberation Mono", monospace;
 
-  --bg-start: #030406;
-  --bg-end: #050608;
-  --heading: #ffffff;
+  /* Both gradient stops equal the page colour: the body's three-layer gradient paints a
+     single flat neutral instead of a vignette. */
+  --bg-start: #0b0f13;
+  --bg-end: #0b0f13;
+  --heading: #f4f7f9;
   --on-accent: #09090b;
-  --panel-bg: rgba(255, 255, 255, 0.018);
-  --panel-line: rgba(255, 255, 255, 0.065);
-  --card-bg: rgba(255, 255, 255, 0.035);
-  --line-strong: rgba(255, 255, 255, 0.25);
-  --line-hover-control: rgba(255, 255, 255, 0.15);
-  --control-line: #686875;
-  --accent-line: rgba(0, 161, 245, 0.2);
+  --panel-bg: #11161b;
+  --panel-line: rgba(255, 255, 255, 0.09);
+  --card-bg: #151b21;
+  --line-strong: rgba(255, 255, 255, 0.22);
+  --line-hover-control: rgba(255, 255, 255, 0.16);
+  --control-line: #5b646c;
+  --accent-line: rgba(0, 161, 245, 0.16);
   --badge-line: rgba(0, 161, 245, 0.18);
-  --accent-bg: rgba(0, 161, 245, 0.08);
-  --badge-bg: rgba(0, 161, 245, 0.06);
-  --badge-text: #b1f0ff;
-  --link-text: #7dd3fc;
-  --link-hover: #bae6fd;
-  --selection-bg: rgba(0, 161, 245, 0.24);
+  --accent-bg: rgba(0, 161, 245, 0.07);
+  --badge-bg: rgba(0, 161, 245, 0.07);
+  --badge-text: #8fb8d4;
+  --link-text: #7fb3d5;
+  --link-hover: #a3c8e2;
+  --selection-bg: rgba(0, 161, 245, 0.2);
   --selection-text: #ffffff;
-  --popover-bg: rgba(9, 9, 11, 0.98);
-  --menu-bg: rgba(15, 15, 20, 0.96);
-  --raised-bg: #0b0d10;
-  --preview-bg: rgba(0, 0, 0, 0.2);
-  --readonly-bg: rgba(0, 0, 0, 0.15);
-  --rule-bg: rgba(0, 0, 0, 0.18);
-  --button-hover-bg: rgba(255, 255, 255, 0.04);
-  --clear-hover-bg: rgba(255, 255, 255, 0.06);
-  --empty-bg: rgba(255, 255, 255, 0.01);
+  --popover-bg: #151b21;
+  --menu-bg: #151b21;
+  --raised-bg: #141a20;
+  --preview-bg: #0c1115;
+  --readonly-bg: #0c1115;
+  --rule-bg: #0e1418;
+  --button-hover-bg: rgba(255, 255, 255, 0.05);
+  --clear-hover-bg: rgba(255, 255, 255, 0.07);
+  --empty-bg: rgba(255, 255, 255, 0.012);
   --empty-line: rgba(255, 255, 255, 0.1);
   --danger-text: #fca5a5;
   --danger-emphasis: #fecaca;
   --error-text: #fda4af;
-  --danger-line: rgba(239, 68, 68, 0.2);
+  --danger-line: rgba(239, 68, 68, 0.22);
   --danger-line-strong: rgba(239, 68, 68, 0.35);
   --danger-line-pending: rgba(239, 68, 68, 0.3);
   --danger-line-hover: rgba(239, 68, 68, 0.4);
@@ -88,10 +91,10 @@
   --success-text: #86efac;
   --warning-text: #fcd34d;
   --domain-warning: #facc15;
-  --overlay: rgba(3, 4, 6, 0.72);
-  --qr-overlay: rgba(3, 4, 6, 0.62);
-  --heading-glow: 0 0 30px rgba(0, 161, 245, 0.15);
-  --button-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  --overlay: rgba(4, 7, 10, 0.76);
+  --qr-overlay: rgba(4, 7, 10, 0.66);
+  --heading-glow: none;
+  --button-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 [data-theme="light"] {
@@ -110,11 +113,9 @@
   --accent: #006cad;
   --accent-hover: #005b92;
   --accent-soft: #deedf8;
-  --accent-glow: rgba(0, 108, 173, 0.16);
   --danger: #a82431;
   --danger-soft: #fff0f1;
   --shadow: 0 8px 24px rgba(21, 31, 47, 0.12);
-  --shadow-glow: 0 0 0 1px #92bad3;
   --bg-start: #f3f5f8;
   --bg-end: #eef2f7;
   --heading: #162131;
