@@ -711,7 +711,7 @@ describe("Phase 8 Gate 8.6.2: mobile component consistency", () => {
     expect(ui.list.innerHTML).not.toContain("·");
     const css = readFileSync("public/admin.css", "utf8");
     expect(css).toMatch(/\.metrics\s*\{[^}]*display: flex;[^}]*flex-wrap: wrap;/);
-    expect(css).toContain(".metrics { gap: 6px 10px; }");
+    expect(css).toMatch(/\.metrics \{ gap: 6px 10px;[^}]*\}/);
     expect(css).not.toMatch(/\.metric[^{}]*::before\s*\{[^}]*content: "·"/);
   });
 });

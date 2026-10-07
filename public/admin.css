@@ -1072,9 +1072,10 @@ button.icon-btn {
 }
 
 /* Level 2 gets the whole card width on every viewport: the destination stays the second thing
-   the eye reads, and the inline copy/expand affordances no longer squeeze it. */
+   the eye reads, and the copy action below it never squeezes the URL. */
 .card-destination {
   min-width: 0;
+  margin-top: 2px;
 }
 
 .slug {
@@ -2293,18 +2294,12 @@ input, select, textarea { min-width: 0; max-width: 100%; }
 }
 
 /* Long identifiers retain their complete text; expansion only changes the clamp. */
-/* Level 2 on desktop: the destination and its own copy/expand affordances share one line, so
-   the block every card carries costs a single text line instead of two. Narrow viewports keep
-   them stacked — the illustrative two-line sketch — because an inline action row would squeeze
-   the URL unreadably once the columns collapse. */
-.link-content { display: flex; align-items: center; gap: 0 10px; min-width: 0; }
-/* The text keeps its natural width so the copy action stays attached to the URL it copies; a
-   long URL shrinks it, and the measured expander reveals the rest as before. */
-.link-content > .content-text { flex: 0 1 auto; min-width: 0; }
-.link-content > .content-actions { flex: 0 0 auto; }
-@media (max-width: 900px) {
-  .link-content { display: block; }
-}
+/* Level 2: the destination keeps the full card width Gate 9.4 gave it and owns its own line.
+   Its copy action sits just below, close enough to belong to the URL and separated enough
+   not to read as part of the URL text. Both parts keep the URL's full width on every
+   viewport, so a long destination never has to shrink to make room for a control. */
+.link-content { display: block; min-width: 0; }
+.link-content > .content-actions { margin-top: 4px; }
 .content-text { overflow-wrap: anywhere; }
 .content-text:not(.is-expanded) {
   display: -webkit-box;
@@ -2333,11 +2328,13 @@ input, select, textarea { min-width: 0; max-width: 100%; }
 .content-actions { display: flex; flex-wrap: wrap; gap: 0 12px; }
 .content-actions:has(> .content-toggle[hidden]:only-child) { display: none; }
 @media (min-width: 901px) {
-  /* Inline beside the URL, so the row only needs to be as tall as its own control. */
-  .content-toggle, .content-copy { min-height: 26px; }
+  /* Stacked under the URL, so the control only needs to clear the 24px AA target size. */
+  .content-toggle, .content-copy { min-height: 24px; }
 }
 .content-toggle[hidden] { display: none; }
-.link-states { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+/* Level 3 gets a wider column gap than row gap: chips on the same line read as one group,
+   while a wrapped line stays visually separate instead of touching the line above. */
+.link-states { display: flex; flex-wrap: wrap; gap: 6px 8px; min-width: 0; margin-top: 4px; }
 .link-states:not(:has(> *)) { display: none; }
 /* Level 3 carries two different kinds of chip, and they must never be confused:
    `.group-badge` classifies the link (neutral, user-created) while `.feature-badge` names a
@@ -2363,31 +2360,60 @@ input, select, textarea { min-width: 0; max-width: 100%; }
    it is told apart by its text, not by a fourth saturated accent. */
 .feature-badge--lock { --feature-ink: var(--text-secondary); --feature-bg: transparent; --feature-border: var(--line); }
 .group-badge { margin-top: 0; }
-.metrics { gap: 6px 10px; }
+.metrics { gap: 6px 10px; margin-top: 6px; }
 .metric { min-width: 0; max-width: 100%; overflow-wrap: anywhere; font-weight: 400; }
 /* Level 4 reads as one line. The bullet is drawn between adjacent facts only, so the DOM
    never carries punctuation that could end a wrapping line on its own; below 641px the
-   facts are most likely to wrap, so the gap alone separates them there. The expanded A/B
-   breakdown follows the same rhythm as the metadata line. */
-.metrics .metric + .metric::before,
-.card-details-metrics .metric + .metric::before { content: "•"; color: var(--muted); margin-right: 10px; }
+   facts are most likely to wrap, so the gap alone separates them there. */
+.metrics .metric + .metric::before { content: "•"; color: var(--muted); margin-right: 10px; }
 @media (max-width: 640px) {
-  .metrics .metric + .metric::before,
-  .card-details-metrics .metric + .metric::before { content: none; }
+  .metrics .metric + .metric::before { content: none; }
 }
 /* Compact A/B details: the experiment summary stays on the card, the counters and the
    variant destination stay reachable without a permanent block. The summary deliberately
-   reuses the Admin's existing accordion vocabulary (weight, colour, chevron) instead of
-   inventing a second one; only the block spacing is card-specific, because the form
+   reuses the Admin's existing accordion vocabulary (weight, focus ring, native
+   <details>/<summary> semantics); only the block spacing is card-specific, because the form
    accordion's divider and padding do not belong inside a card. */
 .card .card-details {
-  margin: 0;
+  margin: 7px 0 0;
   border: 0;
   padding: 0;
 }
-.card .card-details > summary { width: fit-content; }
+/* Reads as a secondary action, not as one more line of metadata: a single inline-flex row so
+   the label and the chevron share a baseline, and a 24px target that stays comfortable. */
+.card .card-details > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 24px;
+  padding: 2px 0;
+  color: var(--link-text);
+  transition: color var(--motion-fast);
+}
+.card .card-details > summary:hover { color: var(--link-hover); }
+/* One chevron for one summary: the existing accordion rules already remove the native marker
+   for every `details` except the actions menu, and this replaces their decorative corner with
+   a glyph that is optically centred in its own box. A rotated corner of a two-border square
+   sits ~2px low, so the closed state lifts it and the open state drops the 180-degree turn by
+   the same amount; both states therefore rotate about the visual centre, not the box centre. */
+.card .card-details > summary::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin: 0;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform var(--motion-fast);
+}
+.card .card-details[open] > summary::after { transform: translateY(2px) rotate(-135deg); }
 .card-details .variant-content { margin-top: 10px; }
-.card-details-metrics { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 10px; }
+/* The expanded breakdown is a short list, not one run-on line: one fact per row. That keeps
+   every counter scannable and removes the separator from this block entirely, so no wrapped
+   line can begin with orphaned punctuation. */
+.card-details-metrics { display: grid; gap: 4px; margin-top: 10px; }
 .link-tags { font-size: 0.74rem; color: var(--muted); overflow-wrap: anywhere; }
 .link-tags .slug-url { font-size: inherit; }
 .counter-pill { white-space: nowrap; }

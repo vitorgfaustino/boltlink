@@ -193,11 +193,13 @@ describe("Gate 9.4: metadata line reads as one structured row", () => {
   it("draws the separator between facts in CSS only, so no punctuation can orphan in the DOM", () => {
     const markup = render([{ slug: "m", target_url: "https://exemplo.com/", clicks_total: 1, redirect_type: "302" }]);
     expect(markup).not.toContain("•");
-    // One rule covers both the metadata line and the expanded A/B breakdown.
-    expect(css).toMatch(/\.metrics \.metric \+ \.metric::before,[\s\S]{0,90}\.card-details-metrics \.metric \+ \.metric::before \{ content: "•";/);
+    // The separator belongs to the metadata line only; the expanded breakdown is a row list.
+    expect(css).toMatch(/\.metrics \.metric \+ \.metric::before \{ content: "•";/);
+    expect(css).not.toMatch(/\.card-details-metrics \.metric \+ \.metric::before/);
+    expect(css).toMatch(/\.card-details-metrics \{ display: grid; gap: 4px;/);
     // Narrow viewports are the ones that wrap, so they fall back to the gap alone.
-    expect(css).toMatch(/@media \(max-width: 640px\) \{[\s\S]*?\.metrics \.metric \+ \.metric::before,[\s\S]*?\{ content: none; \}/);
-    expect(css).toMatch(/\.metrics \{ gap: 6px 10px; \}/);
+    expect(css).toMatch(/@media \(max-width: 640px\) \{\s*\.metrics \.metric \+ \.metric::before \{ content: none; \}\s*\}/);
+    expect(css).toMatch(/\.metrics \{ gap: 6px 10px;[^}]*\}/);
   });
 });
 
@@ -211,10 +213,14 @@ describe("Gate 9.4: density and long values", () => {
     expect(css).not.toMatch(/overflow-x:\s*scroll/);
   });
 
-  it("lets the badges wrap and stacks the destination once the columns collapse", () => {
-    expect(css).toMatch(/\.link-states \{ display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; \}/);
+  it("lets the badges wrap while the destination keeps its own full-width line", () => {
+    // Gate 9.5 stacks the copy action under the URL on every viewport, so the destination
+    // never has to shrink to make room for a control next to it.
+    expect(css).toMatch(/\.link-content \{ display: block; min-width: 0; \}/);
+    expect(css).toMatch(/\.link-content > \.content-actions \{ margin-top: 4px; \}/);
+    expect(css).not.toMatch(/\.link-content \{[^}]*display: flex/);
+    expect(css).toMatch(/\.link-states \{ display: flex; flex-wrap: wrap; gap: 6px 8px; min-width: 0; margin-top: 4px; \}/);
     expect(css).toMatch(/\.feature-badge \{[^}]*max-width: 100%;/);
-    expect(css).toMatch(/@media \(max-width: 900px\) \{\s*\.link-content \{ display: block; \}/);
     // A long group path still ellipsizes instead of stretching the card.
     expect(css.match(/\.group-badge \{[^}]*\}/)![0]).toContain("text-overflow: ellipsis");
   });
