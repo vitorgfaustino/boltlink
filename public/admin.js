@@ -2740,50 +2740,65 @@ function createClientSlug() {
   return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
 }
 
+/** One badge vocabulary for the whole list: the hue names the BoltLink feature, the text
+    names its state. Classification (group) and user-created data never use these classes. */
+function featureBadge(kind, content) {
+  return `<span class="feature-badge feature-badge--${kind}">${content}</span>`;
+}
+
+/** Level 3 keeps the A/B state to a single line: the split while it runs, "Encerrado" after. */
 function renderAbMetrics(link) {
   const display = window.BoltLinkAbDisplay?.buildAbDisplay(link);
   if (!display) {
     return "";
   }
 
-  const metrics = [
-    `<span class="metric state-chip">Teste A/B <strong>${display.title}</strong></span>`,
-  ];
-
-  if (display.showHistoricalLabel) {
-    metrics.push('<span class="metric">Resultados do último teste</span>');
-  }
-
-  metrics.push(`<span class="metric">Cliques A <strong>${display.clicksA}</strong></span>`);
-  metrics.push(`<span class="metric">Cliques B <strong>${display.clicksB}</strong></span>`);
-  metrics.push(`<span class="metric">Distribuição observada <strong>${display.observed}</strong></span>`);
-
-  if (display.allocation) {
-    metrics.push(`<span class="metric">Distribuição do tráfego <strong>${display.allocation}</strong></span>`);
-  }
-
-  if (display.nextTest) {
-    metrics.push(`<span class="metric">Próximo teste <strong>${escapeHtml(display.nextTest.allocation)} · ${escapeHtml(display.nextTest.targetUrl)}</strong></span>`);
-  }
-
-  return metrics.join("");
+  const summary = display.isActive && display.allocation ? display.allocation : display.title;
+  return featureBadge("ab", `Teste A/B · <strong>${escapeHtml(summary)}</strong>`);
 }
 
+/** The A/B counters exist nowhere else, so they stay in the DOM inside the card's closed
+    `<details>` instead of being dropped from the list. */
+function renderAbBreakdown(link) {
+  const display = window.BoltLinkAbDisplay?.buildAbDisplay(link);
+  if (!display) {
+    return "";
+  }
+
+  const rows = [];
+  if (display.showHistoricalLabel) {
+    rows.push('<span class="metric">Resultados do último teste</span>');
+  }
+  rows.push(`<span class="metric">Cliques A <strong>${display.clicksA}</strong></span>`);
+  rows.push(`<span class="metric">Cliques B <strong>${display.clicksB}</strong></span>`);
+  rows.push(`<span class="metric">Distribuição observada <strong>${display.observed}</strong></span>`);
+  if (display.allocation) {
+    rows.push(`<span class="metric">Distribuição do tráfego <strong>${display.allocation}</strong></span>`);
+  }
+  if (display.nextTest) {
+    rows.push(`<span class="metric">Próximo teste <strong>${escapeHtml(display.nextTest.allocation)} · ${escapeHtml(display.nextTest.targetUrl)}</strong></span>`);
+  }
+
+  return `<div class="card-details-metrics">${rows.join("")}</div>`;
+}
+
+/** Smart Routing is a BoltLink feature, so it keeps the routing hue in every state; the text
+    carries the state itself. Rule details stay in the editor, never in the list. */
 function renderSmartBadge(link) {
   const badge = smartRoutingUi ? smartRoutingUi.smartBadge(link, state.smartRouting) : null;
   if (!badge) {
     return "";
   }
   if (badge.corrupt) {
-    return badge.conflict
-      ? '<span class="state-chip">Smart Routing <strong>configuração inválida preservada</strong> · Teste A/B ativo</span>'
-      : '<span class="state-chip">Smart Routing <strong>configuração inválida preservada</strong></span>';
+    return featureBadge("routing", badge.conflict
+      ? 'Smart Routing <strong>configuração inválida preservada</strong> · Teste A/B ativo'
+      : 'Smart Routing <strong>configuração inválida preservada</strong>');
   }
   if (badge.conflict) {
-    return '<span class="state-chip">Smart Routing <strong>configuração ambígua</strong></span>';
+    return featureBadge("routing", 'Smart Routing <strong>configuração ambígua</strong>');
   }
   const suffix = badge.count === 1 ? "regra" : "regras";
-  return `<span class="state-chip">Smart Routing <strong>${badge.count} ${suffix}</strong></span>`;
+  return featureBadge("routing", `Smart Routing · <strong>${badge.count} ${suffix}</strong>`);
 }
 
 function formatDate(value) {
@@ -2801,12 +2816,14 @@ function formatDate(value) {
   }
 }
 
-/** Full text stays in the DOM; only its presentation is clamped. */
+/** Full text stays in the DOM; only its presentation is clamped. The `title` keeps the
+    complete value readable when the clamp hides part of a long URL, and it precedes `id`
+    so the measured-expander contract for the variant URL stays intact. */
 function linkContentMarkup(value, label, id, isSlug = false, copyValue = null) {
   const tag = isSlug ? "p" : "div";
   const className = isSlug ? "slug" : "slug-url";
   return `<div class="link-content">
-    <${tag} class="${className} content-text" id="${id}">${escapeHtml(value)}</${tag}>
+    <${tag} class="${className} content-text" title="${escapeHtml(value)}" id="${id}">${escapeHtml(value)}</${tag}>
     <div class="content-actions">
     ${copyValue === null ? "" : `<button type="button" class="content-copy copy-control" data-copy-value="${escapeHtml(copyValue)}" data-copy-kind="${label === "URL da variante B" ? "variant" : "destination"}" aria-label="Copiar destino: ${escapeHtml(label)}"><span class="copy-idle">Copiar destino</span><span class="copy-feedback" aria-hidden="true"></span></button>`}
     <button type="button" class="content-toggle" data-content-label="${escapeHtml(label)}" aria-controls="${id}" aria-expanded="false" aria-label="Ver mais: ${escapeHtml(label)}" hidden>Ver mais</button>
@@ -2916,7 +2933,7 @@ function renderLinks() {
         ? cardActionMarkup("undo-delete", "secondary", "cancel", "Desfazer", link.slug)
         : `
           <div class="primary-actions">
-            ${cardActionMarkup("copy", "secondary", "copy", "Copiar", link.slug)}
+            ${cardActionMarkup("copy", "secondary", "copy", "Copiar link", link.slug)}
             ${cardActionMarkup("edit", "secondary", "edit", "Editar", link.slug)}
           </div>
           <details class="more-actions-dropdown">
@@ -2944,31 +2961,52 @@ function renderLinks() {
         ? groupHierarchyUi.groupPath(state.groupTree.byId, link.group_id)
         : link.group_name || "";
 
+      // Redirect types are a closed set owned by BoltLink, so the label is spelled out for
+      // scanning instead of leaving a bare "302" on the metadata line.
+      const redirectType = link.redirect_type || "302";
+      const redirectLabel = { "301": "301 (permanente)", "302": "302 (temporário)" }[redirectType] || redirectType;
+
+      // Level 3 summarizes the experiment; the variant destination and the counters stay
+      // reachable inside one collapsed `<details>`, so compacting never removes information.
+      const variantMarkup = link.ab_enabled === 1 && link.ab_target_url
+        ? `<div class="variant-content"><span class="content-label">Variante B</span>${linkContentMarkup(link.ab_target_url, "URL da variante B", `link-content-${index}-variant`, false, link.ab_target_url)}</div>`
+        : "";
+      const abBreakdown = renderAbBreakdown(link);
+      const abDetails = variantMarkup || abBreakdown
+        ? `<details class="card-details">
+              <summary>Ver detalhes</summary>
+              ${variantMarkup}
+              ${abBreakdown}
+            </details>`
+        : "";
+
       return `
         <article class="${cardClass}">
           <div class="card-top">
             <div class="slug-info">
               ${linkContentMarkup(`/${link.slug}`, "slug", `link-content-${index}-slug`, true)}
-              ${linkContentMarkup(link.target_url, "URL de destino", `link-content-${index}-url`, false, link.target_url)}
-              ${link.ab_enabled === 1 && link.ab_target_url ? `<div class="variant-content"><span class="content-label">Variante B</span>${linkContentMarkup(link.ab_target_url, "URL da variante B", `link-content-${index}-variant`, false, link.ab_target_url)}</div>` : ""}
             </div>
             <div class="card-actions">
               ${actionMarkup}
             </div>
           </div>
+          <div class="card-destination">
+            ${linkContentMarkup(link.target_url, "URL de destino", `link-content-${index}-url`, false, link.target_url)}
+          </div>
           <div class="link-states">
             ${groupPath ? `<span class="group-badge" title="${escapeHtml(groupPath)}" aria-label="Grupo: ${escapeHtml(groupPath)}">${escapeHtml(groupPath)}</span>` : ""}
-            ${link.has_qrcode ? '<span class="state-chip">QR Code baixado</span>' : ""}
-            ${link.has_password ? '<span class="state-chip">Senha definida</span>' : ""}
+            ${link.has_qrcode ? '<span class="feature-badge feature-badge--qr">QR Code baixado</span>' : ""}
+            ${link.has_password ? '<span class="feature-badge feature-badge--lock">Senha definida</span>' : ""}
             ${renderSmartBadge(link)}
+            ${renderAbMetrics(link)}
           </div>
+          ${abDetails}
           <div class="metrics">
             <span class="metric">Cliques <strong>${link.clicks_total}</strong></span>
             <span class="metric">Criado: <strong>${formatDate(link.created_at)}</strong></span>
-            <span class="metric">Redirecionamento <strong>${link.redirect_type || "302"}</strong></span>
+            <span class="metric">Redirecionamento <strong>${escapeHtml(redirectLabel)}</strong></span>
             ${link.expires_at ? `<span class="metric">Expira <strong>${formatDate(link.expires_at)}</strong></span>` : ""}
             ${link.go_live_at ? `<span class="metric">Ativa <strong>${formatDate(link.go_live_at)}</strong></span>` : ""}
-            ${renderAbMetrics(link)}
             ${isPendingDelete ? `<span class="metric pending-note">Exclusão em <strong>${Math.ceil((state.pendingDeletes.get(link.slug)?.remaining || 0) / 1000)}s</strong></span>` : ""}
           </div>
           ${parsedTags.length ? `<div class="link-tags">${linkContentMarkup(`Tags: ${parsedTags.join(", ")}`, "tags", `link-content-${index}-tags`)}</div>` : ""}
@@ -3625,7 +3663,14 @@ window.addEventListener("resize", scheduleLinkContentMeasure);
 if (document.fonts) document.fonts.ready.then(scheduleLinkContentMeasure);
 linksList.addEventListener("click", async (event) => {
   const button = event.target.closest("button.content-toggle, button.content-copy");
-  if (!button) return;
+  if (!button) {
+    // Opening the card details reveals long variant URLs that measured as unrendered while
+    // the details was closed, so the expanders have to be re-measured after the toggle.
+    if (event.target.closest(".card-details > summary")) {
+      scheduleLinkContentMeasure();
+    }
+    return;
+  }
   if (button.classList.contains("content-toggle")) {
     toggleLinkContent(button);
     return;

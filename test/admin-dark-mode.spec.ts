@@ -97,11 +97,18 @@ describe("Gate 9.3: dark theme is neutral-first, not glow-led", () => {
 });
 
 describe("Gate 9.3: light mode is not touched by the dark refinement", () => {
-  it("shares no dark-refined literal with the light block", () => {
-    const darkOnly = ["#0b0f13", "#11161b", "#151b21", "#141a20", "#0e1418", "#0c1115", "#5b646c", "#8fb8d4", "#7fb3d5", "#a3c8e2"];
-    for (const literal of darkOnly) {
-      expect(light, `light leaked ${literal}`).not.toContain(literal);
-      expect(css.split('[data-theme="light"]')[0], `dark lost ${literal}`).toContain(literal);
+  it("keeps light surfaces light and dark ink dark, and never reuses a dark surface", () => {
+    // Contract instead of frozen hexes: the two themes keep opposite polarity, and no Dark
+    // surface value may be adopted as a Light surface (which is how a dark regression leaks).
+    for (const name of ["bg", "panel-bg", "card-bg", "raised-bg"]) {
+      expect(luminance(rgb(lightTokens[name])), `light --${name} must stay a light surface`).toBeGreaterThan(0.6);
+    }
+    for (const name of ["text", "heading", "text-secondary"]) {
+      expect(luminance(rgb(lightTokens[name])), `light --${name} must stay dark ink`).toBeLessThan(0.15);
+    }
+    const darkSurfaces = ["bg", "panel-bg", "card-bg", "raised-bg", "surface-strong"].map((name) => darkTokens[name]);
+    for (const name of ["bg", "panel-bg", "card-bg", "raised-bg", "surface-strong"]) {
+      expect(darkSurfaces, `light --${name} reused a dark surface`).not.toContain(lightTokens[name]);
     }
   });
 

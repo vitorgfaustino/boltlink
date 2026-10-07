@@ -45,7 +45,7 @@ describe("Gate 9.1: paths and descendant sets", () => {
     const sandbox: any = {
       state: { links: [link], groupTree: groups.buildTree(hierarchy), pendingDeletes: new Map() }, groupHierarchyUi: groups,
       linksCount: {}, linksList: {}, cardActionMarkup: () => "", linkContentMarkup: () => "", ICONS: {},
-      renderAbMetrics: () => "", renderSmartBadge: () => "", formatDate: () => "", scheduleLinkContentMeasure: vi.fn(),
+      renderAbMetrics: () => "", renderAbBreakdown: () => "", renderSmartBadge: () => "", formatDate: () => "", scheduleLinkContentMeasure: vi.fn(),
     };
     vm.createContext(sandbox);
     vm.runInContext(actual("escapeHtml") + actual("renderLinks"), sandbox);

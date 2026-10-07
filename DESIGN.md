@@ -47,7 +47,7 @@ spacing:
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
-    textColor: "{colors.bg}"
+    textColor: "#09090b"   # --on-accent, not --bg
     rounded: "{rounded.sm}"
     padding: "10px 16px"
     typography: "{typography.label}"
@@ -80,7 +80,7 @@ O filtro inclui o grupo escolhido e todos os descendentes. Badges mostram o cami
 
 ## Admin — 3.1.0 publicada (Gates 8.6–8.6.4)
 
-Esta seção prevalece sobre os exemplos históricos da base 3.0.0 abaixo. Branding e identidade azul permanecem; o Gate 8.6.4 adota mono leve e temas Light/Dark. No Dark, Criar link e Links ativos usam superfície principal discreta (fundo sólido `#11161b`, borda a 9%, radius 12px), sem sombra/blur. Registros têm fundo sólido um passo mais claro (`#151b21`), borda suave, radius 8px, padding 16px (12px em mobile estreito) e gap 12px (16px até 900px). Não há terceiro nível de cards: accordions continuam leves, com divisores, e métricas são itens independentes com flex-wrap e gap, sem pontuação separadora órfã; chips comunicam estado. Grupos usam badge de contexto com raio 6px, padding 4px 8px, fundo/borda discretos e só o nome visível (o rótulo acessível mantém “Grupo:”).
+Esta seção prevalece sobre os exemplos históricos da base 3.0.0 abaixo. Branding e identidade azul permanecem; o Gate 8.6.4 adota mono leve e temas Light/Dark. No Dark, Criar link e Links ativos usam superfície principal discreta (fundo sólido `#11161b`, borda a 9%, radius 12px), sem sombra/blur. Registros têm fundo sólido um passo mais claro (`#151b21`), borda suave, radius 8px, padding 14px (12px em mobile estreito), gap interno de 8px e 12px entre cards (16px até 900px). Não há terceiro nível de cards: accordions continuam leves, com divisores, e as métricas são itens independentes com flex-wrap e gap — o bullet é desenhado em CSS apenas entre itens adjacentes (suprimido até 640px), então o DOM segue sem pontuação separadora órfã. O card tem quatro níveis: identidade (slug + ações), destino (URL + “Copiar destino” na mesma linha no desktop, empilhado no mobile), classificação/recursos e metadata. Chips de classificação (grupo) são neutros e delicados, com raio 6px, padding 4px 8px e só o nome visível (o rótulo acessível mantém “Grupo:”); chips de recurso usam a cor semântica fixa do mapa abaixo.
 
 Toolbar agrupa três ferramentas com alturas/raios coerentes. Busca e filtro formam uma seção separada dos resultados por espaço e divisor. Footer tem distância própria da lista.
 
@@ -162,7 +162,22 @@ A paleta é mínima por decisão estratégica. O acento ciano carrega toda a car
 - **Perigo** (`#ef4444`): Links expirados, ações destrutivas, notas de pendência. Usado com moderação — apenas onde a atenção é crítica.
 - **Sucesso** (`#86efac`): Confirmações de salvamento, status de operações bem-sucedidas.
 
-**The One Light Rule.** O Ciano Operacional é o único acento cromático do sistema. Nenhuma outra cor saturada aparece na interface. Estados de perigo e sucesso usam vermelho e verde com saturação reduzida e contexto limitado (pills, status text, badges). Se uma nova cor aparecer, a pergunta não é "qual cor?" — é "por que o farol não basta?"
+**The One Light Rule.** O Ciano Operacional continua sendo o acento da interface: ações, seleção, foco e indicadores. Estados de perigo e sucesso usam vermelho e verde com saturação reduzida e contexto limitado (pills, status text, badges). Nenhuma cor saturada é escolhida livremente; se uma nova cor aparecer, a pergunta não é "qual cor?" — é "por que o farol não basta?"
+
+### System feature accents
+
+Uma exceção única e fechada: **recursos internos do BoltLink**, cuja semântica é conhecida e imutável, podem receber uma cor fixa. A cor responde "qual recurso este link usa?" e nunca "onde ele foi classificado?".
+
+| Recurso | Papel | Tokens |
+| --- | --- | --- |
+| Teste A/B | amber/gold | `--feature-ab`, `--feature-ab-bg`, `--feature-ab-border` |
+| Smart Routing | cyan/teal | `--feature-routing`, `--feature-routing-bg`, `--feature-routing-border` |
+| QR Code | violet/purple | `--feature-qr`, `--feature-qr-bg`, `--feature-qr-border` |
+| Senha definida | neutro (recurso sem hue dedicado) | `--text-secondary` + `--line` |
+| Grupo | neutro (classificação) | `--badge-text`, `--badge-bg`, `--badge-line` |
+| Origem / canal / tags / campanha | neutro (dado do usuário) | `--muted` / `--text-secondary` |
+
+Regras: o mesmo recurso usa a mesma cor em qualquer link e em qualquer estado; o texto do chip sempre nomeia o recurso, então a cor nunca é o único sinal; classificação e dado do usuário **nunca** recebem uma cor de recurso e nunca são coloridos por hash ou por nome. Os três hues são discretos (tinta colorida sobre fundo levemente tingido e borda suave), não preenchimentos saturados, e cada tema define os seus. Um recurso novo só entra nesta tabela quando a semântica for estável e explícita; até então, fica neutro.
 
 ## 3. Typography
 
@@ -206,10 +221,11 @@ O sistema usa superfícies sólidas com borda, não sombras pesadas. A profundid
 - **Disabled:** `opacity: 0.6`, cursor `wait`. Sem hover, sem active.
 
 ### Cards (Link Items)
-- **Shape:** Raio 12px (`--radius`), padding 20px, borda `--line`.
+- **Shape:** Raio 8px (`--radius-sm`), padding 14px (12px até 480px), borda `--line`.
 - **Background:** `--card-bg` (`#151b21`) sólido; hover/focus não alteram o fundo (só `z-index`).
 - **Shadow:** Nenhuma. O card se apoia em superfície sólida + borda `--line`; hover/focus não adicionam anel de acento nem glow.
-- **Layout:** Flex column com gap 16px. Topo reorganiza para row em ≥700px (slug info à esquerda, ações à direita).
+- **Layout:** Flex column com gap 8px, na ordem identidade → destino → classificação/recursos → metadata → tags. O topo reorganiza para row em ≥700px (slug à esquerda, ações à direita); até 900px o `.card-top` vira `display: contents` e os blocos se reordenam por `order`.
+- **Destino:** ocupa a largura inteira do card em qualquer viewport. No desktop a URL e “↳ Copiar destino” dividem a linha; até 900px empilham. URL longa é clampada em uma linha (duas até 900px) com `title` integral e expander medido.
 - **Animation:** `card-in`: 200ms ease-out, translateY(6px) → 0, opacity 0 → 1.
 - **States:** `is-pending` (link expirado/desativado): borda avermelhada, fundo com leve tom de danger, opacidade 0.8.
 
@@ -223,7 +239,8 @@ O sistema usa superfícies sólidas com borda, não sombras pesadas. A profundid
 
 ### Chips / Pills
 - **Counter Pill:** renderizado sem borda e sem fundo (o Admin sobrepõe a regra base a `transparent`); o destaque fica no número forte em Ciano Operacional.
-- **Group Badge:** `border-radius: 6px`, padding `4px 8px`, borda `rgba(0,161,245,0.18)`, fundo `rgba(0,161,245,0.07)`, texto `#8fb8d4`.
+- **Group Badge (classificação, neutro):** `border-radius: 6px`, padding `4px 8px`, `--badge-line` / `--badge-bg` / `--badge-text` — cinzas neutros em ambos os temas. Nunca recebe uma cor de recurso, nunca é gerado por hash do nome.
+- **Feature Badge (recurso BoltLink, semântico):** `border-radius: 999px`, padding `3px 8px`, fundo tingido, borda discreta e tinta do recurso via `--feature-ink` / `--feature-bg` / `--feature-border`. O texto nomeia o recurso, então a cor nunca é o único sinal.
 - **Metric Pill:** renderizado sem fundo nem borda (o Admin sobrepõe a regra base, que usa `rgba(255,255,255,0.05)` e `--line`). Para tags e metadados em cards.
 
 ### Dropdown (More Actions)

@@ -475,7 +475,7 @@ function contentSetup() {
     setTimeout, clearTimeout, setStatus: vi.fn(), listStatus: {}, linksCount: {}, ICONS: { more: "", check: '<svg data-icon="check"></svg>', cancel: '<svg data-icon="cancel"></svg>' },
     buildShortLink: (slug: string) => `https://links.example.com/${slug}`,
     state: { links: [], pendingDeletes: new Map() }, cardActionMarkup: () => "", formatDate: () => "01/10/2026 09:00",
-    renderAbMetrics: () => "", renderSmartBadge: () => "" };
+    renderAbMetrics: () => "", renderAbBreakdown: () => "", renderSmartBadge: () => "" };
   vm.createContext(sandbox);
   const actual = readFileSync("public/admin.js", "utf8");
   const functions = ["escapeHtml", "buttonMarkup", "linkContentMarkup", "refreshLinkContent", "toggleLinkContent", "scheduleLinkContentMeasure", "restoreCopyFeedback", "copyWithFeedback", "renderLinks"]
@@ -587,7 +587,13 @@ describe("Phase 8 Gate 8.6.1: measured long content", () => {
     const markup = ui.sandbox.linkContentMarkup(unsafe, "URL de destino", "safe-id", false, unsafe);
     expect(markup).toContain("&lt;img"); expect(markup).toContain("&quot;"); expect(markup).not.toContain("<img");
     expect(markup).toContain('aria-controls="safe-id"'); expect(markup).toContain('aria-expanded="false"');
-    expect(markup).not.toMatch(/class="(?:slug-url|slug) content-text"[^>]*aria-hidden/); expect(markup).not.toContain("title=");
+    expect(markup).not.toMatch(/class="(?:slug-url|slug) content-text"[^>]*aria-hidden/);
+    // Gate 9.4 keeps the complete value in `title` as a pointer convenience for a clamped URL.
+    // It stays escaped, and the accessible "Ver mais" expander is still the real mechanism.
+    const title = markup.match(/class="slug-url content-text" title="([^"]*)"/);
+    expect(title).not.toBeNull();
+    expect(title![1]).toContain("&lt;img"); expect(title![1]).toContain("&quot;"); expect(title![1]).not.toContain("<img");
+    expect(markup).toContain('class="content-toggle"');
     expect(ui.sandbox.linkContentMarkup("/" + "a".repeat(64), "slug", "slug-id", true)).toContain("/" + "a".repeat(64));
   });
   it("uses native keyboard buttons and labels destination and Variant B copying explicitly", () => {
@@ -620,7 +626,7 @@ describe("Phase 8 Gate 8.6.1: measured long content", () => {
   });
   it("uses compact surfaces, unclipped menus and one desktop/two mobile text lines", () => {
     const css = readFileSync("public/admin.css", "utf8");
-    expect(css).toMatch(/\.card\s*\{[^}]*padding: 16px;[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--radius-sm\);/);
+    expect(css).toMatch(/\.card\s*\{[^}]*padding: 14px;[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--radius-sm\);/);
     expect(css).toMatch(/\.cards\s*\{[^}]*gap: 12px;/);
     expect(css).toMatch(/\.content-text:not\(\.is-expanded\)\s*\{[^}]*-webkit-line-clamp: 1;[^}]*overflow: hidden;/);
     expect(css).toMatch(/@media \(max-width: 900px\)\s*\{\s*\.content-text:not\(\.is-expanded\) \{ -webkit-line-clamp: 2; \}/);

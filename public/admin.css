@@ -24,7 +24,6 @@
   --bg: #0b0f13;
   --bg-mesh-1: rgba(0, 161, 245, 0.04);
   --bg-mesh-2: rgba(14, 165, 233, 0.026);
-  --surface: rgba(255, 255, 255, 0.035);
   --surface-hover: rgba(255, 255, 255, 0.05);
   --surface-strong: #0e1418;
   --line: rgba(255, 255, 255, 0.09);
@@ -59,10 +58,22 @@
   --line-hover-control: rgba(255, 255, 255, 0.16);
   --control-line: #5b646c;
   --accent-line: rgba(0, 161, 245, 0.16);
-  --badge-line: rgba(0, 161, 245, 0.18);
+  --badge-line: rgba(255, 255, 255, 0.12);
   --accent-bg: rgba(0, 161, 245, 0.07);
-  --badge-bg: rgba(0, 161, 245, 0.07);
-  --badge-text: #8fb8d4;
+  --badge-bg: rgba(255, 255, 255, 0.05);
+  --badge-text: #aeb7bf;
+  /* BoltLink feature accents. A stable feature always keeps the same hue in every card:
+     A/B is amber, Smart Routing is teal, QR Code is violet. Classification (group) and
+     user-created data (tags, source) stay neutral and never take one of these hues. */
+  --feature-ab: #d8b06a;
+  --feature-ab-bg: rgba(216, 176, 106, 0.11);
+  --feature-ab-border: rgba(216, 176, 106, 0.32);
+  --feature-routing: #6cc6cf;
+  --feature-routing-bg: rgba(108, 198, 207, 0.11);
+  --feature-routing-border: rgba(108, 198, 207, 0.32);
+  --feature-qr: #b3a0e0;
+  --feature-qr-bg: rgba(179, 160, 224, 0.12);
+  --feature-qr-border: rgba(179, 160, 224, 0.32);
   --link-text: #7fb3d5;
   --link-hover: #a3c8e2;
   --selection-bg: rgba(0, 161, 245, 0.2);
@@ -102,7 +113,6 @@
   --bg: #f3f5f8;
   --bg-mesh-1: rgba(0, 108, 173, 0.04);
   --bg-mesh-2: rgba(0, 108, 173, 0.025);
-  --surface: #f5f7fb;
   --surface-hover: #eaf0f7;
   --surface-strong: #f1f4f8;
   --line: #d0d7e2;
@@ -127,10 +137,20 @@
   --line-hover-control: #718096;
   --control-line: #7c899b;
   --accent-line: #92bad3;
-  --badge-line: #a6c8dd;
+  --badge-line: #ccd4de;
   --accent-bg: #e8f3fb;
-  --badge-bg: #e6f1f9;
-  --badge-text: #215c83;
+  --badge-bg: #eef1f5;
+  --badge-text: #44556b;
+  /* Same semantic feature map as Dark, retuned for a light surface. */
+  --feature-ab: #875400;
+  --feature-ab-bg: #fdf4e3;
+  --feature-ab-border: #e2c68c;
+  --feature-routing: #0d5b64;
+  --feature-routing-bg: #e3f3f4;
+  --feature-routing-border: #9bcbd1;
+  --feature-qr: #583c93;
+  --feature-qr-bg: #f0ebfa;
+  --feature-qr-border: #c2b0e4;
   --link-text: #0069a6;
   --link-hover: #004d7c;
   --selection-bg: #cce8fa;
@@ -1018,8 +1038,8 @@ button.icon-btn {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: 8px;
+  padding: 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--card-bg);
@@ -1041,13 +1061,19 @@ button.icon-btn {
 .card-top {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 .slug-info {
   flex: 1;
   display: grid;
   gap: 4px;
+  min-width: 0;
+}
+
+/* Level 2 gets the whole card width on every viewport: the destination stays the second thing
+   the eye reads, and the inline copy/expand affordances no longer squeeze it. */
+.card-destination {
   min-width: 0;
 }
 
@@ -1347,6 +1373,15 @@ button.icon-btn {
   .card-actions button svg {
     width: 14px;
     height: 14px;
+  }
+
+  /* The trigger matches the desktop buttons, so the identity row is not taller than its own
+     controls. The 44px mobile touch target below is untouched. */
+  .card-actions .more-actions-dropdown summary {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
   }
 }
 
@@ -2258,7 +2293,18 @@ input, select, textarea { min-width: 0; max-width: 100%; }
 }
 
 /* Long identifiers retain their complete text; expansion only changes the clamp. */
-.link-content { min-width: 0; }
+/* Level 2 on desktop: the destination and its own copy/expand affordances share one line, so
+   the block every card carries costs a single text line instead of two. Narrow viewports keep
+   them stacked — the illustrative two-line sketch — because an inline action row would squeeze
+   the URL unreadably once the columns collapse. */
+.link-content { display: flex; align-items: center; gap: 0 10px; min-width: 0; }
+/* The text keeps its natural width so the copy action stays attached to the URL it copies; a
+   long URL shrinks it, and the measured expander reveals the rest as before. */
+.link-content > .content-text { flex: 0 1 auto; min-width: 0; }
+.link-content > .content-actions { flex: 0 0 auto; }
+@media (max-width: 900px) {
+  .link-content { display: block; }
+}
 .content-text { overflow-wrap: anywhere; }
 .content-text:not(.is-expanded) {
   display: -webkit-box;
@@ -2287,27 +2333,61 @@ input, select, textarea { min-width: 0; max-width: 100%; }
 .content-actions { display: flex; flex-wrap: wrap; gap: 0 12px; }
 .content-actions:has(> .content-toggle[hidden]:only-child) { display: none; }
 @media (min-width: 901px) {
-  .content-toggle, .content-copy { min-height: 32px; }
+  /* Inline beside the URL, so the row only needs to be as tall as its own control. */
+  .content-toggle, .content-copy { min-height: 26px; }
 }
 .content-toggle[hidden] { display: none; }
 .link-states { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .link-states:not(:has(> *)) { display: none; }
-.state-chip {
+/* Level 3 carries two different kinds of chip, and they must never be confused:
+   `.group-badge` classifies the link (neutral, user-created) while `.feature-badge` names a
+   BoltLink feature whose hue is fixed by the semantic map in the theme blocks. */
+.feature-badge {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 4px;
   padding: 3px 8px;
   max-width: 100%;
-  border: 1px solid var(--line);
+  border: 1px solid var(--feature-border, var(--line));
   border-radius: 999px;
-  background: var(--card-bg);
-  color: var(--text-secondary);
+  background: var(--feature-bg, transparent);
+  color: var(--feature-ink, var(--text-secondary));
   font-size: 0.74rem;
   overflow-wrap: anywhere;
 }
+.feature-badge strong { color: inherit; font-weight: 600; }
+.feature-badge--ab { --feature-ink: var(--feature-ab); --feature-bg: var(--feature-ab-bg); --feature-border: var(--feature-ab-border); }
+.feature-badge--routing { --feature-ink: var(--feature-routing); --feature-bg: var(--feature-routing-bg); --feature-border: var(--feature-routing-border); }
+.feature-badge--qr { --feature-ink: var(--feature-qr); --feature-bg: var(--feature-qr-bg); --feature-border: var(--feature-qr-border); }
+/* A password is an internal feature without a mandated hue, so it stays neutral on purpose:
+   it is told apart by its text, not by a fourth saturated accent. */
+.feature-badge--lock { --feature-ink: var(--text-secondary); --feature-bg: transparent; --feature-border: var(--line); }
 .group-badge { margin-top: 0; }
 .metrics { gap: 6px 10px; }
 .metric { min-width: 0; max-width: 100%; overflow-wrap: anywhere; font-weight: 400; }
+/* Level 4 reads as one line. The bullet is drawn between adjacent facts only, so the DOM
+   never carries punctuation that could end a wrapping line on its own; below 641px the
+   facts are most likely to wrap, so the gap alone separates them there. The expanded A/B
+   breakdown follows the same rhythm as the metadata line. */
+.metrics .metric + .metric::before,
+.card-details-metrics .metric + .metric::before { content: "•"; color: var(--muted); margin-right: 10px; }
+@media (max-width: 640px) {
+  .metrics .metric + .metric::before,
+  .card-details-metrics .metric + .metric::before { content: none; }
+}
+/* Compact A/B details: the experiment summary stays on the card, the counters and the
+   variant destination stay reachable without a permanent block. The summary deliberately
+   reuses the Admin's existing accordion vocabulary (weight, colour, chevron) instead of
+   inventing a second one; only the block spacing is card-specific, because the form
+   accordion's divider and padding do not belong inside a card. */
+.card .card-details {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.card .card-details > summary { width: fit-content; }
+.card-details .variant-content { margin-top: 10px; }
+.card-details-metrics { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 10px; }
 .link-tags { font-size: 0.74rem; color: var(--muted); overflow-wrap: anywhere; }
 .link-tags .slug-url { font-size: inherit; }
 .counter-pill { white-space: nowrap; }
@@ -2324,14 +2404,16 @@ input, select, textarea { min-width: 0; max-width: 100%; }
   .cards { gap: 16px; }
   .card-top { display: contents; }
   .slug-info { order: 0; }
-  .link-states { order: 1; }
-  .card-actions { order: 2; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; gap: 8px; }
+  .card-destination { order: 1; }
+  .link-states { order: 2; }
+  .card-actions { order: 3; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; gap: 8px; }
   .primary-actions { display: contents; }
   .card-actions .primary-actions > button, .card-actions .more-actions-dropdown summary { width: 100%; min-width: 0; min-height: 44px; }
   .card-actions .more-actions-dropdown { min-width: 0; }
   .card.is-pending .card-actions { grid-template-columns: minmax(0, 1fr); }
-  .metrics { order: 3; }
-  .link-tags { order: 4; }
+  .metrics { order: 4; }
+  .card-details { order: 5; }
+  .link-tags { order: 6; }
   .app-footer { line-height: 1.6; }
 }
 @media (max-width: 480px) {
