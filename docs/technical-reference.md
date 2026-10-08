@@ -2,7 +2,7 @@
 
 Release atual publicada: **3.1.1**, tag **v3.1.1**. Checkout de desenvolvimento: **3.2.0 candidata**, não publicada.
 
-Procedimentos e contratos técnicos transferidos do README no Gate 9.1. A release anterior `v3.1.0` permanece congelada.
+Referência de procedimentos e contratos técnicos que complementa a apresentação do produto no README. A release anterior `v3.1.0` permanece congelada.
 
 ## Três formas de usar
 

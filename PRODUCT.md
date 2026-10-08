@@ -2,7 +2,7 @@
 
 ## Candidata em desenvolvimento — 3.2.0
 
-Este checkout abre a **3.2.0 candidata**, ainda não publicada. A base oficial continua **3.1.1**, tag **v3.1.1**, congelada e reconciliada. Gate 9.1: filtro de grupos recursivo, badges com caminho completo, edição bidirecional de UTMs, `ROOT_REDIRECT_URL` como Text opcional no setup e README orientado ao produto. Sem migration nova: **MIGRATION_0007 = NOT REQUIRED**. Veja [Admin UX](docs/admin-ux.md).
+Este checkout contém a **3.2.0 candidata local**, ainda não publicada. A release oficial continua **3.1.1**, tag **v3.1.1**, congelada e reconciliada. A candidata reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Dark Mode refinado, cards compactos e badges semânticas; o README apresenta o produto com screenshots atualizadas em Light, Dark e mobile e uma demonstração animada com dados fictícios. Sem migration nova: **MIGRATION_0007 = NOT REQUIRED**. Veja [Admin UX](docs/admin-ux.md).
 
 Release atual publicada: **3.1.1**, tag **v3.1.1**. A release anterior **v3.1.0** permanece congelada.
 

@@ -2,17 +2,17 @@
 
 **Encurtador de links self-hosted para campanhas, QR Codes e materiais impressos — com controle do destino, privacidade por padrão e um painel agradável de usar.**
 
-BoltLink roda na sua própria conta Cloudflare. Crie um link curto, organize em grupos e mude o destino quando precisar: o endereço divulgado continua o mesmo, então o QR Code impresso, o link da bio e o material de campanha nunca precisam ser refeitos. O painel reúne criação, edição, contagem agregada de cliques e as ferramentas de operação em um só lugar — em tema claro ou escuro.
+BoltLink roda na sua própria conta Cloudflare. Crie um link curto, organize em grupos e mude o destino quando precisar: o endereço divulgado continua o mesmo, então o QR Code impresso, o link da bio e o material de campanha podem continuar em uso. O painel reúne criação, edição, contagem agregada de cliques e as ferramentas de operação em um só lugar — em tema claro ou escuro.
 
 **Versões:** a release publicada oficial é a **3.1.1** (tag `v3.1.1`). Este checkout é a **3.2.0 candidata**, ainda não publicada.
 
-|  |  |  |
-| :-- | :-- | :-- |
-| **Privacy-first** | **Self-hosted** | **QR Code** |
-| **Smart Routing** | **Teste A/B** | **Agendamento e expiração** |
-| **Lixeira e recuperação** | **Import / Export** | **Light & Dark** |
+- **Privacy-first e self-hosted:** controle da instalação e contagens agregadas.
+- **Recursos de campanha:** QR Code, Smart Routing, Teste A/B, agendamento e expiração.
+- **Operação diária:** grupos, Lixeira e recuperação, Import/Export e temas Light/Dark.
 
-Sem perfil de visitante, sem cookie de rastreamento e sem terceiros no caminho: o Worker responde o redirect antes de contar o clique, e o banco guarda apenas contagens agregadas. O QR Code sai em PNG e SVG, os grupos têm hierarquia com caminho completo, e a configuração viaja entre instalações em um documento portátil.
+Sem perfil de visitante, sem cookie de rastreamento e sem serviços externos de analytics: o Worker responde o redirect antes de contar o clique, e o banco guarda apenas contagens agregadas. O QR Code sai em PNG e SVG, os grupos têm hierarquia com caminho completo, e a configuração viaja entre instalações em um documento portátil.
+
+Demonstração com nomes, URLs e contagens fictícios. As [capturas estáticas](#screenshots) permitem explorar cada tela sem depender da animação.
 
 ![Demonstração do painel BoltLink em tema claro e escuro, grupos e detalhes do Teste A/B](docs/images/admin-demo.gif)
 
@@ -26,6 +26,8 @@ Sem perfil de visitante, sem cookie de rastreamento e sem terceiros no caminho: 
 
 ## Screenshots
 
+As capturas e o GIF mostram a interface real da candidata 3.2.0 com dados fictícios. Nomes, URLs e contagens ilustram os recursos; não representam clientes ou tráfego real.
+
 ### Visão geral — tema Dark
 
 ![Painel do BoltLink em tema Dark, com criação de link, busca, filtros e cards semânticos](docs/images/admin-dark-desktop.png)
@@ -34,17 +36,23 @@ O mesmo painel, em tema escuro sóbrio: criação e edição à esquerda, links 
 
 ### Light e Dark
 
-| Tema Light | Tema Dark |
-| :-- | :-- |
-| ![Painel em tema Light](docs/images/admin-light-desktop.png) | ![Painel em tema Dark](docs/images/admin-dark-desktop.png) |
+Tema Light · Tema Dark. Abra uma captura para ver em tamanho original.
+
+<p>
+  <a href="docs/images/admin-light-desktop.png"><img src="docs/images/admin-light-desktop.png" alt="Painel em tema Light" width="440"></a>
+  <a href="docs/images/admin-dark-desktop.png"><img src="docs/images/admin-dark-desktop.png" alt="Painel em tema Dark" width="440"></a>
+</p>
 
 Os dois temas compartilham a mesma estrutura, hierarquia e contraste. A troca é feita no cabeçalho e a preferência fica salva no navegador.
 
 ### Cards com recursos do sistema
 
-| Tema Dark | Tema Light |
-| :-- | :-- |
-| ![Cards com grupo, QR Code, senha, Teste A/B e Smart Routing em tema Dark](docs/images/admin-dark-cards.png) | ![Os mesmos cards em tema Light](docs/images/admin-light-cards.png) |
+Tema Dark · Tema Light. Abra uma captura para ver em tamanho original.
+
+<p>
+  <a href="docs/images/admin-dark-cards.png"><img src="docs/images/admin-dark-cards.png" alt="Cards com grupo, QR Code, senha, Teste A/B e Smart Routing em tema Dark" width="440"></a>
+  <a href="docs/images/admin-light-cards.png"><img src="docs/images/admin-light-cards.png" alt="Os mesmos cards em tema Light" width="440"></a>
+</p>
 
 Cada recurso tem uma cor fixa — Teste A/B em âmbar, Smart Routing em ciano, QR Code em violeta — enquanto grupo e tags, que são dados da sua operação, permanecem neutros. Assim dá para responder "que recurso este link usa?" sem confundir com "em que grupo ele está?".
 
@@ -56,17 +64,23 @@ O card mostra o resumo do experimento; variante B, contadores e distribuição a
 
 ### Grupos e portabilidade
 
-| Grupos hierárquicos | Importar / Exportar |
-| :-- | :-- |
-| ![Gerenciador de grupos com hierarquia e caminho completo](docs/images/admin-dark-groups-drawer.png) | ![Drawer de importação e exportação da configuração](docs/images/admin-dark-export-drawer.png) |
+Grupos hierárquicos · Importar / Exportar. Abra uma captura para ver em tamanho original.
 
-Grupos aceitam subgrupos em qualquer nível e o filtro inclui os descendentes. A exportação gera um documento portátil com a configuração lógica, para levar de uma instalação a outra.
+<p>
+  <a href="docs/images/admin-dark-groups-drawer.png"><img src="docs/images/admin-dark-groups-drawer.png" alt="Gerenciador de grupos com hierarquia e caminho completo" width="440"></a>
+  <a href="docs/images/admin-dark-export-drawer.png"><img src="docs/images/admin-dark-export-drawer.png" alt="Drawer de importação e exportação da configuração" width="440"></a>
+</p>
+
+Grupos aceitam até 16 níveis, contando a raiz, e o filtro inclui todos os descendentes. A exportação gera um documento portátil com a configuração lógica, para levar de uma instalação a outra.
 
 ### Mobile
 
-| Dark | Light |
-| :-- | :-- |
-| ![Painel em tela de celular, tema Dark](docs/images/admin-mobile-dark.png) | ![Painel em tela de celular, tema Light](docs/images/admin-mobile-light.png) |
+Dark · Light. Abra uma captura para ver em tamanho original.
+
+<p>
+  <a href="docs/images/admin-mobile-dark.png"><img src="docs/images/admin-mobile-dark.png" alt="Painel em tela de celular, tema Dark" width="390"></a>
+  <a href="docs/images/admin-mobile-light.png"><img src="docs/images/admin-mobile-light.png" alt="Painel em tela de celular, tema Light" width="390"></a>
+</p>
 
 No celular as ações viram uma grade de três colunas com alvos de 44px, as badges quebram linha sem cortar nenhum recurso e a metadata se reorganiza em duas linhas — sem rolagem horizontal.
 
@@ -106,7 +120,7 @@ O BoltLink tem duas partes com responsabilidades separadas. O **redirect públic
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/vitorgfaustino/boltlink)
 
-O botão prepara a instalação automaticamente na sua conta. Configure o Cloudflare Access para proteger o painel e a API seguindo o [guia de instalação](docs/cloudflare-setup.md) e o [guia de autenticação](docs/admin-auth.md).
+Você precisa de uma conta Cloudflare e uma conta GitHub. O botão copia o repositório para o seu GitHub, provisiona o D1 e prepara o Worker na sua conta Cloudflare. Configure o Cloudflare Access para proteger o painel e a API seguindo o [guia de instalação](docs/cloudflare-setup.md) e o [guia de autenticação](docs/admin-auth.md).
 
 **O botão aponta para `main`, que distribui a release publicada 3.1.1.** As melhorias da candidata 3.2.0 ainda estão no checkout candidato e não são distribuídas pelo botão. Na candidata, `ROOT_REDIRECT_URL` aparece no setup como **Text opcional**: deixe vazio para manter a página inicial, ou informe a URL para a qual deseja redirecionar a raiz `/`.
 

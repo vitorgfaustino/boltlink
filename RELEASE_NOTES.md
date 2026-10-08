@@ -5,13 +5,15 @@
 - Editor hidrata as cinco UTMs da URL e sincroniza alterações/remoções, preservando parâmetros não-UTM e fragmento.
 - Deploy Button expõe `ROOT_REDIRECT_URL` como Text opcional, vazio por padrão, sem alterar o redirect existente.
 - README começa pela apresentação do produto; procedimentos e detalhes de migrations passam à [referência técnica](docs/technical-reference.md).
-- Base publicada e congelada: 3.1.1, tag v3.1.1. Nenhuma tag, publicação ou deploy da candidata neste gate.
+- Admin com Dark Mode refinado, cards compactos e badges semânticas: A/B, Smart Routing e QR Code têm cores fixas; grupos e tags permanecem neutros.
+- Showcase com nove screenshots atualizadas em Light, Dark e mobile e GIF demonstrativo, usando dados fictícios.
+- Base publicada e congelada: 3.1.1, tag v3.1.1. A 3.2.0 permanece candidata local, sem tag, publicação ou deploy.
 - Migrations 0000–0006 intactas, sem mudança de schema. **MIGRATION_0007 = NOT REQUIRED**.
 
 ## BoltLink 3.1.1 — publicada
 
 - Corrige o Deploy Button: `npm run deploy` aplica migrations D1 pendentes pelo binding `db_boltlink` antes do Worker; falha no apply impede deploy.
-- Corrige a compatibilidade das migrations históricas com o parser remoto D1/Wrangler em instalação nova: somente comentários SQL, sem alteração do SQL executável, schema, nomes ou ordem da cadeia `0000`–`0006`. Correção local para a mesma versão 3.1.1, com validação D1 remota e republicação pendentes.
+- Corrige a compatibilidade das migrations históricas com o parser remoto D1/Wrangler em instalação nova: somente comentários SQL, sem alteração do SQL executável, schema, nomes ou ordem da cadeia `0000`–`0006`. Correção integrada à v3.1.1 republicada e congelada; fresh install D1 remoto validado pelo usuário e CI de main e da tag aprovado.
 - Preserva `scripts/wrangler.mjs`; o wrapper permite o apply remoto desse binding no Workers Builds sem configuração privada.
 - Instalação nova aplica `0000`–`0006`; instalações preparadas não reaplicam migrations; legados aplicam somente pendentes.
 - Sem migration nova, schema ou mudança funcional: **MIGRATION_0007 = NOT REQUIRED**.
@@ -28,7 +30,7 @@ No Deploy Button, aceite `npm run deploy`. Em Workers Builds existente, confira 
 - HTTP 429 administrativo inclui `Retry-After`; o Admin informa o tempo de espera em pt-BR quando disponível.
 - Documentação corrente reconciliada com a identidade publicada 3.1.0, sem SHA corrente literal.
 
-Release atual publicada **3.1.0**, tag **v3.1.0**. Lixeira, recuperação, higiene de dados e melhorias no Admin; a release anterior **v3.0.0** permanece congelada.
+A **3.1.0**, tag **v3.1.0**, é a release anterior congelada. Introduziu Lixeira, recuperação, higiene de dados e melhorias no Admin; a **v3.0.0** também permanece congelada.
 
 - Admin mais flat, com Lixeira em offcanvas e Importar / Exportar consolidados em um drawer. Criar link integra o fluxo mobile, recolhido a cada abertura/reload e após salvar; desktop mantém o formulário visível. Teclado, ESC, foco e scroll seguem um padrão comum, sem alteração de API, schema ou migrations.
 - Lixeira com restauração validada e preservação dos dados existentes.

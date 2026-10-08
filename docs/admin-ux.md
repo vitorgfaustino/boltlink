@@ -22,6 +22,12 @@ Os helpers editam somente os tokens UTM suportados. Pathname, fragmento, parâme
 
 Se um UTM suportado aparecer repetido, a hidratação usa o primeiro valor, como `URLSearchParams.get()`. Alterar o campo ou salvar normaliza esse UTM para uma única ocorrência; um primeiro valor vazio resulta na remoção do parâmetro. Parâmetros não-UTM repetidos permanecem intactos. Abrir e salvar uma URL sem duplicatas não reserializa o endereço nem muda seu encoding.
 
+## Apresentação do painel
+
+O Dark Mode usa superfícies neutras e discretas, com o azul reservado às ações. Cards compactos separam identidade, destino, recursos e métricas; detalhes A/B ficam sob demanda. As badges usam cores semânticas fixas para Teste A/B, Smart Routing e QR Code, enquanto grupos e tags permanecem neutros. Light e Dark compartilham a estrutura; no mobile, ações têm alvos de 44px e os recursos quebram linha.
+
+O [README](../README.md#screenshots) apresenta nove capturas atualizadas e uma demonstração animada da interface real, com nomes, URLs e contagens fictícios. Esses dados não integram o banco nem a distribuição de produção.
+
 ## Setup inicial
 
 Na candidata, `ROOT_REDIRECT_URL` é declarada em `wrangler.jsonc` como variável **Text**, **opcional**, **não Secret**, com valor inicial vazio. A descrição de `package.json` explica o campo. Vazio preserva a página inicial; uma URL absoluta http(s) válida usa o redirect da raiz já existente.

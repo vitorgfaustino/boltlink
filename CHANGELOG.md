@@ -7,13 +7,15 @@
 - Editor hidrata as cinco UTMs da URL e sincroniza alterações/remoções, preservando parâmetros não-UTM e fragmento.
 - Deploy Button expõe `ROOT_REDIRECT_URL` como Text opcional, vazio por padrão, sem alterar o redirect existente.
 - README começa pela apresentação do produto; procedimentos e detalhes de migrations passam à [referência técnica](docs/technical-reference.md).
-- Base publicada e congelada: 3.1.1, tag v3.1.1. Nenhuma tag, publicação ou deploy da candidata neste gate.
+- Admin com Dark Mode refinado, cards compactos e badges semânticas: A/B, Smart Routing e QR Code têm cores fixas; grupos e tags permanecem neutros.
+- Showcase com nove screenshots atualizadas em Light, Dark e mobile e GIF demonstrativo, usando dados fictícios.
+- Base publicada e congelada: 3.1.1, tag v3.1.1. A 3.2.0 permanece candidata local, sem tag, publicação ou deploy.
 - Migrations 0000–0006 intactas, sem mudança de schema. **MIGRATION_0007 = NOT REQUIRED**.
 
 ## [3.1.1] - 2026-10-07
 
 - Corrige o Deploy Button: `npm run deploy` aplica migrations D1 pendentes pelo binding `db_boltlink` antes do Worker; falha no apply impede deploy.
-- Corrige a compatibilidade das migrations históricas com o parser remoto D1/Wrangler em instalação nova: somente comentários SQL, sem alteração do SQL executável, schema, nomes ou ordem da cadeia `0000`–`0006`. Correção local para a mesma versão 3.1.1, com validação D1 remota e republicação pendentes.
+- Corrige a compatibilidade das migrations históricas com o parser remoto D1/Wrangler em instalação nova: somente comentários SQL, sem alteração do SQL executável, schema, nomes ou ordem da cadeia `0000`–`0006`. Correção integrada à v3.1.1 republicada e congelada; fresh install D1 remoto validado pelo usuário e CI de main e da tag aprovado.
 - Preserva `scripts/wrangler.mjs`; o wrapper permite o apply remoto desse binding no Workers Builds sem configuração privada.
 - Instalação nova aplica `0000`–`0006`; instalações preparadas não reaplicam migrations; legados aplicam somente pendentes.
 - Sem migration nova, schema ou mudança funcional: **MIGRATION_0007 = NOT REQUIRED**.
@@ -34,7 +36,7 @@
 - Retenção interna de 90 dias com preview read-only e purge manual condicional; sem Cron ou operação remota.
 - Export somente de links ativos; erros com `code` e orientação segura no Admin. Formato v1 e import legado `disabled: true` preservados.
 - URL vazia enviada por PATCH/PUT é recusada em vez de ser tratada como campo ausente. Mesma autoridade de URL em create, update, restore e import.
-- Sem migration 0007: cadeia 0000–0006, sem binding novo. Release atual publicada: v3.1.0; v3.0.0 permanece congelada.
+- Sem migration 0007: cadeia 0000–0006, sem binding novo. Release histórica v3.1.0; v3.0.0 permanece congelada.
 
 ## [3.0.0] - 2026-09-29
 

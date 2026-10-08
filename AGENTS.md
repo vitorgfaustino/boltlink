@@ -2,7 +2,7 @@
 
 ## Candidata em desenvolvimento — 3.2.0
 
-Este checkout abre a **3.2.0 candidata**, ainda não publicada. A base oficial continua **3.1.1**, tag **v3.1.1**, congelada e reconciliada. Gate 9.1: filtro de grupos recursivo, badges com caminho completo, edição bidirecional de UTMs, `ROOT_REDIRECT_URL` como Text opcional no setup e README orientado ao produto. Sem migration nova: **MIGRATION_0007 = NOT REQUIRED**. Veja [Admin UX](docs/admin-ux.md).
+Este checkout contém a **3.2.0 candidata local**, ainda não publicada. A release oficial continua **3.1.1**, tag **v3.1.1**, congelada e reconciliada. A candidata reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Dark Mode refinado, cards compactos e badges semânticas; o README apresenta o produto com screenshots atualizadas em Light, Dark e mobile e uma demonstração animada com dados fictícios. Sem migration nova: **MIGRATION_0007 = NOT REQUIRED**. Veja [Admin UX](docs/admin-ux.md).
 
 ## Release publicada — 3.1.1
 
@@ -55,7 +55,7 @@ A release atual publicada é a **`3.1.1`**, identificada pela tag `v3.1.1` na br
 
 ### Histórico dos gates 3.0.0 e publicação 3.1.0
 
-- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. A versão da release originada dessa linha é **`3.0.0`** (essa é a versão histórica; o checkout corrente está em `3.1.1`).
+- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. A versão da release originada dessa linha é **`3.0.0`** (essa é a versão histórica; o checkout corrente está em `3.2.0` candidata).
 - Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
 - Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fechou o finding BL-54-04 e reconciliou a documentação; não adicionou feature, migration, bump de versão, tag nem deploy.
 - Com o freeze do Gate 5.5, a Fase 5 ficou **FEATURE FROZEN**: nenhuma feature adicional deve ser iniciada, e a Phase 6 não pode ser iniciada dentro de um gate da Fase 5.
