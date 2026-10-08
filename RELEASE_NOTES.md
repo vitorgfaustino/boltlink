@@ -1,16 +1,17 @@
 ## BoltLink v3.2.1 — Upgrade & Deploy Safety
 
-**Candidata de manutenção local; publicação pendente.** Package, lockfile e aplicação estão em 3.2.1.
+Versão de manutenção com proteção das configurações durante upgrades e validação antecipada antes de migrations e deploy.
 
-- Validação preventiva de D1, com bloqueio de UUID ausente/inválido e diagnóstico do arquivo Wrangler efetivamente usado.
-- Merge por identidade do binding, preservação da ordem local e bloqueio de alvos/JSONC ambíguos.
-- Comparação de configurações durante upgrades: identidade removida bloqueia, mudanças intencionais exigem confirmação explícita, baseline ausente exige reconciliação manual.
-- Proteção do Worker name e recursos personalizados; fluxo por IA distingue upstream, repositório do cliente e push com auto-deploy.
-- Remoções parciais de bindings/identificadores exigem correção; seleção implícita por `.env.local` e flags alternativas não contornam o preflight, que bloqueia operações D1 implicitamente remotas com configuração incompleta.
-- Correções de testes e CI: relógio controlado no teste de rate limit, histórico/tags disponíveis no checkout e credenciais Git sem persistência. CI remoto permanece pendente da publicação autorizada.
-- [Recuperação e contrato de upgrade](docs/upgrading.md#upgrade-seguro--candidata-321) e [checklist para publicação futura](docs/release-3.2.1-checklist.md).
+- Preflight D1 bloqueia `database_id` ausente ou inválido, binding ausente/duplicado e alvos ambíguos antes de chamar Wrangler; informa o arquivo efetivamente usado.
+- Seleção consistente da configuração em Workers Builds, CLI local, arquivos explícitos e ambientes, incluindo precedência dotenv e aliases de flags.
+- Merge por identidade do binding preserva recursos e identificadores locais, sem adotar silenciosamente IDs do upstream. JSONC é interpretado como dados, sem execução de JavaScript.
+- `upgrade:check` compara configurações antes/depois, bloqueia identidades removidas e exige confirmação explícita de mudanças operacionais. Baseline ausente exige reconciliação manual.
+- Fluxo de atualização por IA identifica cliente e upstream oficial, preserva Worker/D1, rotas, branding, overlays e secrets, e exige comparação, preflight, testes e revisão antes de push potencialmente associado a deploy.
+- Testes operacionais adicionais cobrem parsing JSONC, ambientes, flags, proteção de identidade e encadeamento de migrations antes do Worker. CI busca histórico completo e tags para executar as verificações históricas.
 
-Nenhuma feature nova no Admin, migration, alteração de schema ou secret obrigatório novo. Nenhum update automático. O preflight não recupera IDs perdidos nem comprova que um UUID pertence ao D1 correto. Compatibilidade do Deploy Button verificada somente em simulações locais; validação Cloudflare e CI no GitHub não foram executados neste gate.
+Sem migration nova, alteração de schema, secret obrigatório novo ou mudança funcional no Admin. Migrations `0000`–`0006` preservadas. Instalações existentes não são atualizadas automaticamente. IDs perdidos anteriormente exigem recuperação individual; um UUID sintaticamente válido não comprova associação ao D1 correto. O primeiro Deploy Button remoto desta versão não foi validado durante a preparação da release.
+
+Veja o [upgrade seguro](docs/upgrading.md#upgrade-seguro--321) e o [checklist de publicação](docs/release-3.2.1-checklist.md).
 
 ## BoltLink v3.2.0
 

@@ -120,7 +120,7 @@ O BoltLink tem duas partes com responsabilidades separadas. O **redirect públic
 
 Você precisa de uma conta Cloudflare e uma conta GitHub. O botão copia o repositório para o seu GitHub, provisiona o D1 e prepara o Worker na sua conta Cloudflare. Configure o Cloudflare Access para proteger o painel e a API seguindo o [guia de instalação](docs/cloudflare-setup.md) e o [guia de autenticação](docs/admin-auth.md).
 
-**O botão aponta para `main`, que distribui a release publicada 3.2.0.** `ROOT_REDIRECT_URL` aparece no setup como **Text opcional**: deixe vazio para manter a página inicial, ou informe a URL para a qual deseja redirecionar a raiz `/`.
+**O botão aponta para `main`, que distribui a release publicada 3.2.1.** `ROOT_REDIRECT_URL` aparece no setup como **Text opcional**: deixe vazio para manter a página inicial, ou informe a URL para a qual deseja redirecionar a raiz `/`.
 
 ## Instalação e configuração
 
@@ -151,15 +151,9 @@ Consulte a [arquitetura](docs/architecture.md), o [desenvolvimento local](docs/l
 
 ## Estado das versões
 
-A **3.2.0 está publicada**, identificada pela tag **v3.2.0**. A release anterior **v3.1.1** permanece congelada. Publicar código não atualiza instalações self-hosted.
+A **3.2.1 está publicada**, identificada pela tag **v3.2.1**. A release anterior **v3.2.0** permanece congelada. Publicar código não atualiza instalações self-hosted.
 
-### Candidata local — 3.2.1 (Gate 10.3)
-
-A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
-
-Package, lockfile e versão exibida pela aplicação estão em **3.2.1** neste checkout. Sem feature, migration ou schema novo; nenhum secret obrigatório novo e nenhuma atualização automática de instalações. Publicação pendente e não autorizada.
-
-O contrato canônico está em [Upgrade seguro](docs/upgrading.md#upgrade-seguro--candidata-321).
+A manutenção 3.2.1 acrescenta preflight D1 e proteção das configurações durante upgrades, sem alteração funcional no Admin. Consulte o [upgrade seguro](docs/upgrading.md#upgrade-seguro--321).
 
 ## Licença
 

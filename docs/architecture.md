@@ -1,8 +1,8 @@
 # Arquitetura do Projeto
 
-## Release publicada — 3.2.0
+## Release publicada — 3.2.1
 
-A **3.2.0 está publicada**, identificada pela tag **v3.2.0**; é a release atual e latest do repositório. A release anterior **v3.1.1** permanece congelada. Esta versão reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Light e Dark refinados, cards compactos, badges semânticas e detalhes A/B sob demanda; o README apresenta screenshots atuais e uma demonstração animada com dados fictícios. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados.
+A **3.2.1 está publicada**, identificada pela tag **v3.2.1**; é a release atual e latest do repositório. A release anterior **v3.2.0** permanece congelada. Esta versão de manutenção acrescenta preflight D1, seleção consistente da configuração Wrangler, merge por identidade de binding e comparação obrigatória das configurações no upgrade. Mantém os recursos de links e o Admin refinado da 3.2.0. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Nenhum secret obrigatório novo ou atualização automática de instalações.
 
 Publicar tag/release é **source distribution** e não opera Cloudflare de clientes. Cada instalação executa o próprio `npm run deploy`, que aplica apenas migrations pendentes antes do Worker, e configura seu próprio Access. O guia completo está em [Cloudflare Access](admin-auth.md).
 
@@ -10,7 +10,7 @@ Publicar tag/release é **source distribution** e não opera Cloudflare de clien
 
 A **3.1.0**, release histórica congelada na tag **v3.1.0**, introduziu os recursos abaixo. A tag histórica **v3.0.0** também permanece congelada. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.2.0`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.2.1`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
 ## Visão geral
@@ -247,7 +247,7 @@ O módulo `src/portability-import.ts` é dono da validação e do plano; os hand
 - O runtime **não** executa `schema.sql`, **não** cria colunas, **não** aplica migrations implicitamente e **não** reconstrói tabelas. Ele valida que o banco foi preparado; sem a tabela `links` ou sem colunas obrigatórias, responde `503` com erro operacional controlado e sem vazar SQL.
 - Colunas legadas extras (`last_clicked_at`, `notes`, `stats`) são ignoradas e permanecem até que uma migration explícita as remova. Nenhum rebuild destrutivo roda durante requests.
 - `schema.sql` é apenas o snapshot baseline da migration `0000_initial_schema.sql` para ferramentas manuais; não é executado pelo runtime e não deve receber colunas de features.
-- Na release 3.2.0, `npm run deploy` aplica migrations remotas pendentes pelo binding `db_boltlink` antes de publicar o Worker; erro no apply impede o deploy. Workers Builds deve usar esse Deploy command. Publicar a GitHub Release não toca bancos de clientes.
+- Na release 3.2.1, `npm run deploy` aplica migrations remotas pendentes pelo binding `db_boltlink` antes de publicar o Worker; erro no apply impede o deploy. Workers Builds deve usar esse Deploy command. Publicar a GitHub Release não toca bancos de clientes.
 - Instalação limpa da release histórica (`3.1.0`, sem migrations automáticas no deploy): criar o D1, aplicar as migrations `0000` até `0006` (localmente com `npm run dev-prepare`), publicar o Worker. Upgrade da release histórica `v2.2.1`: aplicar as pendentes `0004` a `0006`, depois publicar e validar. Mesmo sem restart, um isolate antigo detecta uma migration aplicada no request seguinte.
 
 #### Procedimento histórico: instalação da release histórica (v2.2.1)
@@ -299,5 +299,5 @@ Na release `3.0.0`, a instalação limpa e o upgrade aplicam também a `0006_exp
 
 ---
 
-Release atual publicada: 3.2.0 · Tag: v3.2.0 · Release anterior: 3.1.1
+Release atual publicada: 3.2.1 · Tag: v3.2.1 · Release anterior: 3.2.0
 Criado por Vitor Faustino - vitorfaustino.com.br

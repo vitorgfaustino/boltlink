@@ -1,17 +1,8 @@
 # AGENTS.md
 
-## Candidata local — 3.2.1 (Gate 10.2)
+## Release publicada — 3.2.1
 
-A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
-
-Package, lockfile e versão exibida pela aplicação estão em **3.2.1** neste checkout. Sem feature, migration ou schema novo; nenhum secret obrigatório novo e nenhuma atualização automática de instalações. Publicação pendente e não autorizada.
-
-O contrato canônico está em [Upgrade seguro](docs/upgrading.md#upgrade-seguro--candidata-321).
-
-
-## Release publicada — 3.2.0
-
-A **3.2.0 está publicada**, identificada pela tag **v3.2.0**; é a release atual e latest do repositório. A release anterior **v3.1.1** permanece congelada. Esta versão reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Light e Dark refinados, cards compactos, badges semânticas e detalhes A/B sob demanda; o README apresenta screenshots atuais e uma demonstração animada com dados fictícios. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Veja [Admin UX](docs/admin-ux.md).
+A **3.2.1 está publicada**, identificada pela tag **v3.2.1**; é a release atual e latest do repositório. A release anterior **v3.2.0** permanece congelada. Esta versão de manutenção acrescenta preflight D1, seleção consistente da configuração Wrangler, merge por identidade de binding e comparação obrigatória das configurações no upgrade. Mantém os recursos de links e o Admin refinado da 3.2.0. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Nenhum secret obrigatório novo ou atualização automática de instalações.
 
 Publicar tag/release é **source distribution** e não opera Cloudflare de clientes. Cada instalação executa o próprio `npm run deploy`, que aplica apenas migrations pendentes antes do Worker, e configura seu próprio Access. O guia completo está em [Cloudflare Access](docs/admin-auth.md).
 
@@ -21,7 +12,7 @@ A correção de compatibilidade da mesma 3.1.1 substitui apenas pontos e vírgul
 
 A **3.1.0**, release histórica congelada na tag **v3.1.0**, introduziu os recursos abaixo. A tag histórica **v3.0.0** também permanece congelada. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.2.0`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
+Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.2.1`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
 Este arquivo define regras para agentes de IA e assistentes automatizados que trabalhem neste repositório.
@@ -48,26 +39,26 @@ Aplicação de gerenciamento e redirecionamento de links baseada em Cloudflare W
 
 | Base | Como identificar | Migrations | Recursos extras |
 | --- | --- | --- | --- |
-| **Release atual publicada** (`3.2.0`) | tag `v3.2.0`, branch `main` (convergência verificada no gate de publicação/pós-publicação) | `0000` a `0006` | Lixeira + recuperação + exclusão definitiva/purge manual + export ativo + Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
-| **Release anterior congelada** (`3.1.1`) | tag `v3.1.1` | `0000` a `0006` | recursos anteriores às melhorias de Admin/setup da 3.2.0; deploy com migrations pendentes |
+| **Release atual publicada** (`3.2.1`) | tag `v3.2.1`, branch `main` (convergência verificada no gate de publicação/pós-publicação) | `0000` a `0006` | Lixeira + recuperação + exclusão definitiva/purge manual + export ativo + Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
+| **Release anterior congelada** (`3.2.0`) | tag `v3.2.0` | `0000` a `0006` | mesmos recursos de links e Admin; anterior ao preflight e à comparação segura de configurações da 3.2.1 |
 | **Baseline histórico do upgrade** (`v2.2.1`) | tag `v2.2.1` (`git rev-parse v2.2.1` → `8b3895e`) | `0000` a `0003` | — |
 | Fase 2 (checkpoint histórico) | baseline local `23353a1` | `0000` a `0004` | Split Test A/B |
 | Fase 3 (checkpoint congelado) | HEAD `548f179` | `0000` a `0005` | Fase 2 + Smart Routing |
 | Fase 4 (checkpoint congelado) | HEAD `cdb9f83` | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
 | Fase 5 (checkpoint pre-freeze) | `3670a44` sobre `cdb9f83` | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code — evoluiu para a release `3.0.0` |
 
-A release atual publicada é a **`3.2.0`**, identificada pela tag `v3.2.0` na branch `main`. A 3.2.0 refina o Admin e o setup e preserva o deploy com migrations pendentes introduzido na 3.1.1, sem migration nova. A tag publicada e `main` devem convergir para o mesmo release commit; essa igualdade é um invariante operacional verificado externamente por Git/GitHub API nos gates de publicação e auditoria pós-publicação, sem exigir um SHA corrente literal neste documento. Ela mantém as migrations `0000` a `0006`, os recursos publicados desde a `3.0.0` e a Lixeira/recuperação introduzidas na `3.1.0`, sem migration nova. A `v3.1.1` é a **release anterior**; a `v2.2.1` é o **baseline histórico do upgrade** das features. São conceitos distintos: a release anterior imediata muda a cada publicação, o baseline histórico do upgrade muda apenas em novos upgrades major. A `v2.2.1` não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura nem a portabilidade da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência, e não existem `GET /api/export`, `POST /api/import/preview` nem `POST /api/import/apply`). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
+A release atual publicada é a **`3.2.1`**, identificada pela tag `v3.2.1` na branch `main`. A 3.2.1 acrescenta segurança de upgrade e preflight, mantém o Admin da 3.2.0 e preserva o deploy com migrations pendentes introduzido na 3.1.1, sem migration nova. A tag publicada e `main` devem convergir para o mesmo release commit; essa igualdade é um invariante operacional verificado externamente por Git/GitHub API nos gates de publicação e auditoria pós-publicação, sem exigir um SHA corrente literal neste documento. Ela mantém as migrations `0000` a `0006`, os recursos publicados desde a `3.0.0` e a Lixeira/recuperação introduzidas na `3.1.0`, sem migration nova. A `v3.2.0` é a **release anterior**; a `v2.2.1` é o **baseline histórico do upgrade** das features. São conceitos distintos: a release anterior imediata muda a cada publicação, o baseline histórico do upgrade muda apenas em novos upgrades major. A `v2.2.1` não contém a `0004`, o Split Test A/B, a `0005`, o Smart Routing nem o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a hierarquia de grupos segura nem a portabilidade da Fase 5 (a tabela `link_groups` existe na tag, mas sem a validação de ciclo, de profundidade, de delete e de concorrência, e não existem `GET /api/export`, `POST /api/import/preview` nem `POST /api/import/apply`). Documentação e testes devem manter essa separação; `test/smart-routing-admin.spec.ts` tem um scanner que falha quando um artefato aparece no escopo errado.
 
 ### Histórico dos gates 3.0.0 e publicação 3.1.0
 
-- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. A versão da release originada dessa linha é **`3.0.0`** (essa é a versão histórica; o checkout corrente está na release `3.2.0`).
+- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. A versão da release originada dessa linha é **`3.0.0`** (essa é a versão histórica; o checkout corrente está na release `3.2.1`).
 - Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
 - Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fechou o finding BL-54-04 e reconciliou a documentação; não adicionou feature, migration, bump de versão, tag nem deploy.
 - Com o freeze do Gate 5.5, a Fase 5 ficou **FEATURE FROZEN**: nenhuma feature adicional deve ser iniciada, e a Phase 6 não pode ser iniciada dentro de um gate da Fase 5.
 - **Phase 6 — Release Readiness: COMPLETE.** Gate 6.1 (auditoria global final) concluído com P0 = 0, P1 = 0 e P2 = 0; Gate 6.2 (correção dos blockers) concluído, fechando BL-61-01 e BL-61-02; Gate 6.3 (version finalization) concluído — versão `3.0.0` finalizada e os P3 BL-61-03, BL-61-04 e o wording "nullable" de `docs/upgrading.md` fechados; Gate 6.4 (local release commit) concluído — commit de preparação `6847e47` (`release: prepare 3.0.0`) sobre o pre-release baseline `04a6873`; Gate 6.5A (publication preflight): **RECLASSIFIED** — BL-65A-01 é **NOT APPLICABLE** (o finding assumia uma instalação canônica Cloudflare/D1 vinculada ao repositório-base, e ela não existe; Cloudflare login, D1/Worker remotos e production smoke não são requisito da release do repositório), e BL-65A-02 (wording de release não publicada no commit de preparação) foi fechado no Gate 6.5B; Gate 6.5B (final publication metadata) concluído — historicamente, finalizou a metadata no commit `60c8575` (`release: finalize 3.0.0`); **Gate 6.6 (publicação da release): PASSED** — na publicação inicial, a tag `v3.0.0` foi criada sobre `60c8575`, com push de `main` e da tag e GitHub Release concluídos. Modelo de distribuição: a release do repositório é **source distribution** (source commit + tag `v3.0.0` + push de `main` + push da tag + GitHub Release); Cloudflare deploy, migrations e D1 são **por instalação** e não fazem parte da release do repositório. Estado da release: **PUBLICADA**.
 - **Phase 7 — Current-State Reconciliation (histórico da 3.0.0 congelada)**: Gate 7.2 concluído (BL-66-01); Gate 7.3 rejeitado; Gate 7.4 concluído (correções BL-73-01..04); Gate 7.5 aprovado; Gate 7.6 produziu o commit de correção; Gate 7.7 concluiu a republicação controlada da mesma `v3.0.0`. Gate 7.8 reconciliou a identificação corrente sem SHA literal (BL-77-01), sem bump, migration ou mudança funcional.
 - A dívida técnica `TS7016` do módulo `qrcode` foi **aceita para a 3.0.0** como **não bloqueante** (runtime, bundle do Wrangler e suíte passam; o CI atual não usa `tsc` como gate de release).
-- A release atual publicada é a **`3.2.0`** (tag `v3.2.0`, publicada no GitHub); nenhum documento pode afirmar que instalações foram atualizadas, que migrations remotas foram aplicadas por quem publica a tag, ou que existe Worker/D1/hostname/Cloudflare Account oficial — cada instalação é self-hosted e executa o próprio upgrade (`docs/upgrading.md`).
+- A release atual publicada é a **`3.2.1`** (tag `v3.2.1`, publicada no GitHub); nenhum documento pode afirmar que instalações foram atualizadas, que migrations remotas foram aplicadas por quem publica a tag, ou que existe Worker/D1/hostname/Cloudflare Account oficial — cada instalação é self-hosted e executa o próprio upgrade (`docs/upgrading.md`).
 
 ## Regra obrigatória para tarefas Cloudflare
 
@@ -90,8 +81,8 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - em `migrations/*.sql`, ponto e vírgula em statement SQL é permitido e normal, mas ponto e vírgula dentro de comentários `--` ou `/* ... */` é proibido, nas migrations existentes e futuras, para compatibilidade com o parser remoto D1/Wrangler; valide com `npm test -- --project node test/migration-comments.spec.ts`
 - se schema mudar, crie uma nova migration; `schema.sql` é apenas o baseline da `0000_initial_schema.sql` e não deve receber colunas de features
 - o runtime não pode executar `schema.sql`, criar/alterar colunas, aplicar migrations implicitamente nem reconstruir tabelas durante requests; banco não preparado deve falhar fechado com `503`
-- na release 3.2.0, `npm run deploy` aplica migrations D1 remotas pendentes pelo binding `db_boltlink` antes de publicar; uma falha impede o deploy.
-- Na candidata local 3.2.1, Workers Builds seleciona config público para esse apply/deploy mesmo com config privado presente (salvo --config explícito), e o preflight bloqueia D1 incompleto; outros comandos D1 continuam exigindo config privado ou config explícito. Deploy command deve ser `npm run deploy`. Nunca execute esse script para validação local: ele altera o D1 remoto. A tag v3.1.0 conserva o deploy sem migrations automáticas.
+- na release 3.2.1, `npm run deploy` aplica migrations D1 remotas pendentes pelo binding `db_boltlink` antes de publicar; uma falha impede o deploy.
+- Na release 3.2.1, Workers Builds seleciona config público para esse apply/deploy mesmo com config privado presente (salvo --config explícito), e o preflight bloqueia D1 incompleto; outros comandos D1 continuam exigindo config privado ou config explícito. Deploy command deve ser `npm run deploy`. Nunca execute esse script para validação local: ele altera o D1 remoto. A tag v3.1.0 conserva o deploy sem migrations automáticas.
 - desenvolvimento local do Worker exige migrations no D1 do Wrangler: `npm run dev-prepare` (parte da release `3.0.0`, aplica a cadeia `0000`–`0006`) cobre isso; o script **não existe** no checkout histórico da tag `v2.2.1` (lá use `npm run wrangler -- d1 migrations apply ... --local`); `npm run dev-init` prepara apenas o SQLite auxiliar `.dev-env/db.sqlite3`, que o Worker não usa
 
 ## Restrições funcionais que devem ser preservadas
@@ -227,5 +218,5 @@ Para mudanças de banco:
 
 ---
 
-Release atual publicada: 3.2.0 · Tag: v3.2.0 · Release anterior: 3.1.1
+Release atual publicada: 3.2.1 · Tag: v3.2.1 · Release anterior: 3.2.0
 Criado por Vitor Faustino - vitorfaustino.com.br

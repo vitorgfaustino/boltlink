@@ -1,8 +1,8 @@
 # Privacy (BoltLink 3.0.0)
 
-## Release publicada — 3.2.0
+## Release publicada — 3.2.1
 
-A **3.2.0 está publicada**, identificada pela tag **v3.2.0**; é a release atual e latest do repositório. A release anterior **v3.1.1** permanece congelada. Esta versão reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Light e Dark refinados, cards compactos, badges semânticas e detalhes A/B sob demanda; o README apresenta screenshots atuais e uma demonstração animada com dados fictícios. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados.
+A **3.2.1 está publicada**, identificada pela tag **v3.2.1**; é a release atual e latest do repositório. A release anterior **v3.2.0** permanece congelada. Esta versão de manutenção acrescenta preflight D1, seleção consistente da configuração Wrangler, merge por identidade de binding e comparação obrigatória das configurações no upgrade. Mantém os recursos de links e o Admin refinado da 3.2.0. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Nenhum secret obrigatório novo ou atualização automática de instalações.
 
 Publicar tag/release é **source distribution** e não opera Cloudflare de clientes. Cada instalação executa o próprio `npm run deploy`, que aplica apenas migrations pendentes antes do Worker, e configura seu próprio Access. O guia completo está em [Cloudflare Access](admin-auth.md).
 
@@ -10,10 +10,10 @@ Publicar tag/release é **source distribution** e não opera Cloudflare de clien
 
 A **3.1.0**, release histórica congelada na tag **v3.1.0**, introduziu os recursos abaixo. A tag histórica **v3.0.0** também permanece congelada. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.2.0`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.2.1`. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
-> Escopo: release atual = **`3.2.0`** (publicada; os recursos de roteamento abaixo têm origem nas Fases 2–5 do desenvolvimento e foram publicados juntos na `3.0.0`). A release histórica `v2.2.1` não contém Split Test A/B, Smart Routing, destino de expiração, `ROOT_REDIRECT_URL`, portabilidade nem o diálogo de QR Code.
+> Escopo: release atual = **`3.2.1`** (publicada; os recursos de roteamento abaixo têm origem nas Fases 2–5 do desenvolvimento e foram publicados juntos na `3.0.0`). A release histórica `v2.2.1` não contém Split Test A/B, Smart Routing, destino de expiração, `ROOT_REDIRECT_URL`, portabilidade nem o diálogo de QR Code.
 
 ## Princípio
 
@@ -141,5 +141,5 @@ A instância pública padrão também expõe uma página em `/privacidade`, serv
 
 ---
 
-Release atual publicada: 3.2.0 · Tag: v3.2.0
+Release atual publicada: 3.2.1 · Tag: v3.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

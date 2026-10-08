@@ -1,6 +1,6 @@
 # Cloudflare Access — instalação e autenticação do Admin
 
-> Escopo: release atual publicada **3.2.0** (`v3.2.0`); release anterior **3.1.1** (`v3.1.1`), congelada. A autenticação do produto permanece Cloudflare Access.
+> Escopo: release atual publicada **3.2.1** (`v3.2.1`); release anterior **3.2.0** (`v3.2.0`), congelada. A autenticação do produto permanece Cloudflare Access.
 
 Este é o guia principal para configurar o login de uma instalação nova do BoltLink. A configuração é manual, na conta Cloudflare do operador. Publicar uma GitHub Release não cria Access, não configura variáveis e não atualiza instalações.
 
@@ -116,7 +116,7 @@ Salvar TEAM_DOMAIN/POLICY_AUD **não cria Access**. Criar Access **não preenche
 
 ## 7. Relação com o deploy e as migrations
 
-Na 3.2.0, o fluxo padrão é:
+Na 3.2.1, o fluxo padrão é:
 
 ```text
 Deploy Button → D1 provisionado → npm run deploy
@@ -128,7 +128,7 @@ Deploy Button → D1 provisionado → npm run deploy
 
 No Workers Builds, mantenha **Settings → Build → Deploy command = `npm run deploy`**. O script aplica somente pendentes; um D1 já preparado não reaplica migrations concluídas. A tag histórica **v3.1.0** não tinha migrations automáticas no deploy.
 
-O comando `npm run wrangler -- d1 migrations apply db_boltlink --remote` continua disponível para manutenção autorizada. Não é etapa adicional obrigatória de uma instalação nova no fluxo padrão 3.2.0. O runtime não aplica migrations durante requests. Veja [setup Cloudflare](cloudflare-setup.md) e [upgrade](upgrading.md).
+O comando `npm run wrangler -- d1 migrations apply db_boltlink --remote` continua disponível para manutenção autorizada. Não é etapa adicional obrigatória de uma instalação nova no fluxo padrão 3.2.1. O runtime não aplica migrations durante requests. Veja [setup Cloudflare](cloudflare-setup.md) e [upgrade](upgrading.md).
 
 ## 8. Validar a instalação
 
@@ -140,7 +140,7 @@ Faça os checks abaixo no seu ambiente depois da configuração, com uma sessão
 4. Após autenticar, confirme que o painel carrega `/api/links`. Pode conferir a chamada na aba Network do navegador; deve devolver os dados, não uma página de login ou HTTP 401.
 5. Em sessão sem login, confirme que `/api` e `/api/links` também estão sob Access. A raiz `/api` pode não ter endpoint próprio após autenticação; aqui o objetivo é testar a proteção.
 6. Abra `/health` sem login: deve continuar público e retornar a resposta de saúde. Isso não substitui a checagem da API/D1.
-7. Abra `/version` sem login: deve devolver JSON com `version: "3.2.0"` e o timezone configurado. Confira o hostname correto.
+7. Abra `/version` sem login: deve devolver JSON com `version: "3.2.1"` e o timezone configurado. Confira o hostname correto.
 
 ## 9. Troubleshooting
 
@@ -159,5 +159,5 @@ O bypass local em `localhost`, `127.0.0.1` e `[::1]` serve apenas para desenvolv
 
 Instruções de UI e condições de onboarding conferidas na documentação oficial em **7 de outubro de 2026**. Os links próximos de cada etapa são as fontes; nomes de telas e condições podem evoluir. O operador é responsável pelas policies, IdP, sessões, MFA externo e configurações da própria instalação.
 
-Release atual publicada: 3.2.0 · Tag: v3.2.0 · Release anterior: 3.1.1
+Release atual publicada: 3.2.1 · Tag: v3.2.1 · Release anterior: 3.2.0
 Criado por Vitor Faustino - vitorfaustino.com.br

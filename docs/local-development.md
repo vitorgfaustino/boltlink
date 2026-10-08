@@ -1,10 +1,10 @@
 # Desenvolvimento Local
 
-## Release publicada — 3.2.0
+## Release publicada — 3.2.1
 
-A **3.2.0 está publicada**, identificada pela tag **v3.2.0**; é a release atual e latest do repositório. A release anterior **v3.1.1** permanece congelada. Esta versão reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Light e Dark refinados, cards compactos, badges semânticas e detalhes A/B sob demanda; o README apresenta screenshots atuais e uma demonstração animada com dados fictícios. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Veja [Admin UX](admin-ux.md).
+A **3.2.1 está publicada**, identificada pela tag **v3.2.1**; é a release atual e latest do repositório. A release anterior **v3.2.0** permanece congelada. Esta versão de manutenção acrescenta preflight D1, seleção consistente da configuração Wrangler, merge por identidade de binding e comparação obrigatória das configurações no upgrade. Mantém os recursos de links e o Admin refinado da 3.2.0. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Nenhum secret obrigatório novo ou atualização automática de instalações.
 
-> Escopo: release atual = **`3.2.0`** (tag `v3.2.0`, migrations `0000` a `0006`, com `npm run dev-prepare`). Este documento descreve o desenvolvimento local da release atual; os checkpoints de desenvolvimento (Fase 2 = `0004`/Split Test A/B, Fase 3 = `0005`/Smart Routing, Fase 4 = `0006`/destino de expiração, Fase 5 = hierarquia de grupos, portabilidade e QR Code sem migration nova) são **origem histórica** desses recursos, publicados juntos na `3.0.0` — não são estados ativos.
+> Escopo: release atual = **`3.2.1`** (tag `v3.2.1`, migrations `0000` a `0006`, com `npm run dev-prepare`). Este documento descreve o desenvolvimento local da release atual; os checkpoints de desenvolvimento (Fase 2 = `0004`/Split Test A/B, Fase 3 = `0005`/Smart Routing, Fase 4 = `0006`/destino de expiração, Fase 5 = hierarquia de grupos, portabilidade e QR Code sem migration nova) são **origem histórica** desses recursos, publicados juntos na `3.0.0` — não são estados ativos.
 
 Este projeto suporta desenvolvimento local com banco SQLite isolado para teste manual e validação rápida.
 
@@ -23,7 +23,7 @@ Este projeto suporta desenvolvimento local com banco SQLite isolado para teste m
 
 Esse diretório **não vai para o GitHub**.
 
-## Fluxo rápido (release atual v3.2.0)
+## Fluxo rápido (release atual v3.2.1)
 
 1. Instale dependências:
 
@@ -77,7 +77,7 @@ npm test
 
 - cria `.dev-env/`
 - cria `.dev-env/db.sqlite3` (auxiliar, não usado pelo Worker)
-- aplica a cadeia de migrations (`migrations/0000` a `0006` na release atual `3.2.0`) nesse arquivo
+- aplica a cadeia de migrations (`migrations/0000` a `0006` na release atual `3.2.1`) nesse arquivo
 - insere links fictícios para navegação local
 
 Para o Worker, o comando correto na release atual é `npm run dev-prepare`. `npm run dev-init` também existe na tag `v2.2.1`, mas lá a cadeia disponível termina na `0003`.
@@ -106,5 +106,5 @@ Quando o usuário pedir para iniciar o projeto localmente, a IA deve incluir `np
 
 ---
 
-Release atual publicada: 3.2.0 · Tag: v3.2.0
+Release atual publicada: 3.2.1 · Tag: v3.2.1
 Criado por Vitor Faustino - vitorfaustino.com.br

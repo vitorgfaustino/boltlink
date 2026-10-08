@@ -1,17 +1,8 @@
 # Catálogo de Pedidos Aceitos pela IA
 
-## Candidata local — 3.2.1 (Gate 10.2)
+## Release publicada — 3.2.1
 
-A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
-
-Package, lockfile e versão exibida pela aplicação estão em **3.2.1** neste checkout. Sem feature, migration ou schema novo; nenhum secret obrigatório novo e nenhuma atualização automática de instalações. Publicação pendente e não autorizada.
-
-O contrato canônico está em [Upgrade seguro](upgrading.md#upgrade-seguro--candidata-321).
-
-
-## Release publicada — 3.2.0
-
-A **3.2.0 está publicada**, identificada pela tag **v3.2.0**; é a release atual e latest do repositório. A release anterior **v3.1.1** permanece congelada. Esta versão reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Light e Dark refinados, cards compactos, badges semânticas e detalhes A/B sob demanda; o README apresenta screenshots atuais e uma demonstração animada com dados fictícios. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Veja [Admin UX](admin-ux.md).
+A **3.2.1 está publicada**, identificada pela tag **v3.2.1**; é a release atual e latest do repositório. A release anterior **v3.2.0** permanece congelada. Esta versão de manutenção acrescenta preflight D1, seleção consistente da configuração Wrangler, merge por identidade de binding e comparação obrigatória das configurações no upgrade. Mantém os recursos de links e o Admin refinado da 3.2.0. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Nenhum secret obrigatório novo ou atualização automática de instalações.
 
 Publicar tag/release é **source distribution** e não opera Cloudflare de clientes. Cada instalação executa o próprio `npm run deploy`, que aplica apenas migrations pendentes antes do Worker, e configura seu próprio Access. O guia completo está em [Cloudflare Access](admin-auth.md).
 
@@ -19,7 +10,7 @@ Publicar tag/release é **source distribution** e não opera Cloudflare de clien
 
 A **3.1.0**, release histórica congelada na tag **v3.1.0**, introduziu os recursos abaixo. A tag histórica **v3.0.0** também permanece congelada. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.2.0`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
+Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.2.1`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
 ## Regras de uso
@@ -46,12 +37,12 @@ Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recover
 | `configurar_dominio_customizado` | `Configurar domínio`, `usar domínio próprio` | revisar `wrangler.local.jsonc`, DNS e checklist | antes do dashboard |
 | `preparar_access` | `Preparar Access`, `proteger admin` | orientar Access e validar variáveis | sempre antes da criação final |
 
-O pedido `Atualizar o Projeto` exige o [contrato de upgrade seguro](upgrading.md#upgrade-seguro--candidata-321). A intenção de atualizar código não autoriza automaticamente push, deploy ou mudança de banco.
+O pedido `Atualizar o Projeto` exige o [contrato de upgrade seguro](upgrading.md#upgrade-seguro--321). A intenção de atualizar código não autoriza automaticamente push, deploy ou mudança de banco.
 
 ## Notas da linha atual
 
 - não existe mais `IP_HASH_SECRET`
-- a release atual publicada é a `3.2.0` (tag `v3.2.0`, migrations `0000` a `0006`); a release histórica `v2.2.1` (tag real) termina na `0003_lgpd_minimization.sql`. A `0004` (Split Test A/B, origem Fase 2), a `0005` (Smart Routing, origem Fase 3) e a `0006` + `ROOT_REDIRECT_URL` (origem Fase 4) estão publicadas desde a `3.0.0`
+- a release atual publicada é a `3.2.1` (tag `v3.2.1`, migrations `0000` a `0006`); a release histórica `v2.2.1` (tag real) termina na `0003_lgpd_minimization.sql`. A `0004` (Split Test A/B, origem Fase 2), a `0005` (Smart Routing, origem Fase 3) e a `0006` + `ROOT_REDIRECT_URL` (origem Fase 4) estão publicadas desde a `3.0.0`
 - a hierarquia de grupos da Fase 5 não adiciona migration: ela usa `link_groups.parent_id`, criado pela `0002`. `PATCH /api/groups/:id` com `parentId` exige `expectedParentId`, e `409` (ciclo, profundidade, delete não vazio, pai desatualizado, grafo corrompido) é resultado normal da API, não falha a esconder
 - a exportação portátil da Fase 5 (`GET /api/export`, formato `boltlink-portability` v1) também não adiciona migration e é somente leitura no **request inteiro**, não apenas no handler: `409` significa estado persistido que o BoltLink não aceitaria hoje (incluindo nome de grupo em forma não canônica, que nunca é normalizado no export) e `413` significa acima dos limites do formato (50 grupos, 100 links ou 256 KiB); o JSON não substitui backup do D1
 - a importação portátil da Fase 5 (`POST /api/import/preview` e `POST /api/import/apply`) consome exatamente o documento do export e também não adiciona migration. O preview é somente leitura no request inteiro (zero escrita, zero DDL, zero bootstrap de schema) e o apply grava o documento em um **único `batch`** — uma transação, portanto tudo ou nada. `400` significa documento malformado (chave desconhecida, tipo errado, referência órfã, ciclo, slug duplicado) ou corpo que não é UTF-8 válido (recusado, nunca reparado com U+FFFD), `409` significa que o destino não aceita o documento como está (colisão de slug com link ativo/desabilitado/tombstone, link do destino apontando para grupo inexistente, feature usada que o banco não suporta, árvore acima de 16 níveis, grafo de destino corrompido, `PASSWORD_SESSION_SECRET` ausente, senha de substituição faltando) e `413` significa acima dos limites do formato. Falha de batch que não seja a `UNIQUE` de `links.slug` responde `500` controlado, nunca `SLUG_COLLISION`. O import nunca sobrescreve slug, nunca faz merge de grupo por nome, nunca reutiliza um id que a sequência `AUTOINCREMENT` do destino já gastou, nunca restaura métricas e exige nova senha para cada link protegido; no drawer, o apply exige preview aprovado para o mesmo arquivo mostrado e toda falha terminal descarta as senhas digitadas
@@ -63,5 +54,5 @@ O pedido `Atualizar o Projeto` exige o [contrato de upgrade seguro](upgrading.md
 
 ---
 
-Release atual publicada: 3.2.0 · Tag: v3.2.0 · Release anterior: 3.1.1
+Release atual publicada: 3.2.1 · Tag: v3.2.1 · Release anterior: 3.2.0
 Criado por Vitor Faustino - vitorfaustino.com.br
