@@ -18,23 +18,82 @@
  */
 
 import { resolve } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { parseJsoncConfig } from "./config-utils.mjs";
 
 export function isWorkersBuildEnvironment(env = process.env) {
 	return env.WORKERS_CI === "1";
 }
 
-export function readOption(args, names) {
+export function readOption(args, names, { allowEmpty = false } = {}) {
 	const values = [];
 	for (let i = 0; i < args.length; i++) {
-		const name = names.find((n) => args[i] === n || args[i].startsWith(`${n}=`));
+		const name = names.find((n) => args[i] === n || args[i].startsWith(`${n}=`) || (n.length === 2 && args[i].startsWith(n)));
 		if (!name) continue;
-		const value = args[i] === name ? args[++i] : args[i].slice(name.length + 1);
-		if (!value || value.startsWith("-")) throw new Error("CONFIG_OPTION_INVALID");
+		const value = args[i] === name ? args[++i] : args[i].slice(name.length + (args[i][name.length] === "=" ? 1 : 0));
+		if (value === undefined || (!allowEmpty && value === "") || value.startsWith("-")) throw new Error("CONFIG_OPTION_INVALID");
 		values.push(value);
 	}
 	if (values.length > 1) throw new Error("CONFIG_OPTION_AMBIGUOUS");
 	return values[0];
+}
+
+function requireExplicitEnvironmentWhenNeeded(args, rootDir, env) {
+	if (readOption(args, ["--env", "-e"], { allowEmpty: true }) !== undefined || env.CLOUDFLARE_ENV) return;
+	// Wrangler loads dotenv before selecting its environment. Do not guess an
+	// operational target from private files or duplicate Wrangler's expansion.
+	if (args.some((arg) => arg === "--env-file" || arg.startsWith("--env-file="))) throw new Error("CONFIG_ENVIRONMENT_MUST_BE_EXPLICIT");
+	const dotenv = resolve(rootDir, ".env");
+	if (!existsSync(dotenv)) return;
+	if (!statSync(dotenv).isFile()) throw new Error("CONFIG_ENVIRONMENT_FILE_INVALID");
+	if (/^\s*(?:export\s+)?CLOUDFLARE_ENV\s*(?:=|:\s)/m.test(readFileSync(dotenv, "utf8"))) throw new Error("CONFIG_ENVIRONMENT_MUST_BE_EXPLICIT");
+}
+
+export function readBooleanOption(args, name) {
+	const values = [];
+	for (let i = 0; i < args.length; i++) {
+		if (args[i] === `--no-${name}`) values.push(false);
+		else if (args[i] === `--${name}`) {
+			const next = args[i + 1];
+			values.push(next === "false" ? false : true);
+			if (next === "true" || next === "false") i++;
+		} else if (args[i].startsWith(`--${name}=`)) {
+			const value = args[i].slice(name.length + 3);
+			if (!["true", "false"].includes(value)) throw new Error("CONFIG_BOOLEAN_OPTION_INVALID");
+			values.push(value === "true");
+		}
+	}
+	if (values.length > 1) throw new Error("CONFIG_BOOLEAN_OPTION_AMBIGUOUS");
+	return values[0];
+}
+
+function inspectWranglerArguments(args) {
+	const commandArgs = [];
+	const valueOptions = ["--config", "-c", "--env", "-e", "--cwd", "--log-level", "--env-file"];
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+		if (arg === "--") throw new Error("CONFIG_ARGUMENT_SEPARATOR_UNSUPPORTED");
+		if (valueOptions.includes(arg)) { i++; continue; }
+		if (valueOptions.some((name) => arg.startsWith(`${name}=`))) continue;
+		if (valueOptions.some((name) => name.length === 2 && arg.startsWith(name))) continue;
+		if (/^--(?:no-)?(?:remote|local|preview|dry-run)(?:=|$)/.test(arg)) {
+			if (["true", "false"].includes(args[i + 1]) && !arg.includes("=")) i++;
+			continue;
+		}
+		if (arg.startsWith("-")) {
+			if (!commandArgs.length && !["--help", "-h", "--version", "-v"].includes(arg)) throw new Error("CONFIG_GLOBAL_OPTION_UNSUPPORTED");
+			continue;
+		}
+		commandArgs.push(arg);
+	}
+	return {
+		commandArgs,
+		command: commandArgs[0],
+		remote: readBooleanOption(args, "remote"),
+		local: readBooleanOption(args, "local"),
+		preview: readBooleanOption(args, "preview"),
+		dryRun: readBooleanOption(args, "dry-run"),
+	};
 }
 
 function validateLocalConfig(localConfigPath) {
@@ -92,47 +151,52 @@ export function resolveWranglerExecution({
 		};
 	}
 
-	const command = args[0];
+	let inspection;
 	let explicitConfig;
 	try {
+		inspection = inspectWranglerArguments(args);
 		explicitConfig = readOption(args, ["--config", "-c"]);
+		readOption(args, ["--env", "-e"], { allowEmpty: true });
+		requireExplicitEnvironmentWhenNeeded(args, rootDir, env);
 		// A different working directory would change config/path resolution.
 		// Require callers to run in that directory instead of guessing.
 		if (readOption(args, ["--cwd"])) throw new Error("CONFIG_CWD_UNSUPPORTED");
 	} catch (error) {
-		return { errorMessage: error.message };
+		return { errorMessage: `${error.message}\nUse unambiguous Wrangler flags from the project root. See docs/upgrading.md.` };
 	}
+	const { command, commandArgs, remote, local, preview } = inspection;
+	const routed = (result) => ({ ...inspection, ...result });
 	const hasExplicitConfig = explicitConfig !== undefined;
 	const resolvedPublicConfigPath = publicConfigPath ?? `${rootDir}/wrangler.jsonc`;
 	const resolvedLocalConfigPath = localConfigPath ?? `${rootDir}/wrangler.local.jsonc`;
 
 	if (hasExplicitConfig) {
-		return {
+		return routed({
 			args,
 			command,
 			hasExplicitConfig,
 			configPath: resolve(rootDir, explicitConfig),
 			shouldSyncLocalConfig: false,
-		};
+		});
 	}
 
 	if (command === "types") {
-		return {
+		return routed({
 			args: [...args, "--config", resolvedPublicConfigPath],
 			command,
 			hasExplicitConfig,
 			configPath: resolvedPublicConfigPath,
 			shouldSyncLocalConfig: false,
-		};
+		});
 	}
 
 	if (command === "d1") {
-		const isRemoteMigrationApply = args[1] === "migrations"
-			&& args[2] === "apply" && args[3] === "db_boltlink"
-			&& args.includes("--remote") && !args.includes("--local") && !args.includes("--preview");
+		const isRemoteMigrationApply = commandArgs[1] === "migrations"
+			&& commandArgs[2] === "apply" && commandArgs[3] === "db_boltlink"
+			&& remote === true && local !== true && preview !== true;
 		if (isWorkersBuildEnvironment(env) && isRemoteMigrationApply) {
-			return { args: [...args, "--config", resolvedPublicConfigPath], command, hasExplicitConfig,
-				configPath: resolvedPublicConfigPath, shouldSyncLocalConfig: false };
+			return routed({ args: [...args, "--config", resolvedPublicConfigPath], command, hasExplicitConfig,
+				configPath: resolvedPublicConfigPath, shouldSyncLocalConfig: false });
 		}
 		if (!hasLocalConfig) {
 			// The Deploy Button provisions D1 before running the deploy script.
@@ -144,30 +208,30 @@ export function resolveWranglerExecution({
 			};
 		}
 
-		return {
+		return routed({
 			args: [...args, "--config", resolvedLocalConfigPath],
 			command,
 			hasExplicitConfig,
 			configPath: resolvedLocalConfigPath,
 			shouldSyncLocalConfig: true,
-		};
+		});
 	}
 
 	if (command === "deploy" || command === "versions") {
 		if (hasLocalConfig && !isWorkersBuildEnvironment(env)) {
 			const validationWarnings = validateLocalConfig(resolvedLocalConfigPath);
-			return {
+			return routed({
 				args: [...args, "--config", resolvedLocalConfigPath],
 				command,
 				hasExplicitConfig,
 				configPath: resolvedLocalConfigPath,
 				shouldSyncLocalConfig: true,
 				warningMessage: validationWarnings.length > 0 ? validationWarnings.join("\n") : undefined,
-			};
+			});
 		}
 
 		if (isWorkersBuildEnvironment(env)) {
-			return {
+			return routed({
 				args: [...args, "--config", resolvedPublicConfigPath],
 				command,
 				hasExplicitConfig,
@@ -175,30 +239,30 @@ export function resolveWranglerExecution({
 				shouldSyncLocalConfig: false,
 				warningMessage:
 					"Using wrangler.jsonc because WORKERS_CI=1. Private local config does not select the build target.",
-			};
+			});
 		}
 
-		return {
+		return routed({
 			errorMessage:
 				"Missing wrangler.local.jsonc. Run `npm run wrangler:init` first, or pass `--config wrangler.jsonc` for an explicit public-template deploy.",
-		};
+		});
 	}
 
 	if (hasLocalConfig) {
-		return {
+		return routed({
 			args: [...args, "--config", resolvedLocalConfigPath],
 			command,
 			hasExplicitConfig,
 			configPath: resolvedLocalConfigPath,
 			shouldSyncLocalConfig: true,
-		};
+		});
 	}
 
-	return {
+	return routed({
 		args: [...args, "--config", resolvedPublicConfigPath],
 		command,
 		hasExplicitConfig,
 		configPath: resolvedPublicConfigPath,
 		shouldSyncLocalConfig: false,
-	};
+	});
 }

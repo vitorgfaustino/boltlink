@@ -1,14 +1,15 @@
 /** Local operational checks only. No Cloudflare calls or config writes. */
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
-import { parseJsoncConfig } from "./config-utils.mjs";
+import { parseJsoncConfig, validateConfigBindings } from "./config-utils.mjs";
 import { readOption } from "./wrangler-routing.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function validateRemoteD1Config({ config, configPath, rootDir, args = [], env = {} }) {
-	const environment = readOption(args, ["--env", "-e"]) ?? env.CLOUDFLARE_ENV;
+	const environment = readOption(args, ["--env", "-e"], { allowEmpty: true }) ?? env.CLOUDFLARE_ENV;
 	// D1 bindings are non-inheritable in named Wrangler environments.
 	const effective = environment ? config.env?.[environment] : config;
 	if (!effective) return "CONFIG_ENVIRONMENT_MISSING";
@@ -16,6 +17,10 @@ export function validateRemoteD1Config({ config, configPath, rootDir, args = [],
 	const matches = entries.filter((entry) => entry?.binding === "db_boltlink");
 	if (matches.length === 0) return "REMOTE_D1_BINDING_MISSING";
 	if (matches.length !== 1) return "REMOTE_D1_BINDING_AMBIGUOUS";
+	// Wrangler resolves by database_name OR binding, in array order. A name
+	// alias must not redirect the canonical migration command to another D1.
+	if (entries.filter((entry) => entry?.binding === "db_boltlink" || entry?.database_name === "db_boltlink").length !== 1) return "REMOTE_D1_BINDING_AMBIGUOUS";
+	try { validateConfigBindings(config); } catch (error) { return error.message; }
 	const binding = matches[0];
 	if (typeof binding.database_name !== "string" || !binding.database_name.trim()) return "REMOTE_D1_DATABASE_NAME_MISSING";
 	if (binding.database_id === undefined || binding.database_id === null || binding.database_id === "") return "REMOTE_D1_DATABASE_ID_MISSING";
@@ -24,16 +29,12 @@ export function validateRemoteD1Config({ config, configPath, rootDir, args = [],
 	return null;
 }
 
-export function requiresRemoteD1Preflight(args) {
-	if (args[0] === "deploy") {
-		// Exempt only an unambiguous dry-run; mixed/negated flags must not
-		// accidentally bypass the guard on an actual deployment.
-		const dryRun = args.filter((arg) => arg === "--dry-run" || arg.startsWith("--dry-run=") || arg === "--no-dry-run");
-		return !(dryRun.length === 1 && ["--dry-run", "--dry-run=true"].includes(dryRun[0]) && !args.includes("false"));
-	}
-	if (args[0] === "versions") return args[1] === "upload";
-	return args[0] === "d1" && (args.includes("--remote") || ["info", "time-travel"].includes(args[1]))
-		&& !["create", "list"].includes(args[1]);
+export function requiresRemoteD1Preflight(execution) {
+	const { command, commandArgs, remote, dryRun } = execution;
+	if (command === "deploy") return dryRun !== true;
+	if (command === "versions") return commandArgs[1] === "upload";
+	return command === "d1" && (remote === true || ["info", "time-travel"].includes(commandArgs[1]))
+		&& !["create", "list"].includes(commandArgs[1]);
 }
 
 export function formatPreflightFailure(reason, configPath, env) {
@@ -56,7 +57,7 @@ export function formatPreflightFailure(reason, configPath, env) {
 // Report field categories only: no IDs, routes, variables or secret values.
 const CODE_FIELDS = new Set(["$schema", "main", "compatibility_date", "compatibility_flags", "rules", "build"]);
 function operationalConfig(config) {
-	const result = {};
+	const result = Object.create(null);
 	for (const [key, value] of Object.entries(config)) {
 		if (CODE_FIELDS.has(key)) continue;
 		if (key === "env") result.env = Object.fromEntries(Object.entries(value).map(([name, v]) => [name, operationalConfig(v)]));
@@ -70,6 +71,9 @@ function operationalConfig(config) {
 
 export function compareInstallationConfigs(before, after, confirmedFields = []) {
 	const issues = [];
+	try { validateConfigBindings(before); validateConfigBindings(after); } catch (error) {
+		return { status: "BLOCKED", issues: [{ field: "bindings", status: "BLOCKED", reason: error.message }] };
+	}
 	function compareLevel(previous, next, prefix = "") {
 		for (const key of new Set([...Object.keys(previous), ...Object.keys(next)])) {
 			const field = `${prefix}${key}`;
@@ -83,10 +87,12 @@ export function compareInstallationConfigs(before, after, confirmedFields = []) 
 			const removedId = key === "d1_databases" && (previous[key] ?? []).some((binding) => {
 				if (!binding.database_id) return false;
 				const current = (next[key] ?? []).filter((v) => v.binding === binding.binding);
-				return current.length !== 1 || !current[0].database_id;
+				return current.length !== 1 || !current[0].database_id || (binding.database_name && !current[0].database_name);
 			});
-			issues.push({ field, status: removedId ? "BLOCKED" : "REQUIRES_EXPLICIT_CONFIRMATION",
-				reason: removedId ? "D1_ID_REMOVED" : "INSTALLATION_CONFIG_CHANGED" });
+			const removedIdentity = previous[key] !== undefined && (next[key] === undefined || next[key] === null || next[key] === "" || (key === "name" && (typeof next[key] !== "string" || !next[key].trim())));
+			const blocked = removedId || removedIdentity;
+			issues.push({ field, status: blocked ? "BLOCKED" : "REQUIRES_EXPLICIT_CONFIRMATION",
+				reason: removedId ? "D1_IDENTITY_REMOVED" : removedIdentity ? "INSTALLATION_FIELD_REMOVED" : "INSTALLATION_CONFIG_CHANGED" });
 		}
 	}
 	compareLevel(operationalConfig(before), operationalConfig(after));
@@ -98,7 +104,11 @@ export function runUpgradeConfigCheck(args = process.argv.slice(2)) {
 	try {
 		const beforePath = readOption(args, ["--before"]);
 		const afterPath = readOption(args, ["--after"]);
-		if (!beforePath || !afterPath) throw new Error("Usage: npm run upgrade:check -- --before <snapshot.jsonc> --after <config.jsonc> [--confirm-field <field>]");
+		if (!beforePath || !existsSync(beforePath)) {
+			console.error("UPGRADE_BASELINE = MISSING\nAUTOMATIC_APPROVAL = DENIED\nMANUAL_RECONCILIATION = REQUIRED\nUsage: npm run upgrade:check -- --before <snapshot.jsonc> --after <config.jsonc> [--confirm-field <field>]");
+			return 1;
+		}
+		if (!afterPath) throw new Error("CONFIG_OPTION_INVALID");
 		const confirmed = [];
 		for (let i = 0; i < args.length; i++) {
 			if (args[i] === "--confirm-field") {
@@ -111,10 +121,14 @@ export function runUpgradeConfigCheck(args = process.argv.slice(2)) {
 		const result = compareInstallationConfigs(parseJsoncConfig(beforePath), parseJsoncConfig(afterPath), confirmed);
 		// Values are deliberately never serialized.
 		console.log(`UPGRADE_CONFIG = ${result.status}`);
-		for (const issue of result.issues) console.log(`${JSON.stringify(issue.field)}: ${issue.status} (${issue.reason})`);
+		for (const issue of result.issues) {
+			const status = issue.status === "REQUIRES_EXPLICIT_CONFIRMATION" && confirmed.includes(issue.field) ? "CONFIRMED" : issue.status;
+			console.log(`${JSON.stringify(issue.field)}: ${status} (${issue.reason})`);
+		}
 		return result.status === "PASSED" ? 0 : 1;
 	} catch {
 		console.error("UPGRADE_CONFIG = BLOCKED. Check JSONC inputs and --before/--after options. See docs/upgrading.md.");
+		console.error("AUTOMATIC_APPROVAL = DENIED\nMANUAL_RECONCILIATION = REQUIRED");
 		return 1;
 	}
 }

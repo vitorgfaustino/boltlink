@@ -47,7 +47,7 @@ export function runWranglerCli({
 	}
 
 	try {
-		if (requiresRemoteD1Preflight(args)) {
+		if (requiresRemoteD1Preflight(execution)) {
 			let config = parseJsoncConfig(execution.configPath);
 			if (execution.shouldSyncLocalConfig) config = buildLocalConfig(parseJsoncConfig(publicConfigPath), config);
 			const reason = validateRemoteD1Config({ config, configPath: execution.configPath, rootDir, args, env });

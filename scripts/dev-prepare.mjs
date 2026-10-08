@@ -25,10 +25,10 @@
  * Worker.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ensureLocalConfigSynced, resolveProjectPaths } from "./config-utils.mjs";
+import { ensureLocalConfigSynced, parseJsoncConfig, resolveProjectPaths } from "./config-utils.mjs";
 import { runWranglerCli } from "./wrangler.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -37,10 +37,11 @@ const rootDir = resolve(__dirname, "..");
 function readConfiguredDatabaseName() {
 	const { publicConfigPath, localConfigPath } = resolveProjectPaths(rootDir);
 	const configPath = existsSync(localConfigPath) ? localConfigPath : publicConfigPath;
-	const source = readFileSync(configPath, "utf8");
-	const config = Function(`"use strict"; return (${source});`)();
-	const database = Array.isArray(config.d1_databases) ? config.d1_databases[0] : null;
-	return database?.database_name ?? database?.binding ?? null;
+	const config = parseJsoncConfig(configPath);
+	const effective = process.env.CLOUDFLARE_ENV ? config.env?.[process.env.CLOUDFLARE_ENV] : config;
+	const databases = Array.isArray(effective?.d1_databases) ? effective.d1_databases : [];
+	const matches = databases.filter((entry) => entry.binding === "db_boltlink" || entry.database_name === "db_boltlink");
+	return matches.length === 1 && matches[0].binding === "db_boltlink" ? "db_boltlink" : null;
 }
 
 const { localConfigPath } = resolveProjectPaths(rootDir);

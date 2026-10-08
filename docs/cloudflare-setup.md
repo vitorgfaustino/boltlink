@@ -1,12 +1,12 @@
 # Setup na Cloudflare
 
-## Candidata local — 3.2.1 (Gate 10.1)
+## Candidata local — 3.2.1 (Gate 10.2)
 
 A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
 
-A release publicada continua sendo `v3.2.0`; `package.json` e o texto de versão da aplicação permanecem em `3.2.0` neste gate operacional, sem finalização de versão. Sem alteração funcional, migration ou schema. Publicação não autorizada.
+Package, lockfile e versão exibida pela aplicação estão em **3.2.1** neste checkout. Sem feature, migration ou schema novo; nenhum secret obrigatório novo e nenhuma atualização automática de instalações. Publicação pendente e não autorizada.
 
-O contrato canônico está em [Upgrade seguro](upgrading.md#upgrade-seguro--gate-101-candidata-321).
+O contrato canônico está em [Upgrade seguro](upgrading.md#upgrade-seguro--candidata-321).
 
 
 ## Release publicada — 3.2.0
@@ -196,7 +196,7 @@ npm run deploy
   -> somente após sucesso: node scripts/wrangler.mjs deploy
 ```
 
-Após provisionar o D1, o fluxo padrão aplica as migrations pendentes antes de publicar o Worker. O binding permanece `db_boltlink` mesmo que o operador escolha outro nome físico. Na candidata 3.2.1, no Workers Builds (`WORKERS_CI=1`), mesmo com config privado presente, o wrapper usa `wrangler.jsonc` tanto no apply remoto quanto no deploy; na CLI local ambos usam `wrangler.local.jsonc`. `--config` explícito prevalece. Antes de operações remotas, rode o [preflight e a comparação](upgrading.md#upgrade-seguro--gate-101-candidata-321).
+Após provisionar o D1, o fluxo padrão aplica as migrations pendentes antes de publicar o Worker. O binding permanece `db_boltlink` mesmo que o operador escolha outro nome físico. Na candidata 3.2.1, no Workers Builds (`WORKERS_CI=1`), mesmo com config privado presente, o wrapper usa `wrangler.jsonc` tanto no apply remoto quanto no deploy; na CLI local ambos usam `wrangler.local.jsonc`. `--config` explícito prevalece. Antes de operações remotas, rode o [preflight e a comparação](upgrading.md#upgrade-seguro--candidata-321).
 
 Na tag histórica **v3.1.0**, o deploy não aplicava migrations automaticamente; banco vazio exigia aplicação manual e respondia `503 Database schema is not initialized`. A **3.1.1** corrige esse processo. O runtime continua sem aplicar migrations durante requests.
 

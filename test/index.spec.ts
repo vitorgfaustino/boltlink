@@ -151,7 +151,7 @@ describe("URL shortener worker", () => {
 		expect(response.headers.get("content-type")).toContain("text/html");
 		expect(body).toContain('href="/admin"');
 		expect(body).toContain('BoltLink');
-		expect(body).toContain('v3.2.0');
+		expect(body).toContain('v3.2.1');
 	});
 
 	it("serves health data on the /healt alias", async () => {
@@ -167,7 +167,7 @@ describe("URL shortener worker", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toContain("application/json");
-		expect(await response.json()).toEqual({ version: "3.2.0", timezone: "America/Sao_Paulo" });
+		expect(await response.json()).toEqual({ version: "3.2.1", timezone: "America/Sao_Paulo" });
 	});
 
 	it("serves the admin UI for localhost requests", async () => {
@@ -796,6 +796,8 @@ describe("URL shortener worker", () => {
 	});
 
 	it("rate limits public redirect lookups before they keep reading D1", async () => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date("2026-10-02T12:00:59.999Z"));
 		await fetchWorker("http://localhost/api/links", {
 			method: "POST",
 			headers: {
@@ -826,6 +828,10 @@ describe("URL shortener worker", () => {
 
 		expect(limitedResponse.status).toBe(429);
 		expect(await limitedResponse.text()).toBe("Too many requests");
+		vi.setSystemTime(new Date("2026-10-02T12:01:00.000Z"));
+		expect((await fetchWorker("https://example.com/busy-link", {
+			headers: { "CF-Connecting-IP": "203.0.113.120", "user-agent": "Mozilla/5.0" },
+		})).status).toBe(302);
 	});
 
 	it("rejects JSON bodies larger than 10KB", async () => {

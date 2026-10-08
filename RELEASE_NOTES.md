@@ -1,8 +1,14 @@
-## BoltLink v3.2.1 — candidata local (Gate 10.1)
+## BoltLink v3.2.1 — Upgrade & Deploy Safety
 
-Patch operacional não publicado sobre v3.2.0. Preflight fail-closed de D1, seleção explícita do config de Builds, comparação de identidade antes/depois e merge local por binding. Recuperação e checkpoints estão em [Upgrade seguro](docs/upgrading.md#upgrade-seguro--gate-101-candidata-321).
+**Candidata de manutenção local; publicação pendente.** Package, lockfile e aplicação estão em 3.2.1.
 
-Nenhuma alteração em UI/runtime, SQL ou migrations. Package e versão visível da aplicação continuam em 3.2.0 neste gate; finalização de versão/publicação pendente. Deploy Button testado somente por simulação local. UUID sintaticamente válido não comprova associação ao banco real. Sem push, tag, Release, deploy ou D1 remoto autorizado.
+- Validação preventiva de D1, com bloqueio de UUID ausente/inválido e diagnóstico do arquivo Wrangler efetivamente usado.
+- Merge por identidade do binding, preservação da ordem local e bloqueio de alvos/JSONC ambíguos.
+- Comparação de configurações durante upgrades: identidade removida bloqueia, mudanças intencionais exigem confirmação explícita, baseline ausente exige reconciliação manual.
+- Proteção do Worker name e recursos personalizados; fluxo por IA distingue upstream, repositório do cliente e push com auto-deploy.
+- [Recuperação e contrato de upgrade](docs/upgrading.md#upgrade-seguro--candidata-321) e [checklist para publicação futura](docs/release-3.2.1-checklist.md).
+
+Nenhuma feature nova no Admin, migration, alteração de schema ou secret obrigatório novo. Nenhum update automático. O preflight não recupera IDs perdidos nem comprova que um UUID pertence ao D1 correto. Compatibilidade do Deploy Button verificada somente em simulações locais; validação Cloudflare e CI no GitHub não foram executados neste gate.
 
 ## BoltLink v3.2.0
 

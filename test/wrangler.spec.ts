@@ -32,7 +32,7 @@ import { resolve } from "node:path";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { buildLocalConfig } from "../scripts/config-utils.mjs";
+import { buildLocalConfig, parseJsoncConfig } from "../scripts/config-utils.mjs";
 import { isWorkersBuildEnvironment, resolveWranglerExecution } from "../scripts/wrangler-routing.mjs";
 
 const rootDir = "/workspace/boltlink";
@@ -49,7 +49,7 @@ describe("3.1.1 deployment migration contract", () => {
 	});
 
 	it("preserves the D1 migration directory and the complete frozen 0000–0006 chain", () => {
-		const config = Function(`"use strict"; return (${readFileSync("wrangler.jsonc", "utf8")});`)();
+		const config = parseJsoncConfig(resolve("wrangler.jsonc"));
 		const binding = config.d1_databases.find((entry: { binding: string }) => entry.binding === "db_boltlink");
 		expect(binding.migrations_dir).toBe("migrations");
 		expect(pkg.scripts["db:migrations:apply"]).not.toContain(binding.database_name);
@@ -59,9 +59,9 @@ describe("3.1.1 deployment migration contract", () => {
 		]);
 	});
 
-	it("keeps package and both lockfile versions at 3.2.0 and derives APP_VERSION from the package", () => {
+	it("keeps package and both lockfile versions at 3.2.1 and derives APP_VERSION from the package", () => {
 		const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
-		expect([pkg.version, lock.version, lock.packages[""].version]).toEqual(["3.2.0", "3.2.0", "3.2.0"]);
+		expect([pkg.version, lock.version, lock.packages[""].version]).toEqual(["3.2.1", "3.2.1", "3.2.1"]);
 		expect(readFileSync("src/index.ts", "utf8")).toContain("const APP_VERSION = packageJson.version;");
 	});
 

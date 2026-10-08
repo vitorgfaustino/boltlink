@@ -1,12 +1,12 @@
 # AGENTS.md
 
-## Candidata local — 3.2.1 (Gate 10.1)
+## Candidata local — 3.2.1 (Gate 10.2)
 
 A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
 
-A release publicada continua sendo `v3.2.0`; `package.json` e o texto de versão da aplicação permanecem em `3.2.0` neste gate operacional, sem finalização de versão. Sem alteração funcional, migration ou schema. Publicação não autorizada.
+Package, lockfile e versão exibida pela aplicação estão em **3.2.1** neste checkout. Sem feature, migration ou schema novo; nenhum secret obrigatório novo e nenhuma atualização automática de instalações. Publicação pendente e não autorizada.
 
-O contrato canônico está em [Upgrade seguro](docs/upgrading.md#upgrade-seguro--gate-101-candidata-321).
+O contrato canônico está em [Upgrade seguro](docs/upgrading.md#upgrade-seguro--candidata-321).
 
 
 ## Release publicada — 3.2.0

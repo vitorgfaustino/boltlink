@@ -1,12 +1,12 @@
 # Operação Guiada por IA
 
-## Candidata local — 3.2.1 (Gate 10.1)
+## Candidata local — 3.2.1 (Gate 10.2)
 
 A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
 
-A release publicada continua sendo `v3.2.0`; `package.json` e o texto de versão da aplicação permanecem em `3.2.0` neste gate operacional, sem finalização de versão. Sem alteração funcional, migration ou schema. Publicação não autorizada.
+Package, lockfile e versão exibida pela aplicação estão em **3.2.1** neste checkout. Sem feature, migration ou schema novo; nenhum secret obrigatório novo e nenhuma atualização automática de instalações. Publicação pendente e não autorizada.
 
-O contrato canônico está em [Upgrade seguro](upgrading.md#upgrade-seguro--gate-101-candidata-321).
+O contrato canônico está em [Upgrade seguro](upgrading.md#upgrade-seguro--candidata-321).
 
 
 ## Release publicada — 3.2.0
@@ -66,9 +66,9 @@ Opções:
 
 ## Upgrade da versão atual
 
-Quando o pedido for `Atualizar o Projeto`, siga o [contrato canônico](upgrading.md#upgrade-seguro--gate-101-candidata-321) e o fluxo de `AI-START.md`. Identifique cliente/upstream, versões, método de publicação, branches, base comum e estratégia de integração antes de alterar código. Faça snapshots privados e comparação antes/depois do config público e local, preserve overlays e secrets, execute testes e o preflight no contexto real.
+Quando o pedido for `Atualizar o Projeto`, siga o [contrato canônico](upgrading.md#upgrade-seguro--candidata-321) e o fluxo de `AI-START.md`. Identifique cliente/upstream, versões, método de publicação, branches, base comum e estratégia de integração antes de alterar código. Faça snapshots privados e comparação antes/depois do config público e local, preserve overlays e secrets, execute testes e o preflight no contexto real.
 
-`git pull --ff-only` não é uma estratégia completa de integração com o upstream. UUID removido bloqueia; alterações operacionais exigem confirmação explícita. Em auto-deploy, push pode publicar o Worker e aplicar migrations: configuração, diff, destino e autorização do operador são checkpoints obrigatórios antes dele. Em deploy local, aguarde autorização remota por instalação antes de `npm run deploy`. Conflitos operacionais nunca devem ser resolvidos aceitando o template automaticamente.
+`git pull --ff-only` não é uma estratégia completa de integração com o upstream. Baseline anterior ausente nega aprovação automática e exige reconciliação manual; a comparação e `upgrade:check` são obrigatórios antes do push. UUID/identidade removidos bloqueiam; alterações operacionais exigem confirmação explícita. Em auto-deploy, push pode publicar o Worker e aplicar migrations: configuração, diff, destino e autorização do operador são checkpoints obrigatórios antes dele. Em deploy local, aguarde autorização remota por instalação antes de `npm run deploy`. Conflitos operacionais nunca devem ser resolvidos aceitando o template automaticamente.
 
 ## One-click e GitHub auto-deploy
 

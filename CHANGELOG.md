@@ -1,14 +1,16 @@
 # Changelog
 
-## [3.2.1 candidate] - Unreleased (Gate 10.1 local)
+## [3.2.1] - Unreleased — candidata de manutenção
 
-- Preflight antes de D1 remoto/publicação, com arquivo efetivo, UUID, binding e migrations_dir validados; falha antes de chamar Wrangler.
-- Workers Builds usa config público mesmo com arquivo local presente; seleção explícita continua prioritária.
-- Comparação local de identidade/configuração antes/depois; UUID removido bloqueia e mudanças operacionais exigem confirmação explícita.
-- Sincronização local faz merge por binding, preservando identidade e lista local; parsing JSONC não executa código nem expõe erros com secrets.
-- Contrato de upgrade identifica upstream/cliente e exige comparação, preflight, testes e autorização antes de push que pode disparar deploy.
-- Sem migration/schema, runtime ou UI alterados. Candidata não publicada; package/app continuam em 3.2.0 até finalização de versão.
+### Upgrade & Deploy Safety
 
+- Preflight D1 bloqueia UUID ausente/inválido, binding ou alvo ambíguo antes de chamar Wrangler; informa o arquivo efetivo.
+- Roteamento compartilhado para Builds, CLI local, config/ambiente explícito e flags booleanas, incluindo opções antes do comando.
+- Merge por binding preserva identidade, ordem e recursos locais; entradas incompletas não adotam IDs de outro alvo. Duplicidades em bindings/JSONC falham fechadas.
+- `upgrade:check` exige correção de identidade removida e confirmação explícita de mudanças operacionais; baseline ausente nega aprovação automática.
+- Fluxo orientado por IA identifica cliente/upstream e exige comparação, preflight, testes, diff/destino e autorização antes de push potencialmente mutável. Recuperação de D1 documentada sem recriação de banco.
+- Versionamento local finalizado em 3.2.1, publicação pendente. Nenhuma feature no Admin, migration, schema ou secret obrigatório novo; instalações não são atualizadas automaticamente.
+- Teste de rate limit estabilizado com relógio controlado, sem alteração da regra de produção. CI de testes recebe histórico/tags e usa somente permissão de leitura.
 
 ## [3.2.0] - 2026-10-07
 

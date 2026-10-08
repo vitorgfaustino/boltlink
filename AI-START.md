@@ -1,12 +1,12 @@
 # AI-START
 
-## Candidata local — 3.2.1 (Gate 10.1)
+## Candidata local — 3.2.1 (Gate 10.2)
 
 A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
 
-A release publicada continua sendo `v3.2.0`; `package.json` e o texto de versão da aplicação permanecem em `3.2.0` neste gate operacional, sem finalização de versão. Sem alteração funcional, migration ou schema. Publicação não autorizada.
+Package, lockfile e versão exibida pela aplicação estão em **3.2.1** neste checkout. Sem feature, migration ou schema novo; nenhum secret obrigatório novo e nenhuma atualização automática de instalações. Publicação pendente e não autorizada.
 
-O contrato canônico está em [Upgrade seguro](docs/upgrading.md#upgrade-seguro--gate-101-candidata-321).
+O contrato canônico está em [Upgrade seguro](docs/upgrading.md#upgrade-seguro--candidata-321).
 
 
 ## Release publicada — 3.2.0
@@ -211,7 +211,7 @@ Esse comando cria `.dev-env/db.sqlite3` (migrations + seed) e **não** é o banc
 
 ## Fluxo para atualizar instalações existentes
 
-Quando o pedido for `Atualizar o Projeto`, aplique o [contrato canônico de upgrade seguro](docs/upgrading.md#upgrade-seguro--gate-101-candidata-321) **antes de integrar código**:
+Quando o pedido for `Atualizar o Projeto`, aplique o [contrato canônico de upgrade seguro](docs/upgrading.md#upgrade-seguro--candidata-321) **antes de integrar código**:
 
 1. Identifique a raiz e o repositório do cliente, o remote de destino, o upstream oficial `https://github.com/vitorgfaustino/boltlink`, a versão instalada, a versão oficial pretendida e o método de publicação.
 2. Confira working tree, branches, base comum e diferenças locais. Defina explicitamente a estratégia para incorporar o upstream. `git pull --ff-only` só avança o remote configurado; não prova que a versão oficial foi incorporada.
@@ -219,7 +219,7 @@ Quando o pedido for `Atualizar o Projeto`, aplique o [contrato canônico de upgr
 4. Preserve Worker name, D1 database ID/name, lista de bindings, rotas/domínios, variáveis, secrets existentes e demais configurações do operador. Preserve overlays/branding, incluindo `public/admin.html`, `public/logo.png` e `public/favicon.ico`. O `wrangler.jsonc` de uma instalação provisionada não pode ser substituído pelo template upstream.
 5. Integre código de forma revisável. Não use `git reset --hard`, checkout indiscriminado de `wrangler.jsonc` nem substituição integral pelo template. Conflito operacional exige resolução consciente e nova comparação.
 6. Rode `npm install`, sincronize o config local quando aplicável e aplique migrations somente locais com `npm run dev-prepare`. Execute `npm test`, `npm run upgrade:check` para cada configuração antes/depois e `npm run deploy:preflight` com o contexto real de publicação.
-7. UUID removido bloqueia. Mudanças de UUID, nome do Worker, banco, bindings, rotas/domínios ou outras configurações exigem confirmação explícita por campo e preflight aprovado. Confira quais arquivos mudaram e o repositório destino.
+7. UUID/nome de banco removido, Worker name ausente/vazio ou recurso operacional removido bloqueiam. Sem baseline anterior: `UPGRADE_BASELINE = MISSING`, `AUTOMATIC_APPROVAL = DENIED`, `MANUAL_RECONCILIATION = REQUIRED`; recupere histórico/backup confiável, sem fabricar snapshots. O preflight não substitui a comparação obrigatória antes do push. Mudanças de UUID, nome do Worker, banco, bindings, rotas/domínios ou outras configurações exigem confirmação explícita por campo e preflight aprovado. Confira quais arquivos mudaram e o repositório destino.
 8. **PUSH = POTENCIAL DEPLOY** em GitHub auto-deploy/Deploy Button, inclusive previews de branches. Pare no checkpoint de autorização do operador antes do push. Deploy local e D1 remoto também precisam de autorização própria da instalação. Depois dessa autorização, o processo continua com `npm run deploy` (preflight → migrations pendentes → Worker).
 
 Em Workers Builds, use `WORKERS_CI=1 npm run deploy:preflight`; na CLI local use `npm run deploy:preflight`. `--config`/`-c` explícito tem prioridade e precisa ser o mesmo arquivo da operação real. Um UUID que existe somente no arquivo local não corrige um build remoto. Não automatize updates via GitHub Actions neste gate.

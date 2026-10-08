@@ -17,7 +17,7 @@
  * along with BoltLink. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 function isPlainObject(value) {
@@ -27,6 +27,7 @@ function isPlainObject(value) {
 export function parseJsoncConfig(filePath) {
 	// JSONC is data, never executable JavaScript. Keep quoted URLs and secrets
 	// intact while removing comments and trailing commas outside strings.
+	if (!statSync(filePath).isFile()) throw new Error("CONFIG_NOT_REGULAR_FILE");
 	const source = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
 	let json = "";
 	let inString = false;
@@ -63,6 +64,22 @@ export function parseJsoncConfig(filePath) {
 		else if (char === '"') inString = !inString;
 	}
 	try {
+		// JSON.parse would silently keep the last duplicate key. Reject that
+		// ambiguity, including escaped spellings of the same property name.
+		const stack = [];
+		for (const token of cleaned.match(/"(?:\\.|[^"\\])*"|[{}\[\],:]/g) ?? []) {
+			const current = stack.at(-1);
+			if (token === "{") stack.push({ keys: new Set(), expectingKey: true });
+			else if (token === "[") stack.push({});
+			else if (token === "}" || token === "]") stack.pop();
+			else if (token === "," && current?.keys) current.expectingKey = true;
+			else if (token === ":" && current?.keys) current.expectingKey = false;
+			else if (token.startsWith('"') && current?.expectingKey) {
+				const key = JSON.parse(token);
+				if (current.keys.has(key)) throw new Error();
+				current.keys.add(key);
+			}
+		}
 		const config = JSON.parse(cleaned);
 		if (!isPlainObject(config)) throw new Error();
 		return config;
@@ -70,6 +87,26 @@ export function parseJsoncConfig(filePath) {
 		// Parser errors can contain config values, including secrets.
 		throw new Error("CONFIG_INVALID_JSONC");
 	}
+}
+
+export function validateConfigBindings(config) {
+	function visit(value, path = "") {
+		if (Array.isArray(value)) {
+			const key = path.endsWith("durable_objects.bindings") ? "name" : "binding";
+			if (value.some((entry) => isPlainObject(entry) && Object.hasOwn(entry, key))
+				&& !value.every((entry) => isPlainObject(entry) && typeof entry[key] === "string" && entry[key].trim())) throw new Error("CONFIG_BINDING_INVALID");
+			if (value.length && value.every((entry) => isPlainObject(entry) && typeof entry[key] === "string")) {
+				if (new Set(value.map((entry) => entry[key])).size !== value.length) throw new Error("CONFIG_BINDING_AMBIGUOUS");
+			}
+			for (const entry of value) visit(entry, path);
+		} else if (isPlainObject(value)) {
+			for (const [key, entry] of Object.entries(value)) {
+				// Variables/defines are application data rather than resource lists.
+				if (key !== "vars" && key !== "define") visit(entry, `${path ? path + "." : ""}${key}`);
+			}
+		}
+	}
+	visit(config);
 }
 
 function mergeConfigValue(baseValue, overrideValue) {
@@ -86,7 +123,17 @@ function mergeConfigValue(baseValue, overrideValue) {
 					throw new Error("CONFIG_BINDING_AMBIGUOUS");
 				}
 			}
-			return overrideValue.map((value) => mergeConfigValue(baseValue.find((base) => base.binding === value.binding), value));
+			return overrideValue.map((value) => {
+				const base = baseValue.find((entry) => entry.binding === value.binding);
+				if (!base) return value;
+				const defaults = { ...base };
+				// A matching binding is not proof of the same remote resource. An
+				// existing local entry must carry its own target identifiers/names.
+				for (const key of ["database_id", "database_name", "preview_database_id", "id", "preview_id", "bucket_name", "preview_bucket_name", "jurisdiction", "service", "environment", "queue", "class_name", "script_name", "namespace_id", "index_name"]) {
+					if (!Object.hasOwn(value, key)) delete defaults[key];
+				}
+				return mergeConfigValue(defaults, value);
+			});
 		}
 
 		return overrideValue;
@@ -95,7 +142,7 @@ function mergeConfigValue(baseValue, overrideValue) {
 	if (isPlainObject(baseValue) && isPlainObject(overrideValue)) {
 		const merged = { ...baseValue };
 		for (const [key, value] of Object.entries(overrideValue)) {
-			merged[key] = mergeConfigValue(baseValue[key], value);
+			Object.defineProperty(merged, key, { value: mergeConfigValue(baseValue[key], value), enumerable: true, writable: true, configurable: true });
 		}
 		return merged;
 	}
@@ -112,6 +159,8 @@ export function resolveProjectPaths(rootDir) {
 }
 
 export function buildLocalConfig(publicConfig, localConfig = {}) {
+	validateConfigBindings(publicConfig);
+	validateConfigBindings(localConfig);
 	const mergedConfig = Object.keys(localConfig).length > 0
 		? mergeConfigValue(publicConfig, localConfig)
 		: { ...publicConfig };
@@ -119,6 +168,7 @@ export function buildLocalConfig(publicConfig, localConfig = {}) {
 	if (localConfig.keep_vars === undefined) {
 		mergedConfig.keep_vars = true;
 	}
+	validateConfigBindings(mergedConfig);
 
 	return mergedConfig;
 }

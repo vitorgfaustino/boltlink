@@ -223,7 +223,7 @@ describe("Gate 10.1 installation comparison and semantic binding merge", () => {
 });
 
 describe("T15/T16 real npm deploy chain, real wrapper, isolated fake Wrangler executable", () => {
-  it.each(["missing", "valid", "migration-fails"])("reproduces the build end to end: %s", (scenario) => {
+  it.each(["missing", "valid", "no-pending", "migration-fails"])("reproduces the build end to end: %s", (scenario) => {
     const c = config(); if (scenario === "missing") delete (c.d1_databases[0] as any).database_id;
     const root = fixture(c, config(UUID_B));
     mkdirSync(resolve(root, "scripts")); mkdirSync(resolve(root, "node_modules/.bin"), { recursive: true });
@@ -232,21 +232,208 @@ describe("T15/T16 real npm deploy chain, real wrapper, isolated fake Wrangler ex
     // No Wrangler dependency in the fixture. This executable only logs args;
     // it contains no network code and never invokes real Wrangler.
     const fake = resolve(root, "node_modules/.bin/wrangler");
-    writeFileSync(fake, `#!${process.execPath}\nimport { appendFileSync } from "node:fs";\nconst args = process.argv.slice(2);\nappendFileSync("calls.jsonl", JSON.stringify(args) + "\\n");\nprocess.exit(args[0] === "d1" ? Number(process.env.MOCK_MIGRATION_EXIT) : 0);\n`);
+    writeFileSync(fake, `#!${process.execPath}\nimport { appendFileSync } from "node:fs";\nconst args = process.argv.slice(2);\nappendFileSync("calls.jsonl", JSON.stringify(args) + "\\n");\nif (args[0] === "d1" && process.env.MOCK_NO_PENDING === "1") console.log("No migrations to apply!");\nprocess.exit(args[0] === "d1" ? Number(process.env.MOCK_MIGRATION_EXIT) : 0);\n`);
     chmodSync(fake, 0o755);
     const result = spawnSync("npm", ["run", "deploy"], { cwd: root, encoding: "utf8", timeout: 20000,
-      env: { ...process.env, WORKERS_CI: "1", MOCK_MIGRATION_EXIT: scenario === "migration-fails" ? "23" : "0" } });
+      env: { ...process.env, WORKERS_CI: "1", MOCK_NO_PENDING: scenario === "no-pending" ? "1" : "0", MOCK_MIGRATION_EXIT: scenario === "migration-fails" ? "23" : "0" } });
     expect(result.error).toBeUndefined();
+    if (scenario === "no-pending") expect(result.stdout).toContain("No migrations to apply!");
     const log = resolve(root, "calls.jsonl");
     const calls = existsSync(log) ? readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line)) : [];
     if (scenario === "missing") {
       expect(result.status).toBe(1); expect(calls).toEqual([]);
       expect(result.stderr).toContain("REMOTE_D1_DATABASE_ID_MISSING"); expect(result.stderr).toContain(resolve(root, "wrangler.jsonc"));
     } else {
-      expect(result.status).toBe(scenario === "valid" ? 0 : 23);
-      expect(calls).toEqual(scenario === "valid" ? [
+      expect(result.status).toBe(scenario === "migration-fails" ? 23 : 0);
+      expect(calls).toEqual(scenario !== "migration-fails" ? [
         [...migration, "--config", resolve(root, "wrangler.jsonc")], ["deploy", "--config", resolve(root, "wrangler.jsonc")],
       ] : [[...migration, "--config", resolve(root, "wrangler.jsonc")]]);
     }
+  });
+});
+
+describe("Gate 10.2 adversarial release-readiness regressions", () => {
+  it.each([
+    ["d1", "migrations", "apply", "db_boltlink", "--remote=true", "-c", "wrangler.jsonc"],
+    ["-c", "wrangler.jsonc", "d1", "migrations", "apply", "db_boltlink", "--remote"],
+    ["--config=wrangler.jsonc", "--env=production", "deploy"],
+    ["--env", "production", "versions", "upload", "--config", "wrangler.jsonc"],
+  ])("global flags/boolean forms cannot bypass preflight: %j", (...args) => {
+    const c = config(); delete (c.d1_databases[0] as any).database_id;
+    const result = run(fixture({ ...c, env: { production: c } }), args);
+    expect(result.status).toBe(1); expect(result.spawn).not.toHaveBeenCalled();
+    expect(result.errors).toContain("REMOTE_D1_DATABASE_ID_MISSING");
+  });
+  it.each(["--remote=true", "--remote"])("routes the Builds migration variant %s to public config even with local present", (flag) => {
+    const root = fixture(config(), config(UUID_B));
+    const args = ["--env", "production", "d1", "migrations", "apply", "db_boltlink", flag];
+    writeFileSync(resolve(root, "wrangler.jsonc"), JSON.stringify({ ...config(), env: { production: config() } }));
+    const result = run(root, args);
+    expect(result.status).toBe(0);
+    expect(result.spawn.mock.calls[0][1]).toEqual([...args, "--config", resolve(root, "wrangler.jsonc")]);
+  });
+  it.each([["--remote=invalid"], ["--remote", "--remote=false"], ["--config", "wrangler.jsonc", "--", "deploy"]])("ambiguous flags fail before subprocess: %j", (...flags) => {
+    const result = run(fixture(), ["d1", "migrations", "apply", "db_boltlink", ...flags]);
+    expect(result.status).toBe(1); expect(result.spawn).not.toHaveBeenCalled();
+  });
+  it("a database_name alias cannot hijack Wrangler's binding lookup", () => {
+    const c = config(); c.d1_databases.unshift({ ...c.d1_databases[0], binding: "OTHER", database_name: "db_boltlink", database_id: UUID_B });
+    const result = run(fixture(c)); expect(result.errors).toContain("REMOTE_D1_BINDING_AMBIGUOUS"); expect(result.spawn).not.toHaveBeenCalled();
+  });
+  it.each(["name", "database_id", "n\\u0061me"])("duplicate JSONC property %s is rejected without source disclosure", (key) => {
+    const root = fixture(); const file = resolve(root, "wrangler.jsonc");
+    const canonical = key.includes("\\") ? "name" : key;
+    writeFileSync(file, `{ "${canonical}": "SYNTHETIC_SECRET_A", "${key}": "SYNTHETIC_SECRET_B" }`);
+    const result = run(root);
+    expect(result.status).toBe(1); expect(result.spawn).not.toHaveBeenCalled();
+    expect(result.errors).not.toContain("SYNTHETIC_SECRET");
+  });
+  it("explicit config directories and missing files block without subprocess or config writes", () => {
+    const root = fixture();
+    for (const path of [root, resolve(root, "missing.jsonc")]) {
+      const result = run(root, [...migration, "--config", path]);
+      expect(result.status).toBe(1); expect(result.spawn).not.toHaveBeenCalled();
+    }
+    expect(existsSync(resolve(root, ".wrangler"))).toBe(false);
+  });
+  it("prototype-like data keys remain data and cannot make merge/comparison skip a change", () => {
+    const local = JSON.parse('{"__proto__":{"operational":"custom"}}');
+    const merged = buildLocalConfig({}, local);
+    expect(Object.getPrototypeOf(merged)).toBe(Object.prototype);
+    expect(Object.hasOwn(merged, "__proto__")).toBe(true);
+    expect(({} as any).operational).toBeUndefined();
+    expect(compareInstallationConfigs(local, {}).status).toBe("BLOCKED");
+  });
+  it.each(["kv_namespaces", "r2_buckets", "services", "d1_databases"])("duplicate local %s blocks even when no upstream list exists", (field) => {
+    const duplicated = { [field]: [{ binding: "CUSTOM", id: "A" }, { binding: "CUSTOM", id: "B" }] };
+    expect(() => buildLocalConfig({}, duplicated)).toThrow("CONFIG_BINDING_AMBIGUOUS");
+    expect(compareInstallationConfigs(duplicated, duplicated, [field]).status).toBe("BLOCKED");
+  });
+  it("duplicate Durable Objects names block without positional merging", () => {
+    expect(() => buildLocalConfig({}, { durable_objects: { bindings: [{ name: "OBJECT", class_name: "A" }, { name: "OBJECT", class_name: "B" }] } })).toThrow("CONFIG_BINDING_AMBIGUOUS");
+  });
+  it("reorders mixed D1/KV/R2 resources by their own identities and preserves local membership", () => {
+    const publicConfig = {
+      d1_databases: [{ binding: "db_boltlink", database_id: UUID_B, migrations_dir: "migrations" }, { binding: "OTHER", database_id: UUID_A }],
+      kv_namespaces: [{ binding: "CACHE", id: "UPSTREAM" }, { binding: "EXTRA", id: "EXTRA" }],
+      r2_buckets: [{ binding: "MEDIA", bucket_name: "upstream-media" }],
+    };
+    const local = { d1_databases: [config().d1_databases[0]], kv_namespaces: [{ binding: "EXTRA", id: "local-extra" }, { binding: "CACHE", id: "local-cache" }], r2_buckets: [{ binding: "MEDIA", bucket_name: "local-media" }] };
+    expect(buildLocalConfig(publicConfig, local)).toMatchObject(local);
+    expect(buildLocalConfig(publicConfig, local).d1_databases).toHaveLength(1);
+  });
+  it("does not silently adopt an upstream target ID/name for an existing incomplete local entry", () => {
+    const local = { name: "cliente-boltlink", d1_databases: [{ binding: "db_boltlink", database_name: "local-db", migrations_dir: "migrations" }] };
+    const merged = buildLocalConfig(config(UUID_B), local);
+    expect(merged.d1_databases[0]).not.toHaveProperty("database_id");
+    const result = run(fixture(config(UUID_B), local), migration, {});
+    expect(result.errors).toContain("REMOTE_D1_DATABASE_ID_MISSING"); expect(result.spawn).not.toHaveBeenCalled();
+  });
+  it.each([undefined, "", "   ", null])("missing Worker identity %s cannot be confirmed away", (name) => {
+    expect(compareInstallationConfigs(config(), { ...config(), name }, ["name"]).status).toBe("BLOCKED");
+  });
+  it("a missing D1 name and a removed operational resource require correction rather than confirmation", () => {
+    const after = config(); delete (after.d1_databases[0] as any).database_name;
+    expect(compareInstallationConfigs(config(), after, ["d1_databases"]).status).toBe("BLOCKED");
+    expect(compareInstallationConfigs({ ...config(), kv_namespaces: [{ binding: "CUSTOM", id: "A" }] }, config(), ["kv_namespaces"]).status).toBe("BLOCKED");
+  });
+  it("the actual CLI denies a missing baseline with explicit reconciliation diagnostics", () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const root = fixture();
+    expect(runUpgradeConfigCheck(["--after", resolve(root, "wrangler.jsonc")])).toBe(1);
+    expect(runUpgradeConfigCheck(["--before", resolve(root, "missing.jsonc"), "--after", resolve(root, "wrangler.jsonc")])).toBe(1);
+    const output = errors.mock.calls.flat().join("\n");
+    expect(output).toContain("UPGRADE_BASELINE = MISSING");
+    expect(output).toContain("AUTOMATIC_APPROVAL = DENIED");
+    expect(output).toContain("MANUAL_RECONCILIATION = REQUIRED");
+  });
+  it("confirmed changes produce an explicit CONFIRMED status rather than a pending warning", () => {
+    const root = fixture(config(UUID_B)); const before = resolve(root, "before.jsonc");
+    writeFileSync(before, JSON.stringify(config()));
+    const logs = vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(runUpgradeConfigCheck(["--before", before, "--after", resolve(root, "wrangler.jsonc"), "--confirm-field=d1_databases"])).toBe(0);
+    expect(logs.mock.calls.flat().join("\n")).toContain('"d1_databases": CONFIRMED');
+  });
+});
+
+describe("Gate 10.2 explicit identity and registered command contract", () => {
+  it("an unchanged operational UUID/name/binding passes without confirmation", () => {
+    expect(compareInstallationConfigs(config(), config()).status).toBe("PASSED");
+    const after = config(); after.d1_databases[0].database_name = "intentional-db-name";
+    expect(compareInstallationConfigs(config(), after).status).toBe("REQUIRES_EXPLICIT_CONFIRMATION");
+    expect(compareInstallationConfigs(config(), after, ["d1_databases"]).status).toBe("PASSED");
+  });
+  it("compact -c/-e options select the same actual config and environment", () => {
+    const root = fixture({});
+    writeFileSync(resolve(root, "custom.jsonc"), JSON.stringify({ env: { production: config() } }));
+    const args = ["-ccustom.jsonc", "-eproduction", ...migration];
+    const result = run(root, args);
+    expect(result.status).toBe(0); expect(result.spawn.mock.calls[0][1]).toEqual(args);
+  });
+  it("registered npm upgrade:check and deploy:preflight work in isolated fixtures without Wrangler", () => {
+    const root = fixture(); mkdirSync(resolve(root, "scripts"));
+    for (const file of ["wrangler.mjs", "wrangler-routing.mjs", "config-utils.mjs", "config-safety.mjs"]) cpSync(resolve("scripts", file), resolve(root, "scripts", file));
+    writeFileSync(resolve(root, "package.json"), JSON.stringify({ scripts: { "upgrade:check": pkg.scripts["upgrade:check"], "deploy:preflight": pkg.scripts["deploy:preflight"] } }));
+    writeFileSync(resolve(root, "before.jsonc"), JSON.stringify(config()));
+    const commands = [
+      ["run", "upgrade:check", "--", "--before", "before.jsonc", "--after", "wrangler.jsonc"],
+      ["run", "deploy:preflight", "--", "--config=wrangler.jsonc"],
+    ];
+    const before = readFileSync(resolve(root, "wrangler.jsonc"), "utf8");
+    for (const args of commands) {
+      const result = spawnSync("npm", args, { cwd: root, encoding: "utf8", timeout: 15000, env: { ...process.env, WORKERS_CI: "1" } });
+      expect(result.error).toBeUndefined(); expect(result.status, result.stderr).toBe(0); expect(result.stdout).toContain("PASSED");
+    }
+    expect(readFileSync(resolve(root, "wrangler.jsonc"), "utf8")).toBe(before);
+    expect(existsSync(resolve(root, "wrangler.local.jsonc"))).toBe(false);
+    expect(existsSync(resolve(root, ".wrangler"))).toBe(false);
+  });
+});
+
+describe("Gate 10.2 local preparation uses the safe config parser and canonical binding", () => {
+  it.each(["reordered", "ambiguous", "javascript"])("dev-prepare fixture %s cannot select or execute arbitrary configuration", (scenario) => {
+    const c = config();
+    c.d1_databases.unshift({ ...c.d1_databases[0], binding: "OTHER", database_name: scenario === "ambiguous" ? "db_boltlink" : "other-db" });
+    const root = fixture(config(), c); mkdirSync(resolve(root, "scripts")); mkdirSync(resolve(root, "node_modules/.bin"), { recursive: true });
+    for (const file of ["dev-prepare.mjs", "wrangler.mjs", "wrangler-routing.mjs", "config-utils.mjs", "config-safety.mjs"]) cpSync(resolve("scripts", file), resolve(root, "scripts", file));
+    if (scenario === "javascript") writeFileSync(resolve(root, "wrangler.local.jsonc"), '({name: (() => { throw new Error("SYNTHETIC_CODE_EXECUTED"); })()})');
+    const fake = resolve(root, "node_modules/.bin/wrangler");
+    writeFileSync(fake, `#!${process.execPath}\nimport { appendFileSync } from "node:fs";\nappendFileSync("calls.jsonl", JSON.stringify(process.argv.slice(2)) + "\\n");\n`); chmodSync(fake, 0o755);
+    const result = spawnSync(process.execPath, [resolve(root, "scripts/dev-prepare.mjs")], { cwd: root, encoding: "utf8", timeout: 10000,
+      env: { ...process.env, CLOUDFLARE_ENV: "", WORKERS_CI: "", PATH: resolve(root, "node_modules/.bin") + ":" + process.env.PATH } });
+    expect(result.error).toBeUndefined(); expect(result.stderr).not.toContain("SYNTHETIC_CODE_EXECUTED");
+    const log = resolve(root, "calls.jsonl");
+    if (scenario === "reordered") {
+      expect(result.status, result.stderr).toBe(0);
+      expect(JSON.parse(readFileSync(log, "utf8").trim())).toEqual(["d1", "migrations", "apply", "db_boltlink", "--local", "--config", resolve(root, "wrangler.local.jsonc")]);
+    } else { expect(result.status).not.toBe(0); expect(existsSync(log)).toBe(false); }
+  });
+});
+
+describe("Gate 10.2 dotenv cannot change the environment after validation", () => {
+  it("a private .env selecting CLOUDFLARE_ENV needs explicit operator context without leaking values", () => {
+    const root = fixture({ ...config(), env: { production: {} } });
+    writeFileSync(resolve(root, ".env"), 'API_KEY=SYNTHETIC_PRIVATE_SECRET\nCLOUDFLARE_ENV=production\n');
+    const blocked = run(root);
+    expect(blocked.status).toBe(1); expect(blocked.spawn).not.toHaveBeenCalled();
+    expect(blocked.errors).toContain("CONFIG_ENVIRONMENT_MUST_BE_EXPLICIT");
+    expect(blocked.errors).not.toContain("SYNTHETIC_PRIVATE_SECRET");
+    expect(run(root, [...migration, "--env=production"]).errors).toContain("REMOTE_D1_BINDING_MISSING");
+    expect(run(root, [...migration, "--env="]).status).toBe(0);
+  });
+  it("an ordinary .env without environment selection preserves the normal flow", () => {
+    const root = fixture(); writeFileSync(resolve(root, ".env"), 'API_KEY=SYNTHETIC_PRIVATE_SECRET\n');
+    const result = run(root); expect(result.status).toBe(0); expect(result.errors).not.toContain("SYNTHETIC_PRIVATE_SECRET");
+  });
+  it("--env-file requires an explicit environment, including an explicit top-level selection", () => {
+    const root = fixture(); writeFileSync(resolve(root, "private.env"), 'CLOUDFLARE_ENV=production\n');
+    const args = [...migration, "--env-file", "private.env"];
+    const result = run(root, args); expect(result.status).toBe(1); expect(result.spawn).not.toHaveBeenCalled();
+    expect(run(root, [...args, "--env="]).status).toBe(0);
+  });
+  it("process-level CLOUDFLARE_ENV is validated even with dotenv present", () => {
+    const root = fixture({ ...config(), env: { production: config(), incorrect: {} } });
+    writeFileSync(resolve(root, ".env"), 'CLOUDFLARE_ENV=incorrect\n');
+    expect(run(root, migration, { WORKERS_CI: "1", CLOUDFLARE_ENV: "production" }).status).toBe(0);
   });
 });
