@@ -1,17 +1,74 @@
 # BoltLink
 
-**Links estáveis para campanhas, QR Codes e materiais — com controle do destino e privacidade por padrão.**
+**Encurtador de links self-hosted para campanhas, QR Codes e materiais impressos — com controle do destino, privacidade por padrão e um painel agradável de usar.**
 
-BoltLink é um gerenciador de links que você instala na sua própria conta Cloudflare. Crie uma URL curta, organize seus links e atualize o destino quando precisar: o endereço compartilhado continua o mesmo. O painel reúne criação, edição e contagem agregada de cliques em um só lugar.
+BoltLink roda na sua própria conta Cloudflare. Crie um link curto, organize em grupos e mude o destino quando precisar: o endereço divulgado continua o mesmo, então o QR Code impresso, o link da bio e o material de campanha nunca precisam ser refeitos. O painel reúne criação, edição, contagem agregada de cliques e as ferramentas de operação em um só lugar — em tema claro ou escuro.
 
-**Checkout: 3.2.0 candidata, não publicada · Release oficial: 3.1.1, tag v3.1.1 · AGPL-3.0**
+**Versões:** a release publicada oficial é a **3.1.1** (tag `v3.1.1`). Este checkout é a **3.2.0 candidata**, ainda não publicada.
+
+|  |  |  |
+| :-- | :-- | :-- |
+| **Privacy-first** | **Self-hosted** | **QR Code** |
+| **Smart Routing** | **Teste A/B** | **Agendamento e expiração** |
+| **Lixeira e recuperação** | **Import / Export** | **Light & Dark** |
+
+Sem perfil de visitante, sem cookie de rastreamento e sem terceiros no caminho: o Worker responde o redirect antes de contar o clique, e o banco guarda apenas contagens agregadas. O QR Code sai em PNG e SVG, os grupos têm hierarquia com caminho completo, e a configuração viaja entre instalações em um documento portátil.
+
+![Demonstração do painel BoltLink em tema claro e escuro, grupos e detalhes do Teste A/B](docs/images/admin-demo.gif)
 
 ## Por que usar o BoltLink
 
-- **Mantenha seus materiais válidos.** Troque o destino de um link sem substituir o QR Code impresso, a bio ou a URL divulgada.
-- **Organize a operação.** Separe clientes, unidades e campanhas em grupos e subgrupos, com caminhos completos e filtros que incluem os descendentes.
-- **Tenha controle da instalação.** Worker, banco e configuração ficam na sua conta Cloudflare; o painel é protegido com Cloudflare Access.
-- **Meça sem rastrear pessoas.** Veja contagens agregadas de cliques, sem persistir IP, país, dispositivo ou histórico individual de visitas.
+- **Seus materiais continuam válidos.** Troque o destino de um link sem substituir o QR Code impresso, a bio ou a URL já divulgada.
+- **A operação fica organizada.** Separe clientes, unidades e campanhas em grupos e subgrupos, veja o caminho completo e filtre um grupo trazendo todos os descendentes.
+- **A instalação é sua.** Worker, banco e configuração ficam na sua conta Cloudflare, e o painel é protegido com Cloudflare Access.
+- **Você mede sem rastrear pessoas.** Contagens agregadas de cliques e distribuição A/B, sem persistir IP, país, dispositivo ou histórico individual de visitas.
+- **Recursos de campanha no mesmo lugar.** Teste A/B, destinos por país ou dispositivo, proteção por senha, agendamento, expiração e destino após expirar.
+
+## Screenshots
+
+### Visão geral — tema Dark
+
+![Painel do BoltLink em tema Dark, com criação de link, busca, filtros e cards semânticos](docs/images/admin-dark-desktop.png)
+
+O mesmo painel, em tema escuro sóbrio: criação e edição à esquerda, links ativos à direita, com busca, filtro por grupo e ferramentas de administração.
+
+### Light e Dark
+
+| Tema Light | Tema Dark |
+| :-- | :-- |
+| ![Painel em tema Light](docs/images/admin-light-desktop.png) | ![Painel em tema Dark](docs/images/admin-dark-desktop.png) |
+
+Os dois temas compartilham a mesma estrutura, hierarquia e contraste. A troca é feita no cabeçalho e a preferência fica salva no navegador.
+
+### Cards com recursos do sistema
+
+| Tema Dark | Tema Light |
+| :-- | :-- |
+| ![Cards com grupo, QR Code, senha, Teste A/B e Smart Routing em tema Dark](docs/images/admin-dark-cards.png) | ![Os mesmos cards em tema Light](docs/images/admin-light-cards.png) |
+
+Cada recurso tem uma cor fixa — Teste A/B em âmbar, Smart Routing em ciano, QR Code em violeta — enquanto grupo e tags, que são dados da sua operação, permanecem neutros. Assim dá para responder "que recurso este link usa?" sem confundir com "em que grupo ele está?".
+
+### Detalhes do Teste A/B
+
+![Detalhes expandidos de um Teste A/B, com variante B, cliques A e B e distribuição](docs/images/admin-dark-ab-details.png)
+
+O card mostra o resumo do experimento; variante B, contadores e distribuição aparecem sob demanda em um expansor acessível, sem ocupar a lista.
+
+### Grupos e portabilidade
+
+| Grupos hierárquicos | Importar / Exportar |
+| :-- | :-- |
+| ![Gerenciador de grupos com hierarquia e caminho completo](docs/images/admin-dark-groups-drawer.png) | ![Drawer de importação e exportação da configuração](docs/images/admin-dark-export-drawer.png) |
+
+Grupos aceitam subgrupos em qualquer nível e o filtro inclui os descendentes. A exportação gera um documento portátil com a configuração lógica, para levar de uma instalação a outra.
+
+### Mobile
+
+| Dark | Light |
+| :-- | :-- |
+| ![Painel em tela de celular, tema Dark](docs/images/admin-mobile-dark.png) | ![Painel em tela de celular, tema Light](docs/images/admin-mobile-light.png) |
+
+No celular as ações viram uma grade de três colunas com alvos de 44px, as badges quebram linha sem cortar nenhum recurso e a metadata se reorganiza em duas linhas — sem rolagem horizontal.
 
 ## Principais recursos
 
@@ -35,17 +92,15 @@ Smart Routing e Split Test A/B são opções alternativas por link. A contagem A
 
 ## Casos de uso
 
-Use para links da bio, QR Codes em cardápios e materiais impressos, campanhas com UTMs, documentos compartilhados ou gestão de links de várias franquias. Grupos como `Franquia 01 / Bio / Instagram` deixam o contexto visível sem mudar os endereços públicos.
+- **Links da bio e redes sociais.** Um endereço curto e estável por unidade, campanha ou perfil.
+- **QR Codes em materiais impressos.** Cardápios, embalagens, vitrines e eventos: o destino pode mudar depois da impressão.
+- **Campanhas com UTM.** Monte e ajuste os parâmetros direto no painel, sem editar a URL à mão.
+- **Operação com várias unidades.** Grupos como `Franquia Centro / Bio / Instagram` deixam o contexto visível sem mudar os endereços públicos.
+- **Testes e roteamento.** Compare dois destinos com o Teste A/B ou direcione por país e dispositivo com o Smart Routing.
 
-## Screenshots
+## Como funciona
 
-As imagens abaixo são capturas históricas do projeto (as telas com versão visível mostram v2.1.0). Ilustram os fluxos de links, página inicial e senha, mas não representam o layout da candidata 3.2.0. Serão revisadas após o redesign visual.
-
-![Painel administrativo do BoltLink](public/tela-links.webp)
-
-![Página inicial do BoltLink](public/tela-home.webp)
-
-![Link protegido por senha](public/tela-link-protegido.webp)
+O BoltLink tem duas partes com responsabilidades separadas. O **redirect público** resolve o slug e responde antes de contar o clique, sem consultar grupos e sem guardar dados do visitante. O **painel administrativo** é um app estático protegido pelo Cloudflare Access que conversa com a API do Worker. O banco é um D1 na sua conta, e as métricas são apenas contagens agregadas.
 
 ## Deploy rápido
 
@@ -59,12 +114,17 @@ O botão prepara a instalação automaticamente na sua conta. Configure o Cloudf
 
 - [Setup na Cloudflare](docs/cloudflare-setup.md): instalação pelo botão, Wrangler ou operação guiada por IA.
 - [Cloudflare Access](docs/admin-auth.md): proteção administrativa e variáveis da instalação.
-- [Atualização e migrations](docs/upgrading.md): upgrade de instalações existentes e backups.
 - [Referência técnica](docs/technical-reference.md): comandos, configurações, compatibilidade histórica e matriz de variáveis/secrets.
 
-## Documentação
+## Atualização
 
-- [Admin UX da candidata 3.2.0](docs/admin-ux.md): filtro hierárquico, badges e edição de UTMs.
+- [Atualização e migrations](docs/upgrading.md): upgrade de instalações existentes e backups.
+- O deploy padrão aplica as migrations pendentes antes de publicar o Worker; uma falha impede o deploy.
+- Publicar código não atualiza instalações self-hosted: cada instalação executa o próprio upgrade.
+
+## Documentação complementar
+
+- [Admin UX](docs/admin-ux.md): filtro hierárquico, badges com caminho completo e edição de UTMs.
 - [Lixeira e recuperação](docs/trash-recovery.md).
 - [Senhas em links](docs/password-links.md).
 - [Privacidade](docs/privacy.md) e [política de cliques](docs/click-policy.md).
@@ -79,7 +139,7 @@ Consulte a [arquitetura](docs/architecture.md), o [desenvolvimento local](docs/l
 
 ## Estado das versões
 
-A **3.1.1 está publicada**, identificada pela tag **v3.1.1** e congelada. A release anterior **v3.1.0** permanece congelada. O checkout desta branch é a **3.2.0 candidata**, ainda sem tag, release ou deploy neste gate. Publicar código não atualiza instalações self-hosted.
+A **3.1.1 está publicada**, identificada pela tag **v3.1.1** e congelada. A release anterior **v3.1.0** permanece congelada. O checkout desta branch é a **3.2.0 candidata**, ainda sem tag, release ou deploy. Publicar código não atualiza instalações self-hosted.
 
 ## Licença
 
