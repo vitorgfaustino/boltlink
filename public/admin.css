@@ -2360,15 +2360,13 @@ input, select, textarea { min-width: 0; max-width: 100%; }
    it is told apart by its text, not by a fourth saturated accent. */
 .feature-badge--lock { --feature-ink: var(--text-secondary); --feature-bg: transparent; --feature-border: var(--line); }
 .group-badge { margin-top: 0; }
-.metrics { gap: 6px 10px; margin-top: 6px; }
+/* Level 4 separates its facts with spacing alone. A `::before` bullet would sit inside its own
+   item, so a wrapped line would begin with an orphaned `•`; no pure-CSS rule can know that an
+   item starts a line. The wider column gap keeps the facts distinct on one line and reads the
+   same when the row wraps. `overflow-wrap: anywhere` keeps long values from forcing a
+   horizontal scrollbar. */
+.metrics { gap: 6px 14px; margin-top: 6px; }
 .metric { min-width: 0; max-width: 100%; overflow-wrap: anywhere; font-weight: 400; }
-/* Level 4 reads as one line. The bullet is drawn between adjacent facts only, so the DOM
-   never carries punctuation that could end a wrapping line on its own; below 641px the
-   facts are most likely to wrap, so the gap alone separates them there. */
-.metrics .metric + .metric::before { content: "•"; color: var(--muted); margin-right: 10px; }
-@media (max-width: 640px) {
-  .metrics .metric + .metric::before { content: none; }
-}
 /* Compact A/B details: the experiment summary stays on the card, the counters and the
    variant destination stay reachable without a permanent block. The summary deliberately
    reuses the Admin's existing accordion vocabulary (weight, focus ring, native

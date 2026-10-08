@@ -193,13 +193,14 @@ describe("Gate 9.4: metadata line reads as one structured row", () => {
   it("draws the separator between facts in CSS only, so no punctuation can orphan in the DOM", () => {
     const markup = render([{ slug: "m", target_url: "https://exemplo.com/", clicks_total: 1, redirect_type: "302" }]);
     expect(markup).not.toContain("•");
-    // The separator belongs to the metadata line only; the expanded breakdown is a row list.
-    expect(css).toMatch(/\.metrics \.metric \+ \.metric::before \{ content: "•";/);
-    expect(css).not.toMatch(/\.card-details-metrics \.metric \+ \.metric::before/);
+    expect(markup).not.toContain("·");
+    // Gate 9.6: the facts are separated by spacing alone. A `::before` bullet lives inside its
+    // own item, so any wrapped row would begin with an orphaned separator, and no pure-CSS rule
+    // can know that an item starts a line. With no generated content there is nothing to orphan.
+    expect(css).not.toMatch(/\.metric[^{}]*::(?:before|after)\s*\{[^}]*content:\s*"[^"]+"/);
+    expect(css).toMatch(/\.metrics \{ gap: 6px 14px;[^}]*\}/);
+    // The expanded breakdown stays a row list, which needs no separator at all.
     expect(css).toMatch(/\.card-details-metrics \{ display: grid; gap: 4px;/);
-    // Narrow viewports are the ones that wrap, so they fall back to the gap alone.
-    expect(css).toMatch(/@media \(max-width: 640px\) \{\s*\.metrics \.metric \+ \.metric::before \{ content: none; \}\s*\}/);
-    expect(css).toMatch(/\.metrics \{ gap: 6px 10px;[^}]*\}/);
   });
 });
 

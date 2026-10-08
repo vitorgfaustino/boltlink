@@ -95,12 +95,12 @@ describe("Gate 9.5: the four levels keep distinct spacing", () => {
   it("gives every level its own separation instead of one uniform gap", () => {
     expect(rule(/\.card-destination \{[^}]*\}/)).toContain("margin-top: 2px;");
     expect(rule(/\.link-states \{[^}]*\}/)).toContain("margin-top: 4px;");
-    expect(rule(/\.metrics \{ gap: 6px 10px;[^}]*\}/)).toContain("margin-top: 6px;");
+    expect(rule(/\.metrics \{ gap: 6px 14px;[^}]*\}/)).toContain("margin-top: 6px;");
     expect(rule(/\.card \.card-details \{[^}]*\}/)).toContain("margin: 7px 0 0;");
     // The metadata sits further from the level above than the base card gap, so it reads as
     // tertiary information rather than as a continuation of the feature row.
     const cardGap = Number(rule(/\.card \{[^}]*\}/).match(/gap:\s*(\d+)px/)![1]);
-    const metricsGap = Number(rule(/\.metrics \{ gap: 6px 10px;[^}]*\}/).match(/margin-top:\s*(\d+)px/)![1]);
+    const metricsGap = Number(rule(/\.metrics \{ gap: 6px 14px;[^}]*\}/).match(/margin-top:\s*(\d+)px/)![1]);
     expect(cardGap + metricsGap).toBeGreaterThanOrEqual(13);
   });
 
@@ -113,9 +113,11 @@ describe("Gate 9.5: the four levels keep distinct spacing", () => {
     expect(rule(/\.feature-badge \{[^}]*\}/)).toContain("max-width: 100%;");
   });
 
-  it("keeps the metadata contract from Gate 9.4 intact", () => {
-    expect(css).toMatch(/\.metrics \.metric \+ \.metric::before \{ content: "•";/);
-    expect(css).toMatch(/@media \(max-width: 640px\) \{\s*\.metrics \.metric \+ \.metric::before \{ content: none; \}\s*\}/);
+  it("keeps the metadata contract intact with spacing-only separation", () => {
+    // Gate 9.6 replaced the separator with the column gap, so no wrapped row can start with a
+    // bullet and the DOM still carries no punctuation.
+    expect(css).not.toMatch(/\.metric[^{}]*::(?:before|after)\s*\{[^}]*content:\s*"[^"]+"/);
+    expect(rule(/\.metrics \{ gap: 6px 14px;[^}]*\}/)).toContain("gap: 6px 14px;");
     const markup = render([{ ...simple, created_at: "2026-10-01" }]);
     expect(markup).toContain('<span class="metric">Cliques');
     expect(markup).toContain('<span class="metric">Criado:');
@@ -187,6 +189,34 @@ describe("Gate 9.5: the A/B summary reads as one control with one chevron", () =
     expect(rule(/\.card-details-metrics \{[^}]*\}/)).toBe(".card-details-metrics { display: grid; gap: 4px; margin-top: 10px; }");
     expect(css).not.toMatch(/\.card-details-metrics \.metric \+ \.metric::before/);
     expect(rule(/\.card-details \.variant-content \{[^}]*\}/)).toContain("margin-top: 10px;");
+  });
+});
+
+describe("Gate 9.6: metadata never opens a wrapped line with a separator", () => {
+  it("generates no separator content on the metadata facts", () => {
+    // A `::before`/`::after` bullet belongs to its own item, so once the row wrapped the next
+    // line began with an orphaned `•`. Gate 9.6 removed the generated content entirely.
+    expect(css).not.toMatch(/\.metric[^{}]*::(?:before|after)\s*\{[^}]*content:\s*"[^"]+"/);
+    expect(css).not.toMatch(/content:\s*"•"/);
+    expect(css).not.toMatch(/content:\s*"·"/);
+  });
+
+  it("separates the facts by spacing alone, with no breakpoint restoring a separator", () => {
+    expect(rule(/\.metrics \{[^}]*gap: 6px 14px;[^}]*\}/)).toContain("gap: 6px 14px;");
+    // Wider columns keep one line readable; the same gap keeps a wrapped row readable.
+    expect(css).not.toMatch(/@media[\s\S]{0,240}\.metric \+ \.metric::before/);
+  });
+
+  it("renders a fact-heavy metadata row that carries no punctuation at all", () => {
+    const markup = render([{ ...simple, clicks_total: 54321, created_at: "2026-10-01", go_live_at: "2026-10-01", expires_at: "2027-10-01" }]);
+    for (const label of ["Cliques", "Criado:", "Redirecionamento", "Expira", "Ativa"]) {
+      expect(markup).toContain(`<span class="metric">${label}`);
+    }
+    expect(markup).not.toMatch(/[•·]/);
+    // The facts stay separate wrapping items, so the row can still break without punctuation.
+    const container = rule(/\.metrics \{[^}]*display: flex;[^}]*\}/);
+    expect(container).toContain("display: flex;");
+    expect(container).toContain("flex-wrap: wrap;");
   });
 });
 
