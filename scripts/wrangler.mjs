@@ -19,14 +19,18 @@ import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { existsSync } from "node:fs";
-import { ensureLocalConfigSynced, resolveProjectPaths } from "./config-utils.mjs";
+import { buildLocalConfig, ensureLocalConfigSynced, parseJsoncConfig, resolveProjectPaths } from "./config-utils.mjs";
 import { resolveWranglerExecution } from "./wrangler-routing.mjs";
+import { formatPreflightFailure, requiresRemoteD1Preflight, validateRemoteD1Config } from "./config-safety.mjs";
 
 export function runWranglerCli({
 	args = process.argv.slice(2),
 	rootDir = process.cwd(),
 	env = process.env,
+	spawn = spawnSync,
 } = {}) {
+	const checkOnly = args[0] === "boltlink-preflight";
+	if (checkOnly) args = ["d1", "migrations", "apply", "db_boltlink", "--remote", ...args.slice(1)];
 	const { publicConfigPath, localConfigPath } = resolveProjectPaths(rootDir);
 	const execution = resolveWranglerExecution({
 		args,
@@ -42,16 +46,33 @@ export function runWranglerCli({
 		return 1;
 	}
 
-	if (execution.shouldSyncLocalConfig) {
-		ensureLocalConfigSynced(rootDir);
+	try {
+		if (requiresRemoteD1Preflight(args)) {
+			let config = parseJsoncConfig(execution.configPath);
+			if (execution.shouldSyncLocalConfig) config = buildLocalConfig(parseJsoncConfig(publicConfigPath), config);
+			const reason = validateRemoteD1Config({ config, configPath: execution.configPath, rootDir, args, env });
+			if (reason) {
+				console.error(formatPreflightFailure(reason, execution.configPath, env));
+				return 1;
+			}
+		}
+		if (checkOnly) {
+			console.log(`BOLTLINK DEPLOY PREFLIGHT PASSED\nConfig used: ${execution.configPath}`);
+			return 0;
+		}
+		if (execution.shouldSyncLocalConfig) ensureLocalConfigSynced(rootDir);
+	} catch {
+		console.error(formatPreflightFailure("CONFIG_UNREADABLE_OR_INVALID", execution.configPath, env));
+		return 1;
 	}
 
 	if (execution.warningMessage) {
 		console.warn(execution.warningMessage);
 	}
 
-	const result = spawnSync("wrangler", execution.args, {
+	const result = spawn("wrangler", execution.args, {
 		stdio: "inherit",
+		cwd: rootDir,
 		shell: process.platform === "win32",
 		env,
 	});

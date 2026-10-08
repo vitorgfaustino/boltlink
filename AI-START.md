@@ -1,5 +1,14 @@
 # AI-START
 
+## Candidata local — 3.2.1 (Gate 10.1)
+
+A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
+
+A release publicada continua sendo `v3.2.0`; `package.json` e o texto de versão da aplicação permanecem em `3.2.0` neste gate operacional, sem finalização de versão. Sem alteração funcional, migration ou schema. Publicação não autorizada.
+
+O contrato canônico está em [Upgrade seguro](docs/upgrading.md#upgrade-seguro--gate-101-candidata-321).
+
+
 ## Release publicada — 3.2.0
 
 A **3.2.0 está publicada**, identificada pela tag **v3.2.0**; é a release atual e latest do repositório. A release anterior **v3.1.1** permanece congelada. Esta versão reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Light e Dark refinados, cards compactos, badges semânticas e detalhes A/B sob demanda; o README apresenta screenshots atuais e uma demonstração animada com dados fictícios. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Veja [Admin UX](docs/admin-ux.md).
@@ -202,26 +211,18 @@ Esse comando cria `.dev-env/db.sqlite3` (migrations + seed) e **não** é o banc
 
 ## Fluxo para atualizar instalações existentes
 
-Esse fluxo precisa cobrir tanto instalações novas quanto legadas.
+Quando o pedido for `Atualizar o Projeto`, aplique o [contrato canônico de upgrade seguro](docs/upgrading.md#upgrade-seguro--gate-101-candidata-321) **antes de integrar código**:
 
-Quando o pedido for `Atualizar o Projeto`, a IA deve:
+1. Identifique a raiz e o repositório do cliente, o remote de destino, o upstream oficial `https://github.com/vitorgfaustino/boltlink`, a versão instalada, a versão oficial pretendida e o método de publicação.
+2. Confira working tree, branches, base comum e diferenças locais. Defina explicitamente a estratégia para incorporar o upstream. `git pull --ff-only` só avança o remote configurado; não prova que a versão oficial foi incorporada.
+3. Leia `wrangler.jsonc` e, se existir, `wrangler.local.jsonc`. Registre um resumo seguro dos campos que precisam ser preservados e mantenha snapshots privados para comparação; não imprima nem armazene secrets em relatórios.
+4. Preserve Worker name, D1 database ID/name, lista de bindings, rotas/domínios, variáveis, secrets existentes e demais configurações do operador. Preserve overlays/branding, incluindo `public/admin.html`, `public/logo.png` e `public/favicon.ico`. O `wrangler.jsonc` de uma instalação provisionada não pode ser substituído pelo template upstream.
+5. Integre código de forma revisável. Não use `git reset --hard`, checkout indiscriminado de `wrangler.jsonc` nem substituição integral pelo template. Conflito operacional exige resolução consciente e nova comparação.
+6. Rode `npm install`, sincronize o config local quando aplicável e aplique migrations somente locais com `npm run dev-prepare`. Execute `npm test`, `npm run upgrade:check` para cada configuração antes/depois e `npm run deploy:preflight` com o contexto real de publicação.
+7. UUID removido bloqueia. Mudanças de UUID, nome do Worker, banco, bindings, rotas/domínios ou outras configurações exigem confirmação explícita por campo e preflight aprovado. Confira quais arquivos mudaram e o repositório destino.
+8. **PUSH = POTENCIAL DEPLOY** em GitHub auto-deploy/Deploy Button, inclusive previews de branches. Pare no checkpoint de autorização do operador antes do push. Deploy local e D1 remoto também precisam de autorização própria da instalação. Depois dessa autorização, o processo continua com `npm run deploy` (preflight → migrations pendentes → Worker).
 
-1. rodar `git status --short`
-2. identificar mudanças locais que precisam ser preservadas
-3. preservar explicitamente:
-   - `wrangler.local.jsonc`
-   - `public/admin.html`
-   - `public/logo.png`
-   - `public/favicon.ico`
-   - valores individualizados do `wrangler.jsonc`, se o projeto derivado já os tiver alterado
-4. verificar como o projeto publica
-5. se estiver seguro, rodar `git pull --ff-only`
-6. rodar `npm install`
-7. rodar `npm run wrangler:init`
-8. aplicar migrations locais (`npm run dev-prepare` na release atual; `npm run wrangler -- d1 migrations apply ... --local` no checkout histórico da tag `v2.2.1`)
-9. se o deploy remoto for operado por CLI e estiver autorizado: usar `npm run deploy` da release 3.2.0 (migrations pendentes antes do Worker)
-10. se o deploy for GitHub auto-deploy ou Deploy Button: conferir Deploy command = `npm run deploy`; o script aplica migrations antes de publicar, sem etapa manual posterior obrigatória
-11. rodar `npm test`
+Em Workers Builds, use `WORKERS_CI=1 npm run deploy:preflight`; na CLI local use `npm run deploy:preflight`. `--config`/`-c` explícito tem prioridade e precisa ser o mesmo arquivo da operação real. Um UUID que existe somente no arquivo local não corrige um build remoto. Não automatize updates via GitHub Actions neste gate.
 
 ## Upgrade específico para legados anteriores à v2.0.0
 
@@ -289,7 +290,7 @@ npm run deploy
   -> somente após sucesso: node scripts/wrangler.mjs deploy
 ```
 
-Após provisionar o D1, o fluxo padrão aplica as migrations pendentes antes de publicar o Worker. O binding permanece `db_boltlink` mesmo que o operador escolha outro nome físico. No Workers Builds (`WORKERS_CI=1`), sem config privado, o wrapper usa `wrangler.jsonc` tanto no apply remoto quanto no deploy; na CLI local ambos usam `wrangler.local.jsonc`.
+Após provisionar o D1, o fluxo padrão aplica as migrations pendentes antes de publicar o Worker. O binding permanece `db_boltlink` mesmo que o operador escolha outro nome físico. Na candidata 3.2.1, no Workers Builds (`WORKERS_CI=1`), o wrapper usa `wrangler.jsonc` independentemente da existência do config privado (salvo `--config` explícito) tanto no apply remoto quanto no deploy; na CLI local ambos usam `wrangler.local.jsonc`.
 
 Na tag histórica **v3.1.0**, o deploy não aplicava migrations automaticamente; banco vazio exigia aplicação manual e respondia `503 Database schema is not initialized`. A **3.1.1** corrige esse processo. O runtime continua sem aplicar migrations durante requests.
 

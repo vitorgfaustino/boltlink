@@ -1,3 +1,9 @@
+## BoltLink v3.2.1 — candidata local (Gate 10.1)
+
+Patch operacional não publicado sobre v3.2.0. Preflight fail-closed de D1, seleção explícita do config de Builds, comparação de identidade antes/depois e merge local por binding. Recuperação e checkpoints estão em [Upgrade seguro](docs/upgrading.md#upgrade-seguro--gate-101-candidata-321).
+
+Nenhuma alteração em UI/runtime, SQL ou migrations. Package e versão visível da aplicação continuam em 3.2.0 neste gate; finalização de versão/publicação pendente. Deploy Button testado somente por simulação local. UUID sintaticamente válido não comprova associação ao banco real. Sem push, tag, Release, deploy ou D1 remoto autorizado.
+
 ## BoltLink v3.2.0
 
 ### Admin e experiência de uso

@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.2.1 candidate] - Unreleased (Gate 10.1 local)
+
+- Preflight antes de D1 remoto/publicação, com arquivo efetivo, UUID, binding e migrations_dir validados; falha antes de chamar Wrangler.
+- Workers Builds usa config público mesmo com arquivo local presente; seleção explícita continua prioritária.
+- Comparação local de identidade/configuração antes/depois; UUID removido bloqueia e mudanças operacionais exigem confirmação explícita.
+- Sincronização local faz merge por binding, preservando identidade e lista local; parsing JSONC não executa código nem expõe erros com secrets.
+- Contrato de upgrade identifica upstream/cliente e exige comparação, preflight, testes e autorização antes de push que pode disparar deploy.
+- Sem migration/schema, runtime ou UI alterados. Candidata não publicada; package/app continuam em 3.2.0 até finalização de versão.
+
+
 ## [3.2.0] - 2026-10-07
 
 - Badges do Admin exibem o caminho completo do grupo, com ellipsis visual, title e rótulo acessível integrais.

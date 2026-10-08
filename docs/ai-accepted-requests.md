@@ -1,5 +1,14 @@
 # Catálogo de Pedidos Aceitos pela IA
 
+## Candidata local — 3.2.1 (Gate 10.1)
+
+A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
+
+A release publicada continua sendo `v3.2.0`; `package.json` e o texto de versão da aplicação permanecem em `3.2.0` neste gate operacional, sem finalização de versão. Sem alteração funcional, migration ou schema. Publicação não autorizada.
+
+O contrato canônico está em [Upgrade seguro](upgrading.md#upgrade-seguro--gate-101-candidata-321).
+
+
 ## Release publicada — 3.2.0
 
 A **3.2.0 está publicada**, identificada pela tag **v3.2.0**; é a release atual e latest do repositório. A release anterior **v3.1.1** permanece congelada. Esta versão reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Light e Dark refinados, cards compactos, badges semânticas e detalhes A/B sob demanda; o README apresenta screenshots atuais e uma demonstração animada com dados fictícios. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Veja [Admin UX](admin-ux.md).
@@ -27,7 +36,7 @@ Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recover
 | --- | --- | --- | --- |
 | `iniciar_projeto` | `Iniciar o Projeto`, `start the project` | setup local, geração do config privado, D1 local, testes | antes da criação final do Access |
 | `continuar_configuracao` | `Continuar configuração do projeto`, `retomar setup` | retomar próximo passo e corrigir config | em qualquer checkpoint manual |
-| `atualizar_projeto` | `Atualizar o Projeto`, `pull latest version` | atualizar código, dependências, `wrangler.local.jsonc`, migrations e testes | antes de sobrescrever mudanças locais |
+| `atualizar_projeto` | `Atualizar o Projeto`, `pull latest version` | identificar cliente/upstream e integrar código preservando configs, overlays e secrets; migrations locais, comparação, preflight e testes | UUID removido ou conflito operacional bloqueia; mudanças de identidade exigem confirmação; push/auto-deploy e operações remotas exigem autorização própria |
 | `aplicar_migrations` | `Aplicar migrations`, `rodar migrations` | aplicar migrations local e/ou remoto | se o banco alvo estiver indefinido |
 | `gerenciar_lixeira` | `Restaurar link`, `Excluir definitivamente`, `Limpar itens antigos` | inspecionar Lixeira, validar restore, preparar preview | exclusão definitiva/purge exige intenção explícita; mostrar preview antes da limpeza |
 | `manter_codigo_local` | `Corrigir código`, `Testar localmente` | corrigir e testar o contrato da release corrente | push, tag e GitHub Release exigem autorização explícita; deploy e D1 remoto têm escopo próprio |
@@ -36,6 +45,8 @@ Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recover
 | `publicar_com_deploy_button` | `Deploy to Cloudflare Workers`, `usar o botão de deploy` | revisar template público e preparar pós-deploy | antes da criação final do Access |
 | `configurar_dominio_customizado` | `Configurar domínio`, `usar domínio próprio` | revisar `wrangler.local.jsonc`, DNS e checklist | antes do dashboard |
 | `preparar_access` | `Preparar Access`, `proteger admin` | orientar Access e validar variáveis | sempre antes da criação final |
+
+O pedido `Atualizar o Projeto` exige o [contrato de upgrade seguro](upgrading.md#upgrade-seguro--gate-101-candidata-321). A intenção de atualizar código não autoriza automaticamente push, deploy ou mudança de banco.
 
 ## Notas da linha atual
 

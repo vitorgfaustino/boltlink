@@ -1,5 +1,14 @@
 # Operação Guiada por IA
 
+## Candidata local — 3.2.1 (Gate 10.1)
+
+A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
+
+A release publicada continua sendo `v3.2.0`; `package.json` e o texto de versão da aplicação permanecem em `3.2.0` neste gate operacional, sem finalização de versão. Sem alteração funcional, migration ou schema. Publicação não autorizada.
+
+O contrato canônico está em [Upgrade seguro](upgrading.md#upgrade-seguro--gate-101-candidata-321).
+
+
 ## Release publicada — 3.2.0
 
 A **3.2.0 está publicada**, identificada pela tag **v3.2.0**; é a release atual e latest do repositório. A release anterior **v3.1.1** permanece congelada. Esta versão reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Light e Dark refinados, cards compactos, badges semânticas e detalhes A/B sob demanda; o README apresenta screenshots atuais e uma demonstração animada com dados fictícios. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Veja [Admin UX](admin-ux.md).
@@ -23,7 +32,7 @@ Levar o usuário do setup ao upgrade sem adivinhar dados e sem ultrapassar os ch
 
 - leia `AI-START.md` primeiro
 - use `docs/ai-accepted-requests.md` como contrato
-- preserve `wrangler.jsonc` como template público
+- na origem oficial, preserve `wrangler.jsonc` como template público; na instalação derivada, preserve os valores operacionais provisionados desse arquivo
 - preserve `wrangler.local.jsonc` como configuração privada local
 - preserve overlays do projeto do usuário
 - em GitHub auto-deploy e Deploy Button, trate o dashboard da Cloudflare como origem de `TEAM_DOMAIN`, `POLICY_AUD`, `API_KEY` e `PASSWORD_SESSION_SECRET`
@@ -57,16 +66,9 @@ Opções:
 
 ## Upgrade da versão atual
 
-Quando o pedido for `Atualizar o Projeto`:
+Quando o pedido for `Atualizar o Projeto`, siga o [contrato canônico](upgrading.md#upgrade-seguro--gate-101-candidata-321) e o fluxo de `AI-START.md`. Identifique cliente/upstream, versões, método de publicação, branches, base comum e estratégia de integração antes de alterar código. Faça snapshots privados e comparação antes/depois do config público e local, preserve overlays e secrets, execute testes e o preflight no contexto real.
 
-1. `git status --short`
-2. `git pull --ff-only` quando estiver seguro
-3. `npm install`
-4. `npm run wrangler:init`
-5. aplicar as migrations no D1 local do Worker: `npm run dev-prepare` na release (`3.2.0`, cadeia `0000`–`0006`) ou `npm run wrangler -- d1 migrations apply <nome-ou-binding-real> --local` no checkout histórico da tag `v2.2.1`, que não tem `dev-prepare`
-6. com autorização remota por instalação: `npm run deploy` da release 3.2.0 aplica migrations pendentes antes de publicar o Worker
-7. no one-click/GitHub: D1 provisionado → `npm run deploy` (migrations → Worker) → validar; conferir o Deploy command no Workers Builds
-8. `npm test`
+`git pull --ff-only` não é uma estratégia completa de integração com o upstream. UUID removido bloqueia; alterações operacionais exigem confirmação explícita. Em auto-deploy, push pode publicar o Worker e aplicar migrations: configuração, diff, destino e autorização do operador são checkpoints obrigatórios antes dele. Em deploy local, aguarde autorização remota por instalação antes de `npm run deploy`. Conflitos operacionais nunca devem ser resolvidos aceitando o template automaticamente.
 
 ## One-click e GitHub auto-deploy
 

@@ -8,6 +8,8 @@
     "wrangler": "node scripts/wrangler.mjs",
     "wrangler:init": "node scripts/init-wrangler-local.mjs",
     "db:migrations:apply": "node scripts/wrangler.mjs d1 migrations apply db_boltlink --remote",
+    "deploy:preflight": "node scripts/wrangler.mjs boltlink-preflight",
+    "upgrade:check": "node scripts/config-safety.mjs",
     "deploy": "npm run db:migrations:apply && node scripts/wrangler.mjs deploy",
     "dev": "node scripts/wrangler.mjs dev",
     "start": "node scripts/wrangler.mjs dev",

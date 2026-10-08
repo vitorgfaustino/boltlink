@@ -198,7 +198,7 @@ describe("wrangler wrapper routing", () => {
 	it("preserves explicit config on remote migration apply", () => {
 		const args = [...remoteMigrationArgs, "-c", "custom.jsonc"];
 		const result = resolveWranglerExecution({ args, rootDir, hasLocalConfig: false, env: { WORKERS_CI: "1" } });
-		expect(result).toMatchObject({ args, configPath: null, shouldSyncLocalConfig: false });
+		expect(result).toMatchObject({ args, configPath: resolve(rootDir, "custom.jsonc"), shouldSyncLocalConfig: false });
 	});
 
 	it("does not override an explicit --config argument", () => {
@@ -209,7 +209,7 @@ describe("wrangler wrapper routing", () => {
 		});
 
 		expect(result).toMatchObject({
-			configPath: null,
+			configPath: publicConfigPath,
 			shouldSyncLocalConfig: false,
 			args: ["deploy", "--config", "wrangler.jsonc"],
 		});

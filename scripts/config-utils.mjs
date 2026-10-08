@@ -24,12 +24,51 @@ function isPlainObject(value) {
 	return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function parseJsoncConfig(filePath) {
-	const source = readFileSync(filePath, "utf8");
+export function parseJsoncConfig(filePath) {
+	// JSONC is data, never executable JavaScript. Keep quoted URLs and secrets
+	// intact while removing comments and trailing commas outside strings.
+	const source = readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
+	let json = "";
+	let inString = false;
+	let escaped = false;
+	for (let i = 0; i < source.length; i++) {
+		const char = source[i];
+		if (inString) {
+			json += char;
+			if (escaped) escaped = false;
+			else if (char === "\\") escaped = true;
+			else if (char === '"') inString = false;
+		} else if (char === '"') {
+			inString = true;
+			json += char;
+		} else if (char === "/" && source[i + 1] === "/") {
+			while (i < source.length && source[i] !== "\n") i++;
+			json += "\n";
+		} else if (char === "/" && source[i + 1] === "*") {
+			const end = source.indexOf("*/", i + 2);
+			if (end < 0) throw new Error("CONFIG_INVALID_JSONC");
+			i = end + 1;
+			json += " ";
+		} else json += char;
+	}
+	inString = false;
+	escaped = false;
+	let cleaned = "";
+	for (let i = 0; i < json.length; i++) {
+		const char = json[i];
+		if (!inString && char === "," && /^\s*[}\]]/.test(json.slice(i + 1))) continue;
+		cleaned += char;
+		if (escaped) escaped = false;
+		else if (inString && char === "\\") escaped = true;
+		else if (char === '"') inString = !inString;
+	}
 	try {
-		return Function(`"use strict"; return (${source});`)();
-	} catch (error) {
-		throw new Error(`Failed to parse ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
+		const config = JSON.parse(cleaned);
+		if (!isPlainObject(config)) throw new Error();
+		return config;
+	} catch {
+		// Parser errors can contain config values, including secrets.
+		throw new Error("CONFIG_INVALID_JSONC");
 	}
 }
 
@@ -39,12 +78,15 @@ function mergeConfigValue(baseValue, overrideValue) {
 	}
 
 	if (Array.isArray(baseValue) && Array.isArray(overrideValue)) {
-		if (
-			baseValue.length === overrideValue.length &&
-			baseValue.every(isPlainObject) &&
-			overrideValue.every(isPlainObject)
-		) {
-			return overrideValue.map((value, index) => mergeConfigValue(baseValue[index], value));
+		// Only inherit defaults from the SAME binding. Local membership/order is
+		// authoritative: never add an upstream resource or merge by position.
+		if ([...baseValue, ...overrideValue].every((v) => isPlainObject(v) && typeof v.binding === "string")) {
+			for (const entries of [baseValue, overrideValue]) {
+				if (new Set(entries.map((v) => v.binding)).size !== entries.length) {
+					throw new Error("CONFIG_BINDING_AMBIGUOUS");
+				}
+			}
+			return overrideValue.map((value) => mergeConfigValue(baseValue.find((base) => base.binding === value.binding), value));
 		}
 
 		return overrideValue;

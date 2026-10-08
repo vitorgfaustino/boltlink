@@ -32,6 +32,7 @@ export default defineConfig({
 					include: ["test/**/*.spec.ts"],
 					exclude: [
 						"test/wrangler.spec.ts",
+						"test/upgrade-safety.spec.ts",
 						"test/migration-comments.spec.ts",
 						"test/admin-ux.spec.ts",
 						"test/admin-dark-mode.spec.ts",
@@ -54,6 +55,7 @@ export default defineConfig({
 					environment: "node",
 					include: [
 						"test/wrangler.spec.ts",
+						"test/upgrade-safety.spec.ts",
 						"test/migration-comments.spec.ts",
 						"test/admin-ux.spec.ts",
 						"test/admin-dark-mode.spec.ts",

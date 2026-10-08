@@ -1,5 +1,14 @@
 # AGENTS.md
 
+## Candidata local — 3.2.1 (Gate 10.1)
+
+A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
+
+A release publicada continua sendo `v3.2.0`; `package.json` e o texto de versão da aplicação permanecem em `3.2.0` neste gate operacional, sem finalização de versão. Sem alteração funcional, migration ou schema. Publicação não autorizada.
+
+O contrato canônico está em [Upgrade seguro](docs/upgrading.md#upgrade-seguro--gate-101-candidata-321).
+
+
 ## Release publicada — 3.2.0
 
 A **3.2.0 está publicada**, identificada pela tag **v3.2.0**; é a release atual e latest do repositório. A release anterior **v3.1.1** permanece congelada. Esta versão reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Light e Dark refinados, cards compactos, badges semânticas e detalhes A/B sob demanda; o README apresenta screenshots atuais e uma demonstração animada com dados fictícios. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Veja [Admin UX](docs/admin-ux.md).
@@ -81,7 +90,8 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 - em `migrations/*.sql`, ponto e vírgula em statement SQL é permitido e normal, mas ponto e vírgula dentro de comentários `--` ou `/* ... */` é proibido, nas migrations existentes e futuras, para compatibilidade com o parser remoto D1/Wrangler; valide com `npm test -- --project node test/migration-comments.spec.ts`
 - se schema mudar, crie uma nova migration; `schema.sql` é apenas o baseline da `0000_initial_schema.sql` e não deve receber colunas de features
 - o runtime não pode executar `schema.sql`, criar/alterar colunas, aplicar migrations implicitamente nem reconstruir tabelas durante requests; banco não preparado deve falhar fechado com `503`
-- na release 3.2.0, `npm run deploy` aplica migrations D1 remotas pendentes pelo binding `db_boltlink` antes de publicar; uma falha impede o deploy. No Workers Builds sem config privado, somente o apply remoto desse binding usa o template público; outros comandos D1 continuam exigindo config privado ou config explícito. Deploy command deve ser `npm run deploy`. Nunca execute esse script para validação local: ele altera o D1 remoto. A tag v3.1.0 conserva o deploy sem migrations automáticas.
+- na release 3.2.0, `npm run deploy` aplica migrations D1 remotas pendentes pelo binding `db_boltlink` antes de publicar; uma falha impede o deploy.
+- Na candidata local 3.2.1, Workers Builds seleciona config público para esse apply/deploy mesmo com config privado presente (salvo --config explícito), e o preflight bloqueia D1 incompleto; outros comandos D1 continuam exigindo config privado ou config explícito. Deploy command deve ser `npm run deploy`. Nunca execute esse script para validação local: ele altera o D1 remoto. A tag v3.1.0 conserva o deploy sem migrations automáticas.
 - desenvolvimento local do Worker exige migrations no D1 do Wrangler: `npm run dev-prepare` (parte da release `3.0.0`, aplica a cadeia `0000`–`0006`) cobre isso; o script **não existe** no checkout histórico da tag `v2.2.1` (lá use `npm run wrangler -- d1 migrations apply ... --local`); `npm run dev-init` prepara apenas o SQLite auxiliar `.dev-env/db.sqlite3`, que o Worker não usa
 
 ## Restrições funcionais que devem ser preservadas
@@ -147,6 +157,8 @@ Antes de propor mudanças de infraestrutura, bindings, limites, deploy, logging,
 ## Operação guiada por IA
 
 - use `AI-START.md` como ponto de entrada
+- antes de integrar upgrades, cumpra o contrato de comparação e preflight em `docs/upgrading.md`; preserve também o `wrangler.jsonc` provisionado da instalação
+- push em GitHub auto-deploy é potencial deploy: exige diff/config/testes/preflight revisados e autorização própria do operador
 - use `docs/ai-accepted-requests.md` como contrato de entrada
 - use `docs/ai-guided-operations.md` como runbook principal
 - mapeie linguagem natural para uma intenção aceita antes de executar ações

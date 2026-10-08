@@ -17,19 +17,24 @@
  * along with BoltLink. If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parseJsoncConfig } from "./config-utils.mjs";
 
 export function isWorkersBuildEnvironment(env = process.env) {
 	return env.WORKERS_CI === "1";
 }
 
-function parseJsoncConfig(filePath) {
-	const source = readFileSync(filePath, "utf8");
-	try {
-		return Function(`"use strict"; return (${source});`)();
-	} catch {
-		return null;
+export function readOption(args, names) {
+	const values = [];
+	for (let i = 0; i < args.length; i++) {
+		const name = names.find((n) => args[i] === n || args[i].startsWith(`${n}=`));
+		if (!name) continue;
+		const value = args[i] === name ? args[++i] : args[i].slice(name.length + 1);
+		if (!value || value.startsWith("-")) throw new Error("CONFIG_OPTION_INVALID");
+		values.push(value);
 	}
+	if (values.length > 1) throw new Error("CONFIG_OPTION_AMBIGUOUS");
+	return values[0];
 }
 
 function validateLocalConfig(localConfigPath) {
@@ -88,7 +93,16 @@ export function resolveWranglerExecution({
 	}
 
 	const command = args[0];
-	const hasExplicitConfig = args.includes("--config") || args.includes("-c");
+	let explicitConfig;
+	try {
+		explicitConfig = readOption(args, ["--config", "-c"]);
+		// A different working directory would change config/path resolution.
+		// Require callers to run in that directory instead of guessing.
+		if (readOption(args, ["--cwd"])) throw new Error("CONFIG_CWD_UNSUPPORTED");
+	} catch (error) {
+		return { errorMessage: error.message };
+	}
+	const hasExplicitConfig = explicitConfig !== undefined;
 	const resolvedPublicConfigPath = publicConfigPath ?? `${rootDir}/wrangler.jsonc`;
 	const resolvedLocalConfigPath = localConfigPath ?? `${rootDir}/wrangler.local.jsonc`;
 
@@ -97,7 +111,7 @@ export function resolveWranglerExecution({
 			args,
 			command,
 			hasExplicitConfig,
-			configPath: null,
+			configPath: resolve(rootDir, explicitConfig),
 			shouldSyncLocalConfig: false,
 		};
 	}
@@ -113,25 +127,17 @@ export function resolveWranglerExecution({
 	}
 
 	if (command === "d1") {
+		const isRemoteMigrationApply = args[1] === "migrations"
+			&& args[2] === "apply" && args[3] === "db_boltlink"
+			&& args.includes("--remote") && !args.includes("--local") && !args.includes("--preview");
+		if (isWorkersBuildEnvironment(env) && isRemoteMigrationApply) {
+			return { args: [...args, "--config", resolvedPublicConfigPath], command, hasExplicitConfig,
+				configPath: resolvedPublicConfigPath, shouldSyncLocalConfig: false };
+		}
 		if (!hasLocalConfig) {
 			// The Deploy Button provisions D1 before running the deploy script.
 			// Permit only its remote migration apply in Workers Builds; local
 			// development and other D1 operations still require private config.
-			const isRemoteMigrationApply = args[1] === "migrations"
-				&& args[2] === "apply"
-				&& args[3] === "db_boltlink"
-				&& args.includes("--remote")
-				&& !args.includes("--local")
-				&& !args.includes("--preview");
-			if (isWorkersBuildEnvironment(env) && isRemoteMigrationApply) {
-				return {
-					args: [...args, "--config", resolvedPublicConfigPath],
-					command,
-					hasExplicitConfig,
-					configPath: resolvedPublicConfigPath,
-					shouldSyncLocalConfig: false,
-				};
-			}
 			return {
 				errorMessage:
 					"Missing wrangler.local.jsonc. Run `npm run wrangler:init` first before using D1 commands.",
@@ -148,7 +154,7 @@ export function resolveWranglerExecution({
 	}
 
 	if (command === "deploy" || command === "versions") {
-		if (hasLocalConfig) {
+		if (hasLocalConfig && !isWorkersBuildEnvironment(env)) {
 			const validationWarnings = validateLocalConfig(resolvedLocalConfigPath);
 			return {
 				args: [...args, "--config", resolvedLocalConfigPath],
@@ -168,7 +174,7 @@ export function resolveWranglerExecution({
 				configPath: resolvedPublicConfigPath,
 				shouldSyncLocalConfig: false,
 				warningMessage:
-					"Using wrangler.jsonc because WORKERS_CI=1 and wrangler.local.jsonc is not available in this build environment.",
+					"Using wrangler.jsonc because WORKERS_CI=1. Private local config does not select the build target.",
 			};
 		}
 

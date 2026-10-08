@@ -5,7 +5,8 @@
 {
 	// Copyright (c) 2026 Vitor Faustino
 	// AGPL-3.0 License — https://github.com/vitorgfaustino/boltlink
-	// Public template only. Copy this file to wrangler.local.jsonc for real values.
+	// Official distribution template. Derived Builds repos preserve their provisioned IDs here.
+	// Local operators keep private values in wrangler.local.jsonc; see docs/upgrading.md.
 	// Never commit the local file.
 	"$schema": "node_modules/wrangler/config-schema.json",
 	// Derived projects must replace this with their own Worker name and preserve that value during future updates.

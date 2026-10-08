@@ -1,5 +1,14 @@
 # Referência técnica do BoltLink
 
+## Candidata local — 3.2.1 (Gate 10.1)
+
+A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
+
+A release publicada continua sendo `v3.2.0`; `package.json` e o texto de versão da aplicação permanecem em `3.2.0` neste gate operacional, sem finalização de versão. Sem alteração funcional, migration ou schema. Publicação não autorizada.
+
+O contrato canônico está em [Upgrade seguro](upgrading.md#upgrade-seguro--gate-101-candidata-321).
+
+
 Release atual publicada: **3.2.0**, tag **v3.2.0**. Release anterior: **v3.1.1**, congelada.
 
 Referência de procedimentos e contratos técnicos que complementa a apresentação do produto no README. A release anterior `v3.1.1` permanece congelada.
@@ -404,7 +413,7 @@ Para reduzir tráfego automatizado sem depender de WAF pago, consulte `docs/free
 
 ## Configuração segura
 
-- `wrangler.jsonc` é o template público
+- na origem oficial, `wrangler.jsonc` é o template público sem UUID; em instalações derivadas, é a configuração de build versionada com os recursos provisionados
 - `wrangler.local.jsonc` é a configuração privada local
 - `observability` fica desligado por padrão
 - `upload_source_maps` fica desligado por padrão

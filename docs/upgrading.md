@@ -1,5 +1,14 @@
 # Upgrading
 
+## Candidata local — 3.2.1 (Gate 10.1)
+
+A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
+
+A release publicada continua sendo `v3.2.0`; `package.json` e o texto de versão da aplicação permanecem em `3.2.0` neste gate operacional, sem finalização de versão. Sem alteração funcional, migration ou schema. Publicação não autorizada.
+
+O contrato canônico está em [Upgrade seguro](upgrading.md#upgrade-seguro--gate-101-candidata-321).
+
+
 ## Release publicada — 3.2.0
 
 A **3.2.0 está publicada**, identificada pela tag **v3.2.0**; é a release atual e latest do repositório. A release anterior **v3.1.1** permanece congelada. Esta versão reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Light e Dark refinados, cards compactos, badges semânticas e detalhes A/B sob demanda; o README apresenta screenshots atuais e uma demonstração animada com dados fictícios. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Veja [Admin UX](admin-ux.md).
@@ -14,6 +23,71 @@ A **3.1.0**, release histórica congelada na tag **v3.1.0**, introduziu os recur
 
 Contrato completo e operação no Admin: [Lixeira e recuperação](trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.2.0`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
+
+## Upgrade seguro — Gate 10.1, candidata 3.2.1
+
+Este é o contrato obrigatório para `Atualizar o Projeto`. O patch é local e não sincroniza automaticamente repositórios derivados. Não confirma a causa da perda de configuração na instalação relatada: isso requer auditoria do histórico Git dela. A proteção não exige conta Cloudflare, não consulta UUID remoto e não cria banco.
+
+### Três contextos de configuração
+
+| Contexto | Arquivo/autoridade | Tratamento |
+| --- | --- | --- |
+| Distribuição oficial antes do provisionamento | `wrangler.jsonc` sem UUID real | Template válido para distribuição e provisionamento; types, dry-run e criação explícita não exigem UUID |
+| Instalação derivada provisionada / Workers Builds | `wrangler.jsonc` versionado com identidade e recursos da instalação | Preservar Worker name, D1 name/ID, bindings, rotas e domínios; aplicar migrations remotas exige UUID |
+| Operação local privada | `wrangler.local.jsonc`, ignorado pelo Git | Preservar seus valores; não substitui o arquivo usado pelo build remoto |
+
+`--config` ou `-c` explícito (também `--config=...`) prevalece. Sem ele, `WORKERS_CI=1` seleciona o config público para o apply remoto padrão e para deploy/versions, mesmo que exista arquivo local. Outros comandos D1 sem config explícito continuam exigindo config privado. Fora do Builds, migrations e deploy usam o config local. `--env`/`-e` ou `CLOUDFLARE_ENV` selecionam bindings do ambiente, sem herdar D1 do nível superior. Passe o mesmo contexto no preflight e na operação. Execute na raiz correta; `--cwd` e múltiplos `--config` são recusados para evitar ambiguidade. Configs operacionais deste projeto usam JSON/JSONC.
+
+A seleção é única no wrapper. O preflight automático ocorre antes de spawn do Wrangler para migrations remotas e publicação (deploy/versions upload), valida exatamente um `db_boltlink`, nome de banco não vazio, UUID sintático não nulo e `migrations_dir` apontando para `migrations` da instalação. Não exige UUID de teste ou da origem. O preflight manual é somente leitura e usa o mesmo merge em memória que a sincronização local usaria. O merge preserva a lista e ordem dos bindings locais; defaults só vêm do mesmo `binding`, nunca de posição no array. Binding duplicado é erro. Arrays sem chave semântica são preservados integralmente do overlay local.
+
+UUID válido **não prova** que o D1 existe, pertence à conta autorizada ou é o banco correto de produção. Confira essa associação com o operador. Sem UUID, interrompa antes de migrations/Worker, mesmo após provisionamento: não tente criar outro banco. O template oficial permanece sem ID e o Deploy Button pode provisioná-lo antes do comando de migration. Essa compatibilidade foi simulada localmente; não foi realizado primeiro deploy remoto neste gate.
+
+### Antes de integrar código oficial
+
+1. Identifique pasta/repositório do cliente, remote de publicação, origem oficial `https://github.com/vitorgfaustino/boltlink`, versão instalada, versão oficial alvo e método de publicação (GitHub auto-deploy, Wrangler local, ambos ou primeira publicação). A candidata local 3.2.1 não deve ser apresentada como release publicada.
+2. Confira working tree, branches, base comum e diferenças da instalação. Defina a estratégia explícita de integração (merge/cherry-pick ou aplicação revisada do delta oficial). `git pull --ff-only` apenas avança o remote configurado: sozinho não incorpora necessariamente o upstream oficial. Não use `git reset --hard`, checkout indiscriminado do config ou troca integral pelo template.
+3. Leia o config público e o privado, se existir. Identifique campos personalizados, overlays, branding e secrets que devem permanecer. Registre só um resumo seguro de campos/presença, nunca seus valores secretos. Faça snapshots locais privados dos arquivos antes da integração, fora do Git e dos relatórios; use permissões restritas, não publique nem anexe esses snapshots.
+4. Preserve Worker name, D1 database ID/name, listas de D1 e outros bindings persistentes, rotas/domínios, account/config específica, vars e secrets existentes. Preserve `public/admin.html`, `public/logo.png` e `public/favicon.ico`. Não regenere secrets. Em auto-deploy, Access vars/secrets do dashboard não devem ser copiados para o template nem sobrescritos pela configuração local.
+5. Incorpore o código oficial sem apagar diferenças da instalação. Conflito operacional é parada para resolução consciente. Instale dependências, sincronize o config local somente quando aplicável e prepare D1 **local** (`npm run dev-prepare`). Compare ambos os configs antes/depois e rode os testes.
+
+### Comparação e preflight antes de publicar
+
+Com snapshots privados anteriores, execute separadamente para o arquivo público e para o local quando existir:
+
+```bash
+npm run upgrade:check -- --before /caminho-privado/wrangler.before.jsonc --after wrangler.jsonc
+npm run upgrade:check -- --before /caminho-privado/wrangler.local.before.jsonc --after wrangler.local.jsonc
+npm test
+```
+
+`upgrade:check` é somente leitura, não sincroniza código e não chama Wrangler. Compara os campos operacionais (inclusive ambientes, variáveis, rotas, domínios, bindings e campos personalizados); exclui metadados do código distribuído como main, compatibility date/flags, rules/build e assets.directory. Saída registra somente categorias de campo, sem valores de IDs/vars/secrets. Exit não zero significa bloqueio ou confirmação pendente.
+
+- UUID anterior removido, binding removido ou ambíguo: `BLOCKED`, sem bypass por confirmação; restaure/corrija antes de continuar.
+- UUID alterado, Worker name alterado (inclusive nome personalizado → `boltlink`), D1 name/lista ou outros campos operacionais alterados: `REQUIRES_EXPLICIT_CONFIRMATION`. Preserve-os por padrão. Se a alteração for intencional, obtenha confirmação explícita do operador, revise o diff e repita com `--confirm-field name` ou `--confirm-field d1_databases` (categorias exatas da saída; repita o argumento para cada campo). Isso confirma a diferença revisada, não autoriza deploy.
+- Compare novamente após qualquer resolução de conflito ou edição. Sem snapshot anterior, não alegue identidade preservada: recupere o estado conhecido no histórico/backup e resolva com o operador antes de publicar.
+
+Execute o preflight no contexto que será usado de verdade:
+
+```bash
+# Workers Builds / GitHub auto-deploy (somente leitura)
+WORKERS_CI=1 npm run deploy:preflight
+# Wrangler local (somente leitura)
+npm run deploy:preflight
+# Seleção explícita; deve ser a mesma nos comandos remotos autorizados
+npm run deploy:preflight -- --config config-da-instalacao.jsonc
+```
+
+**PUSH = POTENCIAL DEPLOY**, inclusive em branches com preview. Antes do push, apresente ao operador: arquivos alterados/diff, versão oficial incorporada, repositório e branch destino, comparações aprovadas, preflight aprovado e testes aprovados. Obtenha autorização própria para esse push. Antes de deploy CLI ou D1 remoto, obtenha a autorização correspondente da instalação. `npm run deploy` mantém a ordem preflight → migrations pendentes → Worker com `&&`; nunca o execute como validação local. Não há atualizador automático nem GitHub Actions de updates neste patch.
+
+### Recuperação: `missing a database_id`
+
+1. Confirme que é instalação existente. **Não crie outro D1.**
+2. Confira, com acesso autorizado ao dashboard, o binding real do Worker e o D1 existente associado. Recupere seu UUID e nome corretos; não aceite um UUID arbitrário só porque passa na expressão de formato.
+3. Compare `wrangler.jsonc` anterior e atual no histórico Git dessa instalação. A perda por overwrite é hipótese até haver evidência. Restaure Worker name, D1 ID/name, binding `db_boltlink`, migrations_dir, rotas/domínios e demais campos da instalação.
+4. Em Workers Builds, restaure os campos necessários na configuração efetiva do build, normalmente `wrangler.jsonc` versionado. Um UUID somente em `wrangler.local.jsonc` **não corrige** o build. Não copie o arquivo privado inteiro ao GitHub: transfira apenas campos operacionais necessários após revisão, sem publicar secrets, TEAM_DOMAIN ou POLICY_AUD privados.
+5. Execute comparação, testes e `WORKERS_CI=1 npm run deploy:preflight`; revise o diff e o repositório destino. Solicite autorização separada do operador antes de push/rebuild/deploy. Não realize operação remota para testar o diagnóstico.
+
+Referências consultadas para este patch: [Deploy Button e provisionamento](https://developers.cloudflare.com/workers/platform/deploy-buttons/), [Workers Builds e WORKERS_CI](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/), [Configuração e ambientes do Wrangler](https://developers.cloudflare.com/workers/wrangler/configuration/) e [D1 migrations](https://developers.cloudflare.com/workers/wrangler/commands/d1/).
 
 ## Escopo das bases de código (release 3.2.0)
 
@@ -241,7 +315,7 @@ Esta versão exige `PASSWORD_SESSION_SECRET` para todo o recurso de links proteg
 
 Fluxo normal:
 
-1. Atualize o codigo:
+1. Atualize o codigo somente após identificar upstream, alvo e estratégia conforme o contrato de upgrade seguro acima:
 
 ```bash
 git pull --ff-only
@@ -264,6 +338,8 @@ Ela remove:
 - endpoint `/api/maintenance/purge-stats`
 
 ## Passo a passo
+
+Referência histórica. Antes de seguir, aplique o contrato de upgrade seguro acima. Os exemplos de `git pull --ff-only` pressupõem remote/alvo já identificados e não incorporam automaticamente upstream.
 
 1. Atualize o código:
 
