@@ -9,7 +9,7 @@ import { readOption } from "./wrangler-routing.mjs";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function validateRemoteD1Config({ config, configPath, rootDir, args = [], env = {} }) {
-	const environment = readOption(args, ["--env", "-e"], { allowEmpty: true }) ?? env.CLOUDFLARE_ENV;
+	const environment = readOption(args, ["--env", "-e", "--e"], { allowEmpty: true }) ?? env.CLOUDFLARE_ENV;
 	// D1 bindings are non-inheritable in named Wrangler environments.
 	const effective = environment ? config.env?.[environment] : config;
 	if (!effective) return "CONFIG_ENVIRONMENT_MISSING";
@@ -33,7 +33,7 @@ export function requiresRemoteD1Preflight(execution) {
 	const { command, commandArgs, remote, dryRun } = execution;
 	if (command === "deploy") return dryRun !== true;
 	if (command === "versions") return commandArgs[1] === "upload";
-	return command === "d1" && (remote === true || ["info", "time-travel"].includes(commandArgs[1]))
+	return command === "d1" && (remote === true || ["info", "time-travel", "delete", "insights"].includes(commandArgs[1]))
 		&& !["create", "list"].includes(commandArgs[1]);
 }
 
@@ -69,6 +69,25 @@ function operationalConfig(config) {
 	return result;
 }
 
+function hasRemovedOperationalField(previous, next) {
+	if (previous === undefined || previous === null || previous === "") return false;
+	if (next === undefined || next === null || (typeof next === "string" && !next.trim())) return true;
+	if (Array.isArray(previous)) {
+		if (!Array.isArray(next)) return true;
+		const identity = ["binding", "name", "queue"].find((key) => previous.length && previous.every((entry) => entry && typeof entry[key] === "string"));
+		if (!identity) return next.length < previous.length;
+		return previous.some((entry) => {
+			const matches = next.filter((value) => value?.[identity] === entry[identity]);
+			return matches.length !== 1 || hasRemovedOperationalField(entry, matches[0]);
+		});
+	}
+	if (typeof previous === "object") {
+		if (typeof next !== "object" || Array.isArray(next)) return true;
+		return Object.keys(previous).some((key) => hasRemovedOperationalField(previous[key], Object.hasOwn(next, key) ? next[key] : undefined));
+	}
+	return false;
+}
+
 export function compareInstallationConfigs(before, after, confirmedFields = []) {
 	const issues = [];
 	try { validateConfigBindings(before); validateConfigBindings(after); } catch (error) {
@@ -84,12 +103,9 @@ export function compareInstallationConfigs(before, after, confirmedFields = []) 
 				continue;
 			}
 			if (isDeepStrictEqual(previous[key], next[key])) continue;
-			const removedId = key === "d1_databases" && (previous[key] ?? []).some((binding) => {
-				if (!binding.database_id) return false;
-				const current = (next[key] ?? []).filter((v) => v.binding === binding.binding);
-				return current.length !== 1 || !current[0].database_id || (binding.database_name && !current[0].database_name);
-			});
-			const removedIdentity = previous[key] !== undefined && (next[key] === undefined || next[key] === null || next[key] === "" || (key === "name" && (typeof next[key] !== "string" || !next[key].trim())));
+			const removedField = hasRemovedOperationalField(previous[key], next[key]);
+			const removedId = key === "d1_databases" && removedField;
+			const removedIdentity = removedField || (key === "name" && previous[key] !== undefined && typeof next[key] !== "string");
 			const blocked = removedId || removedIdentity;
 			issues.push({ field, status: blocked ? "BLOCKED" : "REQUIRES_EXPLICIT_CONFIRMATION",
 				reason: removedId ? "D1_IDENTITY_REMOVED" : removedIdentity ? "INSTALLATION_FIELD_REMOVED" : "INSTALLATION_CONFIG_CHANGED" });

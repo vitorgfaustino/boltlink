@@ -1,14 +1,5 @@
 # BoltLink
 
-## Candidata local — 3.2.1 (Gate 10.2)
-
-A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
-
-Package, lockfile e versão exibida pela aplicação estão em **3.2.1** neste checkout. Sem feature, migration ou schema novo; nenhum secret obrigatório novo e nenhuma atualização automática de instalações. Publicação pendente e não autorizada.
-
-O contrato canônico está em [Upgrade seguro](docs/upgrading.md#upgrade-seguro--candidata-321).
-
-
 **Encurtador de links self-hosted para campanhas, QR Codes e materiais impressos — com controle do destino, privacidade por padrão e um painel agradável de usar.**
 
 BoltLink roda na sua própria conta Cloudflare. Crie um link curto, organize em grupos e mude o destino quando precisar: o endereço divulgado continua o mesmo, então o QR Code impresso, o link da bio e o material de campanha podem continuar em uso. O painel reúne criação, edição, contagem agregada de cliques e as ferramentas de operação em um só lugar — em tema claro ou escuro.
@@ -161,6 +152,14 @@ Consulte a [arquitetura](docs/architecture.md), o [desenvolvimento local](docs/l
 ## Estado das versões
 
 A **3.2.0 está publicada**, identificada pela tag **v3.2.0**. A release anterior **v3.1.1** permanece congelada. Publicar código não atualiza instalações self-hosted.
+
+### Candidata local — 3.2.1 (Gate 10.3)
+
+A **3.2.1 é candidata local, não publicada**. Acrescenta preflight de D1 e proteção das configurações durante upgrades.
+
+Package, lockfile e versão exibida pela aplicação estão em **3.2.1** neste checkout. Sem feature, migration ou schema novo; nenhum secret obrigatório novo e nenhuma atualização automática de instalações. Publicação pendente e não autorizada.
+
+O contrato canônico está em [Upgrade seguro](docs/upgrading.md#upgrade-seguro--candidata-321).
 
 ## Licença
 

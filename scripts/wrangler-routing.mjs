@@ -39,26 +39,32 @@ export function readOption(args, names, { allowEmpty = false } = {}) {
 }
 
 function requireExplicitEnvironmentWhenNeeded(args, rootDir, env) {
-	if (readOption(args, ["--env", "-e"], { allowEmpty: true }) !== undefined || env.CLOUDFLARE_ENV) return;
+	if (readOption(args, ["--env", "-e", "--e"], { allowEmpty: true }) !== undefined || env.CLOUDFLARE_ENV) return;
 	// Wrangler loads dotenv before selecting its environment. Do not guess an
 	// operational target from private files or duplicate Wrangler's expansion.
-	if (args.some((arg) => arg === "--env-file" || arg.startsWith("--env-file="))) throw new Error("CONFIG_ENVIRONMENT_MUST_BE_EXPLICIT");
-	const dotenv = resolve(rootDir, ".env");
-	if (!existsSync(dotenv)) return;
-	if (!statSync(dotenv).isFile()) throw new Error("CONFIG_ENVIRONMENT_FILE_INVALID");
-	if (/^\s*(?:export\s+)?CLOUDFLARE_ENV\s*(?:=|:\s)/m.test(readFileSync(dotenv, "utf8"))) throw new Error("CONFIG_ENVIRONMENT_MUST_BE_EXPLICIT");
+	if (args.some((arg) => ["--env-file", "--envFile"].some((option) => arg === option || arg.startsWith(`${option}=`)))) throw new Error("CONFIG_ENVIRONMENT_MUST_BE_EXPLICIT");
+	// Wrangler loads both default files before resolving CLOUDFLARE_ENV.
+	for (const filename of [".env", ".env.local"]) {
+		const dotenv = resolve(rootDir, filename);
+		if (!existsSync(dotenv)) continue;
+		if (!statSync(dotenv).isFile()) throw new Error("CONFIG_ENVIRONMENT_FILE_INVALID");
+		if (/^\s*(?:export\s+)?CLOUDFLARE_ENV\s*(?:=|:\s)/m.test(readFileSync(dotenv, "utf8"))) throw new Error("CONFIG_ENVIRONMENT_MUST_BE_EXPLICIT");
+	}
 }
 
 export function readBooleanOption(args, name) {
 	const values = [];
+	const spellings = new Set([name, name.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())]);
 	for (let i = 0; i < args.length; i++) {
-		if (args[i] === `--no-${name}`) values.push(false);
-		else if (args[i] === `--${name}`) {
+		const spelling = [...spellings].find((value) => args[i] === `--no-${value}` || args[i] === `--${value}` || args[i].startsWith(`--${value}=`));
+		if (!spelling) continue;
+		if (args[i] === `--no-${spelling}`) values.push(false);
+		else if (args[i] === `--${spelling}`) {
 			const next = args[i + 1];
 			values.push(next === "false" ? false : true);
 			if (next === "true" || next === "false") i++;
-		} else if (args[i].startsWith(`--${name}=`)) {
-			const value = args[i].slice(name.length + 3);
+		} else if (args[i].startsWith(`--${spelling}=`)) {
+			const value = args[i].slice(spelling.length + 3);
 			if (!["true", "false"].includes(value)) throw new Error("CONFIG_BOOLEAN_OPTION_INVALID");
 			values.push(value === "true");
 		}
@@ -69,14 +75,14 @@ export function readBooleanOption(args, name) {
 
 function inspectWranglerArguments(args) {
 	const commandArgs = [];
-	const valueOptions = ["--config", "-c", "--env", "-e", "--cwd", "--log-level", "--env-file"];
+	const valueOptions = ["--config", "-c", "--c", "--env", "-e", "--e", "--cwd", "--log-level", "--env-file", "--envFile"];
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i];
 		if (arg === "--") throw new Error("CONFIG_ARGUMENT_SEPARATOR_UNSUPPORTED");
 		if (valueOptions.includes(arg)) { i++; continue; }
 		if (valueOptions.some((name) => arg.startsWith(`${name}=`))) continue;
 		if (valueOptions.some((name) => name.length === 2 && arg.startsWith(name))) continue;
-		if (/^--(?:no-)?(?:remote|local|preview|dry-run)(?:=|$)/.test(arg)) {
+		if (/^--(?:no-)?(?:remote|local|preview|dry-run|dryRun)(?:=|$)/.test(arg)) {
 			if (["true", "false"].includes(args[i + 1]) && !arg.includes("=")) i++;
 			continue;
 		}
@@ -155,8 +161,8 @@ export function resolveWranglerExecution({
 	let explicitConfig;
 	try {
 		inspection = inspectWranglerArguments(args);
-		explicitConfig = readOption(args, ["--config", "-c"]);
-		readOption(args, ["--env", "-e"], { allowEmpty: true });
+		explicitConfig = readOption(args, ["--config", "-c", "--c"]);
+		readOption(args, ["--env", "-e", "--e"], { allowEmpty: true });
 		requireExplicitEnvironmentWhenNeeded(args, rootDir, env);
 		// A different working directory would change config/path resolution.
 		// Require callers to run in that directory instead of guessing.

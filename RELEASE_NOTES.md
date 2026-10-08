@@ -6,6 +6,8 @@
 - Merge por identidade do binding, preservação da ordem local e bloqueio de alvos/JSONC ambíguos.
 - Comparação de configurações durante upgrades: identidade removida bloqueia, mudanças intencionais exigem confirmação explícita, baseline ausente exige reconciliação manual.
 - Proteção do Worker name e recursos personalizados; fluxo por IA distingue upstream, repositório do cliente e push com auto-deploy.
+- Remoções parciais de bindings/identificadores exigem correção; seleção implícita por `.env.local` e flags alternativas não contornam o preflight, que bloqueia operações D1 implicitamente remotas com configuração incompleta.
+- Correções de testes e CI: relógio controlado no teste de rate limit, histórico/tags disponíveis no checkout e credenciais Git sem persistência. CI remoto permanece pendente da publicação autorizada.
 - [Recuperação e contrato de upgrade](docs/upgrading.md#upgrade-seguro--candidata-321) e [checklist para publicação futura](docs/release-3.2.1-checklist.md).
 
 Nenhuma feature nova no Admin, migration, alteração de schema ou secret obrigatório novo. Nenhum update automático. O preflight não recupera IDs perdidos nem comprova que um UUID pertence ao D1 correto. Compatibilidade do Deploy Button verificada somente em simulações locais; validação Cloudflare e CI no GitHub não foram executados neste gate.

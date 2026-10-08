@@ -437,3 +437,101 @@ describe("Gate 10.2 dotenv cannot change the environment after validation", () =
     expect(run(root, migration, { WORKERS_CI: "1", CLOUDFLARE_ENV: "production" }).status).toBe(0);
   });
 });
+
+describe("Gate 10.3 freeze closes partial identity removal and default dotenv bypasses", () => {
+  it.each([["--envFile", "private.env"], ["--envFile=private.env"]])("camel-case dotenv option %j requires an explicit validated environment", (...flags) => {
+    const root = fixture({ ...config(), env: { production: {} } });
+    writeFileSync(resolve(root, "private.env"), 'CLOUDFLARE_ENV=production\n');
+    const result = run(root, ["deploy", ...flags]);
+    expect(result.status).toBe(1); expect(result.spawn).not.toHaveBeenCalled();
+    expect(result.errors).toContain("CONFIG_ENVIRONMENT_MUST_BE_EXPLICIT");
+    expect(run(root, ["deploy", ...flags, "--env=production"]).errors).toContain("REMOTE_D1_BINDING_MISSING");
+    expect(run(root, ["deploy", ...flags, "--env="]).status).toBe(0);
+  });
+  it.each([["--e", "production"], ["--e=production"]])("long environment alias %j cannot bypass effective binding validation", (...flags) => {
+    const root = fixture({ ...config(), env: { production: {} } });
+    for (const args of [[...flags, "deploy"], ["deploy", ...flags]]) {
+      const result = run(root, args);
+      expect(result.status).toBe(1); expect(result.spawn).not.toHaveBeenCalled();
+      expect(result.errors).toContain("REMOTE_D1_BINDING_MISSING");
+    }
+  });
+  it.each([["--c", "custom.jsonc"], ["--c=custom.jsonc"]])("long config alias %j validates the same file Wrangler consumes", (...flags) => {
+    const root = fixture(); writeFileSync(resolve(root, "custom.jsonc"), JSON.stringify({}));
+    const result = run(root, ["deploy", ...flags]);
+    expect(result.status).toBe(1); expect(result.spawn).not.toHaveBeenCalled();
+    expect(result.errors).toContain("REMOTE_D1_BINDING_MISSING");
+    expect(result.errors).toContain(resolve(root, "custom.jsonc"));
+    expect(run(root, ["deploy", ...flags, "--config=wrangler.jsonc"]).spawn).not.toHaveBeenCalled();
+  });
+  it.each([["--dry-run", "--dryRun=false"], ["--dry-run", "--no-dryRun"], ["--dryRun=false"]])("Wrangler camel-case boolean aliases %j cannot negate a validated dry-run", (...flags) => {
+    const result = run(fixture({}), ["deploy", ...flags]);
+    expect(result.status).toBe(1); expect(result.spawn).not.toHaveBeenCalled();
+  });
+  it.each(["delete", "insights"])("D1 %s is remote even without --remote and cannot bypass ID validation", (command) => {
+    const c = config(); delete (c.d1_databases[0] as any).database_id;
+    const root = fixture(c);
+    const result = run(root, ["d1", command, "db_boltlink", "--config=wrangler.jsonc"]);
+    expect(result.status).toBe(1); expect(result.spawn).not.toHaveBeenCalled();
+    expect(result.errors).toContain("REMOTE_D1_DATABASE_ID_MISSING");
+  });
+  it.each(["kv_namespaces", "r2_buckets", "services", "d1_databases"])("a removed member of %s cannot be confirmed away while another binding remains", (field) => {
+    const before = { ...config(), [field]: [{ binding: "A", id: "synthetic-a" }, { binding: "B", id: "synthetic-b" }] };
+    const after = { ...config(), [field]: [{ binding: "A", id: "synthetic-a" }] };
+    expect(compareInstallationConfigs(before, after, [field]).status).toBe("BLOCKED");
+    expect(compareInstallationConfigs(before, { ...after, [field]: [...after[field], { binding: "NEW", id: "synthetic-new" }] }, [field]).status).toBe("BLOCKED");
+  });
+  it.each([
+    ["kv_namespaces", "id"], ["r2_buckets", "bucket_name"], ["services", "service"],
+    ["d1_databases", "database_name"], ["d1_databases", "database_id"],
+  ])("a removed identifier %s.%s requires correction even with category confirmation", (field, identifier) => {
+    const before = { ...config(), [field]: [{ binding: "CUSTOM", [identifier]: "synthetic-target" }] };
+    for (const missing of [undefined, "", "   ", null]) {
+      const after = { ...config(), [field]: [{ binding: "CUSTOM", [identifier]: missing }] };
+      expect(compareInstallationConfigs(before, after, [field]).status).toBe("BLOCKED");
+    }
+  });
+  it("removed nested resources and environment bindings cannot be confirmed away", () => {
+    const before = { ...config(), durable_objects: { bindings: [{ name: "OBJECT", class_name: "Custom" }] }, env: { production: config() } };
+    const after = { ...before, durable_objects: { bindings: [] }, env: { production: { ...config(), d1_databases: [] } } };
+    expect(compareInstallationConfigs(before, after, ["durable_objects", "env.production.d1_databases"]).status).toBe("BLOCKED");
+  });
+  it("resource reordering and an intentional target change still support explicit confirmation", () => {
+    const before = { ...config(), kv_namespaces: [{ binding: "A", id: "old-a" }, { binding: "B", id: "old-b" }] };
+    const after = { ...config(), kv_namespaces: [{ binding: "B", id: "old-b" }, { binding: "A", id: "new-a" }] };
+    expect(compareInstallationConfigs(before, after).status).toBe("REQUIRES_EXPLICIT_CONFIRMATION");
+    expect(compareInstallationConfigs(before, after, ["kv_namespaces"]).status).toBe("PASSED");
+  });
+  it("the comparison CLI rejects partial binding removal without logging identifiers", () => {
+    const root = fixture({ ...config(), kv_namespaces: [{ binding: "A", id: "SYNTHETIC_PRIVATE_ID_A" }] });
+    const before = resolve(root, "before.jsonc");
+    writeFileSync(before, JSON.stringify({ ...config(), kv_namespaces: [{ binding: "A", id: "SYNTHETIC_PRIVATE_ID_A" }, { binding: "B", id: "SYNTHETIC_PRIVATE_ID_B" }] }));
+    const logs = vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(runUpgradeConfigCheck(["--before", before, "--after", resolve(root, "wrangler.jsonc"), "--confirm-field=kv_namespaces"])).toBe(1);
+    const output = logs.mock.calls.flat().join("\n");
+    expect(output).toContain("BLOCKED"); expect(output).not.toContain("SYNTHETIC_PRIVATE_ID");
+  });
+  it.each([".env", ".env.local"])("%s cannot select an unvalidated environment after preflight", (filename) => {
+    const root = fixture({ ...config(), env: { production: {} } });
+    writeFileSync(resolve(root, filename), 'API_KEY=SYNTHETIC_PRIVATE_SECRET\nCLOUDFLARE_ENV=production\n');
+    const blocked = run(root);
+    expect(blocked.status).toBe(1); expect(blocked.spawn).not.toHaveBeenCalled();
+    expect(blocked.errors).toContain("CONFIG_ENVIRONMENT_MUST_BE_EXPLICIT");
+    expect(blocked.errors).not.toContain("SYNTHETIC_PRIVATE_SECRET");
+    expect(run(root, [...migration, "--env=production"]).errors).toContain("REMOTE_D1_BINDING_MISSING");
+    expect(run(root, [...migration, "--env="]).status).toBe(0);
+  });
+  it(".env.local precedence cannot hide its selector behind a normal .env", () => {
+    const root = fixture();
+    writeFileSync(resolve(root, ".env"), 'API_KEY=SYNTHETIC_PRIVATE_SECRET\n');
+    writeFileSync(resolve(root, ".env.local"), 'CLOUDFLARE_ENV=production\n');
+    const blocked = run(root); expect(blocked.status).toBe(1); expect(blocked.spawn).not.toHaveBeenCalled();
+    expect(run(root, migration, { WORKERS_CI: "1", CLOUDFLARE_ENV: "" }).status).toBe(1);
+    expect(run(root, migration, { WORKERS_CI: "1", CLOUDFLARE_ENV: "production" }).errors).toContain("CONFIG_ENVIRONMENT_MISSING");
+  });
+  it("ordinary .env.local values remain allowed and are never printed", () => {
+    const root = fixture(); writeFileSync(resolve(root, ".env.local"), 'API_KEY=SYNTHETIC_PRIVATE_SECRET\n');
+    const result = run(root); expect(result.status).toBe(0);
+    expect(result.errors + result.logs).not.toContain("SYNTHETIC_PRIVATE_SECRET");
+  });
+});

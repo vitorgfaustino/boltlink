@@ -11,6 +11,7 @@
 - Fluxo orientado por IA identifica cliente/upstream e exige comparação, preflight, testes, diff/destino e autorização antes de push potencialmente mutável. Recuperação de D1 documentada sem recriação de banco.
 - Versionamento local finalizado em 3.2.1, publicação pendente. Nenhuma feature no Admin, migration, schema ou secret obrigatório novo; instalações não são atualizadas automaticamente.
 - Teste de rate limit estabilizado com relógio controlado, sem alteração da regra de produção. CI de testes recebe histórico/tags e usa somente permissão de leitura.
+- Freeze local: comparação bloqueia também remoções parciais de bindings/identificadores; `.env.local` não pode selecionar ambiente após o preflight; aliases longos/camel-case não contornam o preflight e comandos D1 implicitamente remotos também validam a configuração antes do Wrangler.
 
 ## [3.2.0] - 2026-10-07
 
