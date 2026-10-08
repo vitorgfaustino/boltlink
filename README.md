@@ -4,8 +4,6 @@
 
 BoltLink roda na sua própria conta Cloudflare. Crie um link curto, organize em grupos e mude o destino quando precisar: o endereço divulgado continua o mesmo, então o QR Code impresso, o link da bio e o material de campanha podem continuar em uso. O painel reúne criação, edição, contagem agregada de cliques e as ferramentas de operação em um só lugar — em tema claro ou escuro.
 
-**Versões:** a release publicada oficial é a **3.1.1** (tag `v3.1.1`). Este checkout é a **3.2.0 candidata**, ainda não publicada.
-
 - **Privacy-first e self-hosted:** controle da instalação e contagens agregadas.
 - **Recursos de campanha:** QR Code, Smart Routing, Teste A/B, agendamento e expiração.
 - **Operação diária:** grupos, Lixeira e recuperação, Import/Export e temas Light/Dark.
@@ -26,7 +24,7 @@ Demonstração com nomes, URLs e contagens fictícios. As [capturas estáticas](
 
 ## Screenshots
 
-As capturas e o GIF mostram a interface real da candidata 3.2.0 com dados fictícios. Nomes, URLs e contagens ilustram os recursos; não representam clientes ou tráfego real.
+As capturas e o GIF mostram a interface real da versão 3.2.0 com dados fictícios. Nomes, URLs e contagens ilustram os recursos; não representam clientes ou tráfego real.
 
 ### Visão geral — tema Dark
 
@@ -122,7 +120,7 @@ O BoltLink tem duas partes com responsabilidades separadas. O **redirect públic
 
 Você precisa de uma conta Cloudflare e uma conta GitHub. O botão copia o repositório para o seu GitHub, provisiona o D1 e prepara o Worker na sua conta Cloudflare. Configure o Cloudflare Access para proteger o painel e a API seguindo o [guia de instalação](docs/cloudflare-setup.md) e o [guia de autenticação](docs/admin-auth.md).
 
-**O botão aponta para `main`, que distribui a release publicada 3.1.1.** As melhorias da candidata 3.2.0 ainda estão no checkout candidato e não são distribuídas pelo botão. Na candidata, `ROOT_REDIRECT_URL` aparece no setup como **Text opcional**: deixe vazio para manter a página inicial, ou informe a URL para a qual deseja redirecionar a raiz `/`.
+**O botão aponta para `main`, que distribui a release publicada 3.2.0.** `ROOT_REDIRECT_URL` aparece no setup como **Text opcional**: deixe vazio para manter a página inicial, ou informe a URL para a qual deseja redirecionar a raiz `/`.
 
 ## Instalação e configuração
 
@@ -153,7 +151,7 @@ Consulte a [arquitetura](docs/architecture.md), o [desenvolvimento local](docs/l
 
 ## Estado das versões
 
-A **3.1.1 está publicada**, identificada pela tag **v3.1.1** e congelada. A release anterior **v3.1.0** permanece congelada. O checkout desta branch é a **3.2.0 candidata**, ainda sem tag, release ou deploy. Publicar código não atualiza instalações self-hosted.
+A **3.2.0 está publicada**, identificada pela tag **v3.2.0**. A release anterior **v3.1.1** permanece congelada. Publicar código não atualiza instalações self-hosted.
 
 ## Licença
 

@@ -74,7 +74,7 @@ components:
 
 # Design System: BoltLink
 
-## Admin — candidata 3.2.0
+## Admin — 3.2.0 publicada
 
 O filtro inclui o grupo escolhido e todos os descendentes. Badges mostram o caminho completo da raiz à folha; ellipsis é apenas visual, com texto completo no DOM, no title e no aria-label. O editor UTM hidrata a URL e sincroniza alterações sem reserializar parâmetros alheios. Os demais tokens, temas e componentes seguem a base publicada. Esta seção prevalece sobre o comportamento de associação direta descrito nos checkpoints históricos abaixo.
 
@@ -310,4 +310,4 @@ O sistema usa superfícies sólidas com borda, não sombras pesadas. A profundid
 - **Don't** usar mais de 6rem no `clamp()` máximo de headings. Acima disso a página grita.
 - **Don't** usar `letter-spacing` menor que `-0.04em` em headings display. Letras coladas não é "design" — é erro de legibilidade.
 
-Release atual publicada: 3.1.1 · Tag: v3.1.1 · Release anterior: 3.1.0
+Release atual publicada: 3.2.0 · Tag: v3.2.0 · Release anterior: 3.1.1

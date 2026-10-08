@@ -194,5 +194,5 @@ Antes de bloquear por pais:
 
 ---
 
-Release atual publicada: 3.1.1 · Tag: v3.1.1
+Release atual publicada: 3.2.0 · Tag: v3.2.0
 Criado por Vitor Faustino - vitorfaustino.com.br

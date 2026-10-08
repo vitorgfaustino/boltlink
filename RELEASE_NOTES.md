@@ -1,14 +1,37 @@
-## BoltLink 3.2.0 — candidata, não publicada
+## BoltLink v3.2.0
 
-- Badges do Admin exibem o caminho completo do grupo, com ellipsis visual, title e rótulo acessível integrais.
-- Filtro administrativo inclui todos os descendentes, antes do limite de resultados e sem requests extras.
-- Editor hidrata as cinco UTMs da URL e sincroniza alterações/remoções, preservando parâmetros não-UTM e fragmento.
-- Deploy Button expõe `ROOT_REDIRECT_URL` como Text opcional, vazio por padrão, sem alterar o redirect existente.
-- README começa pela apresentação do produto; procedimentos e detalhes de migrations passam à [referência técnica](docs/technical-reference.md).
-- Admin com Dark Mode refinado, cards compactos e badges semânticas: A/B, Smart Routing e QR Code têm cores fixas; grupos e tags permanecem neutros.
-- Showcase com nove screenshots atualizadas em Light, Dark e mobile e GIF demonstrativo, usando dados fictícios.
-- Base publicada e congelada: 3.1.1, tag v3.1.1. A 3.2.0 permanece candidata local, sem tag, publicação ou deploy.
-- Migrations 0000–0006 intactas, sem mudança de schema. **MIGRATION_0007 = NOT REQUIRED**.
+### Admin e experiência de uso
+
+- Interface refinada em Light e Dark, com superfícies discretas e melhor legibilidade.
+- Cards compactos e organizados; badges semânticas para Teste A/B, Smart Routing e QR Code.
+- Detalhes A/B sob demanda, expansor mais legível e responsividade refinada, com ações mobile e quebra de badges.
+
+### Grupos
+
+- Filtro recursivo inclui o grupo escolhido e todos os subgrupos, antes do limite de resultados e sem requests extras.
+- Badges exibem o caminho completo, com truncamento apenas visual e texto integral acessível.
+
+### UTMs
+
+- Edição sincronizada entre a URL e as cinco UTMs suportadas.
+- Preservação de parâmetros não-UTM, seu encoding e fragmento.
+- Normalização de UTMs duplicadas ao editar ou salvar; limpar um campo remove o parâmetro.
+
+### Instalação
+
+- `ROOT_REDIRECT_URL` disponível como Text opcional no setup inicial do Deploy Button, vazio por padrão.
+- O fluxo existente de deploy com migrations pendentes antes do Worker permanece válido.
+
+### Documentação
+
+- README com apresentação do produto, nove screenshots atuais em Light, Dark e mobile e demonstração animada com dados fictícios.
+- Guias de Admin, instalação e atualização sincronizados com a versão 3.2.0.
+
+### Compatibilidade
+
+- Nenhuma migration nova: cadeia `0000`–`0006` e schema preservados. **MIGRATION_0007 = NOT REQUIRED**.
+- Configuração privada, variáveis do dashboard, overlays e secrets devem ser preservados nas instalações existentes.
+- Publicar código no GitHub é source distribution; cada instalação opera seu próprio upgrade. Veja [Upgrading](docs/upgrading.md).
 
 ## BoltLink 3.1.1 — publicada
 

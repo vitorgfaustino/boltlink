@@ -1,6 +1,6 @@
-# Admin UX — candidata 3.2.0
+# Admin UX — 3.2.0
 
-A release oficial continua 3.1.1, tag v3.1.1, congelada. Esta documentação descreve a candidata 3.2.0, ainda não publicada.
+A release atual publicada é a 3.2.0, tag v3.2.0. A release anterior v3.1.1 permanece congelada.
 
 ## Grupos no painel
 
@@ -30,12 +30,12 @@ O [README](../README.md#screenshots) apresenta nove capturas atualizadas e uma d
 
 ## Setup inicial
 
-Na candidata, `ROOT_REDIRECT_URL` é declarada em `wrangler.jsonc` como variável **Text**, **opcional**, **não Secret**, com valor inicial vazio. A descrição de `package.json` explica o campo. Vazio preserva a página inicial; uma URL absoluta http(s) válida usa o redirect da raiz já existente.
+Na 3.2.0, `ROOT_REDIRECT_URL` é declarada em `wrangler.jsonc` como variável **Text**, **opcional**, **não Secret**, com valor inicial vazio. A descrição de `package.json` explica o campo. Vazio preserva a página inicial; uma URL absoluta http(s) válida usa o redirect da raiz já existente.
 
-O [Deploy Button lê as variáveis do Wrangler](https://developers.cloudflare.com/workers/platform/deploy-buttons/#worker-environment-variables-and-secrets); descrições de bindings ficam no `package.json`. O contrato opcional usa o valor vazio, sem inventar uma chave `optional` na configuração Cloudflare. O botão do README aponta para main e só distribuirá este setup quando a candidata for publicada.
+O [Deploy Button lê as variáveis do Wrangler](https://developers.cloudflare.com/workers/platform/deploy-buttons/#worker-environment-variables-and-secrets); descrições de bindings ficam no `package.json`. O contrato opcional usa o valor vazio, sem inventar uma chave `optional` na configuração Cloudflare. O botão do README aponta para main e distribui este setup na release 3.2.0.
 
 Confira [Setup](cloudflare-setup.md) e [Upgrading](upgrading.md). As variáveis do dashboard devem ser preservadas em updates (`keep_vars: true`). Configurações privadas e secrets não pertencem ao template público.
 
 ## Compatibilidade
 
-Migrations 0000–0006 e schema D1 permanecem intactos. **MIGRATION_0007 = NOT REQUIRED**. Sem QR Code customization, Basic Auth ou Native Auth neste gate.
+Migrations 0000–0006 e schema D1 permanecem intactos. **MIGRATION_0007 = NOT REQUIRED**. Sem customização de QR Code, Basic Auth ou Native Auth nesta versão.

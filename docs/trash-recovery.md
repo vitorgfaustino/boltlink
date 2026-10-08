@@ -1,6 +1,6 @@
 # Lixeira e recuperação — 3.1.0
 
-A versão **3.1.1 está publicada** (tag **v3.1.1**) e é a release atual do repositório. A release anterior **v3.1.0** permanece congelada. A Lixeira foi introduzida na 3.1.0 e permanece igual neste patch. Cada instalação executa sua própria atualização; publicar a release não atualiza instalações por si só.
+A versão **3.2.0 está publicada** (tag **v3.2.0**) e é a release atual do repositório. A release anterior **v3.1.1** permanece congelada. A Lixeira foi introduzida na 3.1.0 e mantém seu contrato nesta versão. Cada instalação executa sua própria atualização; publicar a release não atualiza instalações por si só.
 
 ## Navegação do Admin — Gate 8.6
 

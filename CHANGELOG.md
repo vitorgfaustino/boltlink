@@ -1,6 +1,6 @@
 # Changelog
 
-## [3.2.0] - Unreleased
+## [3.2.0] - 2026-10-07
 
 - Badges do Admin exibem o caminho completo do grupo, com ellipsis visual, title e rótulo acessível integrais.
 - Filtro administrativo inclui todos os descendentes, antes do limite de resultados e sem requests extras.
@@ -9,7 +9,7 @@
 - README começa pela apresentação do produto; procedimentos e detalhes de migrations passam à [referência técnica](docs/technical-reference.md).
 - Admin com Dark Mode refinado, cards compactos e badges semânticas: A/B, Smart Routing e QR Code têm cores fixas; grupos e tags permanecem neutros.
 - Showcase com nove screenshots atualizadas em Light, Dark e mobile e GIF demonstrativo, usando dados fictícios.
-- Base publicada e congelada: 3.1.1, tag v3.1.1. A 3.2.0 permanece candidata local, sem tag, publicação ou deploy.
+- Expansor A/B mais legível e layout responsivo refinado, com ações mobile e quebra de badges.
 - Migrations 0000–0006 intactas, sem mudança de schema. **MIGRATION_0007 = NOT REQUIRED**.
 
 ## [3.1.1] - 2026-10-07

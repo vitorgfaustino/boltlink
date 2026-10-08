@@ -1,12 +1,8 @@
 # AI-START
 
-## Candidata em desenvolvimento — 3.2.0
+## Release publicada — 3.2.0
 
-Este checkout contém a **3.2.0 candidata local**, ainda não publicada. A release oficial continua **3.1.1**, tag **v3.1.1**, congelada e reconciliada. A candidata reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Dark Mode refinado, cards compactos e badges semânticas; o README apresenta o produto com screenshots atualizadas em Light, Dark e mobile e uma demonstração animada com dados fictícios. Sem migration nova: **MIGRATION_0007 = NOT REQUIRED**. Veja [Admin UX](docs/admin-ux.md).
-
-## Release publicada — 3.1.1
-
-A **3.1.1 está publicada**, identificada pela tag **v3.1.1**; é a release atual e latest do repositório. A release anterior **v3.1.0** permanece congelada. Este patch operacional aplica migrations D1 pendentes antes do Worker no fluxo padrão de deploy e amplia o guia Cloudflare Access. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006`, sem mudança funcional no produto.
+A **3.2.0 está publicada**, identificada pela tag **v3.2.0**; é a release atual e latest do repositório. A release anterior **v3.1.1** permanece congelada. Esta versão reúne filtro recursivo de grupos, caminho hierárquico completo nos badges, edição bidirecional de UTMs e `ROOT_REDIRECT_URL` como Text opcional no setup. O Admin traz Light e Dark refinados, cards compactos, badges semânticas e detalhes A/B sob demanda; o README apresenta screenshots atuais e uma demonstração animada com dados fictícios. **MIGRATION_0007 = NOT REQUIRED**; migrations `0000`–`0006` e schema preservados. Veja [Admin UX](docs/admin-ux.md).
 
 Publicar tag/release é **source distribution** e não opera Cloudflare de clientes. Cada instalação executa o próprio `npm run deploy`, que aplica apenas migrations pendentes antes do Worker, e configura seu próprio Access. O guia completo está em [Cloudflare Access](docs/admin-auth.md).
 
@@ -14,12 +10,12 @@ A correção de compatibilidade da mesma 3.1.1 substitui apenas pontos e vírgul
 
 ## Recursos preservados desde a 3.1.0
 
-A **3.1.0**, agora release anterior congelada na tag **v3.1.0**, introduziu os recursos abaixo. A tag histórica **v3.0.0** também permanece congelada. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
+A **3.1.0**, release histórica congelada na tag **v3.1.0**, introduziu os recursos abaixo. A tag histórica **v3.0.0** também permanece congelada. A 3.1.0 adiciona Lixeira, restauração validada, exclusão definitiva com reutilização de slug e limpeza administrativa explícita com preview e retenção de 90 dias. Não há Cron automático. O export passa a conter somente links ativos; tombstones ficam fora do documento e dos limites de links, enquanto ativos inválidos continuam fail-closed. Import v1 legado com `disabled: true` continua aceito. **MIGRATION_0007 = NOT REQUIRED**; migrations permanecem `0000`–`0006`.
 
-Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.1.1`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
+Contrato completo e operação no Admin: [Lixeira e recuperação](docs/trash-recovery.md). Os procedimentos correntes abaixo seguem a release `3.2.0`; a tag `v3.1.0` conserva o procedimento histórico sem migrations automáticas. Publicar código no Git/GitHub não atualiza instalações: deploy, D1 remoto e Access exigem autorização própria por instalação.
 
 
-Este arquivo é a entrada única para qualquer IA operar o BoltLink (**3.1.1** é a release publicada atual — tag `v3.1.1`, branch `main`; `v3.1.0` é a release anterior e `v2.2.1` é o baseline histórico do upgrade das features) com segurança.
+Este arquivo é a entrada única para qualquer IA operar o BoltLink (**3.2.0** é a release publicada atual — tag `v3.2.0`, branch `main`; `v3.1.1` é a release anterior e `v2.2.1` é o baseline histórico do upgrade das features) com segurança.
 
 O objetivo dele é permitir que a IA:
 
@@ -43,21 +39,21 @@ Leia nesta ordem antes de agir:
 
 ## Bases de código (não confundir)
 
-A release atual publicada é a **`3.1.1`**, identificada pela tag `v3.1.1` na branch `main`. O patch preserva os recursos da 3.1.0 e corrige o processo de deploy, sem migration nova. A tag publicada e `main` devem convergir para o mesmo release commit; essa igualdade é um invariante operacional verificado externamente por Git/GitHub API nos gates de publicação e auditoria pós-publicação, sem exigir um SHA corrente literal neste documento. Ela mantém as migrations `0000` a `0006`, os recursos publicados desde a `3.0.0` e a Lixeira/recuperação introduzidas na `3.1.0`, sem migration nova. As Fases 2–5 são **origem histórica** do que ela publica, não estados ativos de desenvolvimento:
+A release atual publicada é a **`3.2.0`**, identificada pela tag `v3.2.0` na branch `main`. A 3.2.0 refina o Admin e o setup e preserva o deploy com migrations pendentes introduzido na 3.1.1, sem migration nova. A tag publicada e `main` devem convergir para o mesmo release commit; essa igualdade é um invariante operacional verificado externamente por Git/GitHub API nos gates de publicação e auditoria pós-publicação, sem exigir um SHA corrente literal neste documento. Ela mantém as migrations `0000` a `0006`, os recursos publicados desde a `3.0.0` e a Lixeira/recuperação introduzidas na `3.1.0`, sem migration nova. As Fases 2–5 são **origem histórica** do que ela publica, não estados ativos de desenvolvimento:
 
 | Base | Como identificar | Migrations | Recursos extras |
 | --- | --- | --- | --- |
-| **Release atual publicada** (`3.1.1`) | tag `v3.1.1`, branch `main` (convergência verificada no gate de publicação/pós-publicação) | `0000` a `0006` | Lixeira + recuperação + exclusão definitiva/purge manual + export ativo + Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
-| **Release anterior congelada** (`3.1.0`) | tag `v3.1.0` | `0000` a `0006` | mesmos recursos de produto; deploy sem migrations automáticas |
+| **Release atual publicada** (`3.2.0`) | tag `v3.2.0`, branch `main` (convergência verificada no gate de publicação/pós-publicação) | `0000` a `0006` | Lixeira + recuperação + exclusão definitiva/purge manual + export ativo + Split Test A/B + Smart Routing + destino de expiração + `ROOT_REDIRECT_URL` + hierarquia de grupos + exportação portátil + importação portátil + QR Code com preview e download PNG/SVG no painel |
+| **Release anterior congelada** (`3.1.1`) | tag `v3.1.1` | `0000` a `0006` | recursos anteriores às melhorias de Admin/setup da 3.2.0; deploy com migrations pendentes |
 | **Baseline histórico do upgrade** (`v2.2.1`) | tag real: `git rev-parse v2.2.1` → `8b3895e` | `0000` a `0003` | — |
 | Fase 2 (checkpoint histórico) | baseline local `23353a1` | `0000` a `0004` | Split Test A/B |
 | Fase 3 (checkpoint congelado) | HEAD `548f179` | `0000` a `0005` | Fase 2 + Smart Routing |
 | Fase 4 (checkpoint congelado) | HEAD `cdb9f83` | `0000` a `0006` | Fase 3 + destino de expiração + `ROOT_REDIRECT_URL` |
 | Fase 5 (checkpoint pre-freeze) | `3670a44` sobre `cdb9f83` | `0000` a `0006` (sem migration nova) | Fase 4 + hierarquia de grupos + exportação portátil + importação portátil + QR Code — evoluiu para a release `3.0.0` |
 
-Não chame a `v2.2.1` de release atual: a release anterior imediata é `v3.1.0`; `v2.2.1` é o **baseline histórico do upgrade**. A `v2.2.1` não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a integridade de hierarquia de grupos nem a exportação portátil da Fase 5 (a tag tem a tabela `link_groups` desde a `0002`, mas sem validação de ciclo, profundidade, delete ou concorrência, e não existe `GET /api/export`).
+Não chame a `v2.2.1` de release atual: a release anterior imediata é `v3.1.1`; `v2.2.1` é o **baseline histórico do upgrade**. A `v2.2.1` não contém a `0004`, o Split Test A/B, a `0005` nem o Smart Routing, e também não contém o script `npm run dev-prepare`. Também não contém a `0006`, o destino de expiração nem o `ROOT_REDIRECT_URL` da Fase 4, e não contém a integridade de hierarquia de grupos nem a exportação portátil da Fase 5 (a tag tem a tabela `link_groups` desde a `0002`, mas sem validação de ciclo, profundidade, delete ou concorrência, e não existe `GET /api/export`).
 
-Release atual publicada (`3.1.1`, tag `v3.1.1`):
+Release atual publicada (`3.2.0`, tag `v3.2.0`):
 
 - redirect público por slug
 - painel administrativo estático
@@ -78,13 +74,13 @@ Release atual publicada (`3.1.1`, tag `v3.1.1`):
 
 ### Histórico dos gates 3.0.0 e publicação 3.1.0
 
-- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Essa linha evoluiu para a release `3.0.0` (essa é a versão histórica; o checkout corrente está em `3.2.0` candidata).
+- Baseline pre-freeze da Fase 5: `3670a44619751a80e6de61e0c928b080d99c0cb6` (`feat: add SVG QR download and polish dialog`), sobre o HEAD congelado da Fase 4 `cdb9f83`. Essa linha evoluiu para a release `3.0.0` (essa é a versão histórica; o checkout corrente está na release `3.2.0`).
 - Gates congelados da Fase 5 (não reimplementar, não reabrir sem finding concreto): Gate 5.1 hierarquia de grupos (`a82dda5`), Gate 5.2 export portátil (`d8bb407`), microfix do Groups Drawer (`6de22f2`), Gate 5.3 import portátil (`d3f8818`), Gate 5.4 workflow de QR Code (`fe705fc`), Gate 5.4.1 QR UX + downloads PNG/SVG (`3670a44`).
 - Gate 5.5 (integração final e freeze de documentação): **FROZEN**. Fechou o finding BL-54-04 e reconciliou a documentação, sem feature nova, sem migration, sem bump de versão, sem tag e sem deploy.
 - **Phase 6 — Release Readiness: COMPLETE**, terminando em **Gate 6.6 (publicação): PASSED** — na publicação inicial, a tag `v3.0.0` foi criada sobre `60c8575`, com push de `main` e da tag e GitHub Release concluídos. A `v3.0.0` **já possui tag e GitHub Release**; Cloudflare/D1 continuam per-installation.
 - **Phase 7 — Current-State Reconciliation (histórico da 3.0.0 congelada)**: Gate 7.2 concluído (BL-66-01); Gate 7.3 rejeitado; Gate 7.4 concluído (correções BL-73-01..04); Gate 7.5 aprovado; Gate 7.6 produziu o commit de correção; Gate 7.7 concluiu a republicação controlada da mesma `v3.0.0`. Gate 7.8 reconciliou a identificação corrente sem SHA literal (BL-77-01), sem bump, migration ou mudança funcional.
-- **Modelo de distribuição da release do repositório**: source commit + tag `v3.1.1` + push + GitHub Release. Não existe Worker, D1, hostname, Cloudflare Account, deploy ou migration remota oficiais: cada instalação é self-hosted e executa o próprio backup, as próprias migrations e o próprio deploy. Cloudflare login **não** é requisito para publicar o repositório.
-- Ao retomar o trabalho, o estado é: **release `3.1.1` publicada** (tag `v3.1.1`, branch `main`); a linha 3.0.0 permanece congelada e os gates das Phases 6–7 são históricos. Publicar a tag não significa que instalações foram atualizadas — deploy e migrations são por instalação.
+- **Modelo de distribuição da release do repositório**: source commit + tag `v3.2.0` + push + GitHub Release. Não existe Worker, D1, hostname, Cloudflare Account, deploy ou migration remota oficiais: cada instalação é self-hosted e executa o próprio backup, as próprias migrations e o próprio deploy. Cloudflare login **não** é requisito para publicar o repositório.
+- Ao retomar o trabalho, o estado é: **release `3.2.0` publicada** (tag `v3.2.0`, branch `main`); a linha 3.0.0 permanece congelada e os gates das Phases 6–7 são históricos. Publicar a tag não significa que instalações foram atualizadas — deploy e migrations são por instalação.
 - A dívida técnica `TS7016` do módulo `qrcode` foi **aceita para a 3.0.0** como **não bloqueante**.
 
 O produto não mantém:
@@ -122,7 +118,7 @@ O produto não mantém:
 - configuração Smart Routing persistida e ilegível é corrupção **preservada**, não "desativada": a API informa `smartRoutingStatus: "invalid"` (sem expor o valor cru), edições não relacionadas não podem apagá-la e só uma ação explícita de limpeza grava `NULL`
 - o lifecycle vence senha, A/B e Smart Routing: link expirado com destino válido responde `302` + `no-store`, sem destino responde `410` + `no-store`, e requests expirados não contam clique nem gravam no banco (Fase 4)
 - `ROOT_REDIRECT_URL` é opcional e não secreta: válida faz `GET /` responder `302` + `no-store` sem tocar D1; ausente/inválida serve a landing; unknown slugs continuam `404` (Fase 4)
-- para desenvolvimento local do Worker na release (`3.1.1`), rode `npm run dev-prepare` (aplica as migrations `0000`–`0006` no D1 do Wrangler) antes de `npm run dev`; no checkout histórico da tag `v2.2.1` esse script não existe, use `npm run wrangler -- d1 migrations apply ... --local`
+- para desenvolvimento local do Worker na release (`3.2.0`), rode `npm run dev-prepare` (aplica as migrations `0000`–`0006` no D1 do Wrangler) antes de `npm run dev`; no checkout histórico da tag `v2.2.1` esse script não existe, use `npm run wrangler -- d1 migrations apply ... --local`
 
 ## Como interpretar pedidos
 
@@ -183,15 +179,15 @@ Fluxo para `Iniciar o Projeto`:
 4. rodar `npm install`
 5. rodar `npm run setup`
 6. se o usuário quiser banco explícito, criar D1 com `npm run wrangler -- d1 create ... --update-config`
-7. aplicar migrations locais (na release `3.1.1`: `npm run dev-prepare`; no checkout histórico da tag `v2.2.1`: `npm run wrangler -- d1 migrations apply ... --local`)
-8. se houver autorização para deploy remoto da release 3.1.1, usar `npm run deploy`: aplica as migrations pendentes antes do Worker; no Deploy Button/Workers Builds, manter esse Deploy command após o provisionamento do D1
+7. aplicar migrations locais (na release `3.2.0`: `npm run dev-prepare`; no checkout histórico da tag `v2.2.1`: `npm run wrangler -- d1 migrations apply ... --local`)
+8. se houver autorização para deploy remoto da release 3.2.0, usar `npm run deploy`: aplica as migrations pendentes antes do Worker; no Deploy Button/Workers Builds, manter esse Deploy command após o provisionamento do D1
 9. rodar `npm test`
 10. parar antes da criação final do Access
 
 Se o pedido for iniciar o projeto apenas localmente para testes manuais, a IA deve preparar o D1 local do Worker **antes** de `npm run dev`:
 
 ```bash
-npm run dev-prepare   # release 3.1.1: aplica 0000–0006 no D1 local do Worker
+npm run dev-prepare   # release 3.2.0: aplica 0000–0006 no D1 local do Worker
 ```
 
 `npm run dev-prepare` aplica as migrations no D1 local usado pelo `wrangler dev` (`.wrangler/state/v3/d1`). Sem isso o Worker responde `503 Database schema is not initialized`. No checkout histórico da tag `v2.2.1` esse script não existe; use `npm run wrangler -- d1 migrations apply <nome-do-banco-ou-binding-real> --local`.
@@ -223,7 +219,7 @@ Quando o pedido for `Atualizar o Projeto`, a IA deve:
 6. rodar `npm install`
 7. rodar `npm run wrangler:init`
 8. aplicar migrations locais (`npm run dev-prepare` na release atual; `npm run wrangler -- d1 migrations apply ... --local` no checkout histórico da tag `v2.2.1`)
-9. se o deploy remoto for operado por CLI e estiver autorizado: usar `npm run deploy` da release 3.1.1 (migrations pendentes antes do Worker)
+9. se o deploy remoto for operado por CLI e estiver autorizado: usar `npm run deploy` da release 3.2.0 (migrations pendentes antes do Worker)
 10. se o deploy for GitHub auto-deploy ou Deploy Button: conferir Deploy command = `npm run deploy`; o script aplica migrations antes de publicar, sem etapa manual posterior obrigatória
 11. rodar `npm test`
 
@@ -284,7 +280,7 @@ A IA deve:
 
 O botão e o auto-deploy continuam usando `wrangler.jsonc`.
 
-No checkout da release **3.1.1**, aceite/mantenha `npm run deploy` como Deploy command. O Deploy Button detecta esse script; em Workers Builds já configurado, confira **Settings > Build > Deploy command** e ajuste para `npm run deploy`. Um comando direto `wrangler deploy` não executa o script de migrations.
+No checkout da release **3.2.0**, aceite/mantenha `npm run deploy` como Deploy command. O Deploy Button detecta esse script; em Workers Builds já configurado, confira **Settings > Build > Deploy command** e ajuste para `npm run deploy`. Um comando direto `wrangler deploy` não executa o script de migrations.
 
 ```text
 npm run deploy
@@ -346,7 +342,7 @@ npm install
 npm run setup
 ```
 
-Setup local com banco SQLite de apoio (release `3.1.1`):
+Setup local com banco SQLite de apoio (release `3.2.0`):
 
 ```bash
 npm install
@@ -400,5 +396,5 @@ Se a IA seguir este arquivo corretamente, ela deve conseguir:
 
 ---
 
-Release atual publicada: 3.1.1 · Tag: v3.1.1 · Release anterior: 3.1.0
+Release atual publicada: 3.2.0 · Tag: v3.2.0 · Release anterior: 3.1.1
 Criado por Vitor Faustino - vitorfaustino.com.br

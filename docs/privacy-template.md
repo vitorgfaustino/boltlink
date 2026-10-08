@@ -116,5 +116,5 @@ Toda responsabilidade pela operação concreta deste ambiente, pela configuraç�
 
 ---
 
-Release atual publicada: 3.1.1 · Tag: v3.1.1
+Release atual publicada: 3.2.0 · Tag: v3.2.0
 Criado por Vitor Faustino - vitorfaustino.com.br

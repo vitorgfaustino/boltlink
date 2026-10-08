@@ -1,14 +1,14 @@
 # Referência técnica do BoltLink
 
-Release atual publicada: **3.1.1**, tag **v3.1.1**. Checkout de desenvolvimento: **3.2.0 candidata**, não publicada.
+Release atual publicada: **3.2.0**, tag **v3.2.0**. Release anterior: **v3.1.1**, congelada.
 
-Referência de procedimentos e contratos técnicos que complementa a apresentação do produto no README. A release anterior `v3.1.0` permanece congelada.
+Referência de procedimentos e contratos técnicos que complementa a apresentação do produto no README. A release anterior `v3.1.1` permanece congelada.
 
 ## Três formas de usar
 
-### 1. Wrangler local (release 3.1.1)
+### 1. Wrangler local (release 3.2.0)
 
-A release oficial publicada é `3.1.1`, tag `v3.1.1`. O checkout de desenvolvimento abre a candidata `3.2.0`. Ambos preservam o deploy com migrations automáticas introduzido na 3.1.1.
+A release oficial publicada é `3.2.0`, tag `v3.2.0`. Ela preserva o deploy com migrations pendentes introduzido na 3.1.1.
 
 ```bash
 npm install
@@ -75,7 +75,7 @@ Pedidos úteis:
 
 ### 3. One-click / GitHub auto-deploy
 
-No checkout da release **3.1.1**, aceite/mantenha `npm run deploy` como Deploy command. O Deploy Button detecta esse script; em Workers Builds já configurado, confira **Settings > Build > Deploy command** e ajuste para `npm run deploy`. Um comando direto `wrangler deploy` não executa o script de migrations.
+No checkout da release **3.2.0**, aceite/mantenha `npm run deploy` como Deploy command. O Deploy Button detecta esse script; em Workers Builds já configurado, confira **Settings > Build > Deploy command** e ajuste para `npm run deploy`. Um comando direto `wrangler deploy` não executa o script de migrations.
 
 ```text
 npm run deploy
@@ -138,7 +138,7 @@ Esse arquivo é um ponto de partida e deve ser adaptado pelo operador antes do u
 
 ## Procedimento histórico: upgrade para a v2.2.1
 
-Procedimento histórico da **release v2.2.1 (tag `v2.2.1`)**, que termina na migration `0003_lgpd_minimization.sql`. A release atual é a `3.1.1`; para sair da `v2.2.1` e chegar nela, use o fluxo consolidado de `docs/upgrading.md`.
+Procedimento histórico da **release v2.2.1 (tag `v2.2.1`)**, que termina na migration `0003_lgpd_minimization.sql`. A release atual é a `3.2.0`; para sair da `v2.2.1` e chegar nela, use o fluxo consolidado de `docs/upgrading.md`.
 
 ```bash
 git pull --ff-only
@@ -282,7 +282,7 @@ Compatibilidade:
 - afeta somente a raiz: unknown slugs continuam `404`, e `/admin`, `/api`, `/health`, `/privacidade` e assets não mudam de comportamento
 - o valor precisa ser uma URL `http`/`https` absoluta; um valor que aponta de volta para a própria raiz da instância cai na landing
 
-Na candidata 3.2.0, o template público `wrangler.jsonc` define `ROOT_REDIRECT_URL` com valor vazio para expor um campo Text opcional no setup inicial. Na tag congelada v3.1.1, ela era adicionada manualmente após o deploy. O config público usa `keep_vars = true`, que preserva as variáveis configuradas no dashboard durante deploys, então o valor vive no painel da Cloudflare (tipo `Text`) em fluxos de dashboard/GitHub auto-deploy, ou no `wrangler.local.jsonc`/`.dev.vars` em desenvolvimento e deploy Wrangler local. Não é secret e não pertence a listas de segredos.
+Na 3.2.0, o template público `wrangler.jsonc` define `ROOT_REDIRECT_URL` com valor vazio para expor um campo Text opcional no setup inicial. Na tag congelada v3.1.1, ela era adicionada manualmente após o deploy. O config público usa `keep_vars = true`, que preserva as variáveis configuradas no dashboard durante deploys, então o valor vive no painel da Cloudflare (tipo `Text`) em fluxos de dashboard/GitHub auto-deploy, ou no `wrangler.local.jsonc`/`.dev.vars` em desenvolvimento e deploy Wrangler local. Não é secret e não pertence a listas de segredos.
 
 ### O que a release 3.0.0 não muda
 
@@ -307,7 +307,7 @@ Como a árvore se comporta:
 - **Exclusão.** `DELETE /api/groups/:id` só remove um grupo sem subgrupos e sem nenhum link, **incluindo links desabilitados**. Com subgrupos ou links responde `409`; inexistente responde `404`. Não há cascade nem reparent automático.
 - **Sem exclusão automática.** Mover ou excluir o último link de um grupo deixa o grupo no banco. O comportamento antigo (`cleanupEmptyGroup`) apagava grupos ignorando subgrupos e links desabilitados e foi removido. Remover um grupo é sempre uma decisão explícita do operador.
 - **Grafo corrompido falha fechado.** Se um SQL externo gravar um ciclo, `GET /api/groups` responde `409` e o Admin mostra o erro sem montar árvore parcial e sem reparo automático.
-- **Leitura.** `GET /api/groups` continua devolvendo linhas planas com `parent_id`; o Admin monta a árvore, mostra o caminho completo (`Clientes / Brasil / Campinas`) e permite expandir, recolher, criar, mover e excluir. Na tag publicada v3.1.1, o filtro por grupo significa **associação direta**, sem incluir subgrupos. Na candidata 3.2.0, o filtro do Admin inclui todos os descendentes, conforme [Admin UX](admin-ux.md). A API conserva a associação direta quando `include_descendants=true` não é enviado.
+- **Leitura.** `GET /api/groups` continua devolvendo linhas planas com `parent_id`; o Admin monta a árvore, mostra o caminho completo (`Clientes / Brasil / Campinas`) e permite expandir, recolher, criar, mover e excluir. Na tag histórica v3.1.1, o filtro por grupo significa **associação direta**, sem incluir subgrupos. Na 3.2.0, o filtro do Admin inclui todos os descendentes, conforme [Admin UX](admin-ux.md). A API conserva a associação direta quando `include_descendants=true` não é enviado.
 - **Redirect inalterado.** `GET /:slug` continua com a mesma leitura de `links`, sem `JOIN` em `link_groups`, sem consulta ao grupo e sem custo adicional por clique.
 
 ## Portabilidade de configuração (release 3.0.0)
